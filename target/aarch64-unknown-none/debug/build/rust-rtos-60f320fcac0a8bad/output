@@ -1,0 +1,27 @@
+TARGET = Some("aarch64-unknown-none")
+OPT_LEVEL = Some("0")
+HOST = Some("aarch64-apple-darwin")
+CC_aarch64-unknown-none = None
+CC_aarch64_unknown_none = None
+TARGET_CC = None
+CC = None
+CROSS_COMPILE = None
+CFLAGS_aarch64-unknown-none = None
+CFLAGS_aarch64_unknown_none = None
+TARGET_CFLAGS = None
+CFLAGS = None
+CRATE_CC_NO_DEFAULTS = None
+DEBUG = Some("true")
+CARGO_CFG_TARGET_FEATURE = Some("llvm14-builtins-abi,neon,pmuv3")
+running: "cc" "-O0" "-ffunction-sections" "-fdata-sections" "-fPIC" "-g" "-fno-omit-frame-pointer" "-Wall" "-Wextra" "-o" "/Users/luickklippel/Documents/Projekte/rust-rtos/target/aarch64-unknown-none/debug/build/rust-rtos-60f320fcac0a8bad/out/src/boot.o" "-c" "src/boot.s"
+exit status: 0
+AR_aarch64-unknown-none = None
+AR_aarch64_unknown_none = None
+TARGET_AR = None
+AR = None
+running: "ar" "cq" "/Users/luickklippel/Documents/Projekte/rust-rtos/target/aarch64-unknown-none/debug/build/rust-rtos-60f320fcac0a8bad/out/libboot.a" "/Users/luickklippel/Documents/Projekte/rust-rtos/target/aarch64-unknown-none/debug/build/rust-rtos-60f320fcac0a8bad/out/src/boot.o"
+exit status: 0
+running: "ar" "s" "/Users/luickklippel/Documents/Projekte/rust-rtos/target/aarch64-unknown-none/debug/build/rust-rtos-60f320fcac0a8bad/out/libboot.a"
+exit status: 0
+cargo:rustc-link-lib=static=boot
+cargo:rustc-link-search=native=/Users/luickklippel/Documents/Projekte/rust-rtos/target/aarch64-unknown-none/debug/build/rust-rtos-60f320fcac0a8bad/out
