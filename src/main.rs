@@ -1,5 +1,5 @@
-#![no_std]
 #![no_main]
+#![no_std]
 
 mod serial;
 
@@ -7,7 +7,7 @@ core::arch::global_asm!(include_str!("boot.S"));
 
 #[no_mangle]
 pub extern "C" fn kernel_main() {
-	serial::kprint("test \n");
+	serial::kprint!("Booting {:?}", "Kernel!");
 }
 
 #[panic_handler]
