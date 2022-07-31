@@ -1,5 +1,9 @@
 # Rust RealTime Microkernel
 
+## Goal
+
+The goal is to build a minimalistic robotic platform for embedded projects. The idea is to enable Rust applications to run on this kernel with std support as well as a kernel provided, robotic specific, toolset. Such a toolset includes communication, control, state handling and other ciritical robotic domains. This would enable a ultra light, simplistic and highly integrated robotic platform.
+
 ## Build
 
 Rust is definitely not a simple language and requires build system with quite a lot of dependencies. Additionally it's built on top of C and does not have its build tools (e.g. own linker) because of which it requires complex toolchains to build. Another interesting aspect is that, similar to C++, the compiler requires certain functions to be linked against, so called lang-items. More on the topic can be read [here](https://manishearth.github.io/blog/2017/01/11/rust-tidbits-what-is-a-lang-item/).These are partially provided by the core crate which is precompiled for most targets, but not for all. The target for which this rt kernel is build (`aarch64-unknown-none`) does not have a core lib provided. That leaves two options, compiling it with rustups nightly `build-std=core` feature or not using it at all. Both of which are not stable.
