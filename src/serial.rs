@@ -1,6 +1,5 @@
 use core::fmt;
 
-// raspb 0x3F20_1000
 const MMIO_SERIAL: *mut u64 = (0x3F20_1000) as *mut u64;
 
 pub struct SerialWrite;

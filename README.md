@@ -4,6 +4,14 @@
 
 The goal is to build a minimalistic robotic platform for embedded projects. The idea is to enable Rust applications to run on this kernel with std support as well as a kernel provided, robotic specific, toolset. Such a toolset includes communication, control, state handling and other ciritical robotic domains. This would enable a ultra light, simplistic and highly integrated robotic platform.
 
+## Implementations
+
+### CPU
+#### Interrupt controller
+
+Since the projects basics are developed on the qemu raspi3b machine, I'm restricted to it's given hardware restrictions. The A53 has a [GIC-400](https://docs.zephyrproject.org/3.0.0/boards/arm64/qemu_cortex_a53/doc/index.html) interrupt controller cpu interface and as such supports [gicv2 only](https://developer.arm.com/documentation/ka002107/latest).
+I reimplemented the basics (init) from the [official arm cpu driver](https://github.com/ARM-software/arm-trusted-firmware/blob/master/drivers/arm/gic/v2/gicv2_main.c) github repo.
+
 ## Build
 
 Rust is definitely not a simple language and requires build system with quite a lot of dependencies. Additionally it's built on top of C and does not have its build tools (e.g. own linker) because of which it requires complex toolchains to build. Another interesting aspect is that, similar to C++, the compiler requires certain functions to be linked against, so called lang-items. More on the topic can be read [here](https://manishearth.github.io/blog/2017/01/11/rust-tidbits-what-is-a-lang-item/).These are partially provided by the core crate which is precompiled for most targets, but not for all. The target for which this rt kernel is build (`aarch64-unknown-none`) does not have a core lib provided. That leaves two options, compiling it with rustups nightly `build-std=core` feature or not using it at all. Both of which are not stable.
