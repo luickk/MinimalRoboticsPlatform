@@ -1,53 +1,10 @@
 // advanced boot
-// is meant to setup the main kernel thread running in el1 with mmu disable, exc.vec. table setup, slave core disabled and fp/ smid operations enabled
+// is meant to setup the main kernel thread running in el1(erets to el2 and then in el1_entry_aarch64 to el1) with mmu disable, exc.vec. table setup, slave core disabled and fp/ smid operations enabled
 .section ".text.boot"
 
-.globl	_start
+.equ AArch64_EL1_SP1,      0x05    // EL1h
 
-_start:
-	// clearing gprs
-	mov	x0, #0
-	mov	x1, #0
-	mov	x2, #0
-	mov	x3, #0
-	mov	x4, #0
-	mov	x5, #0
-	mov	x6, #0
-	mov	x7, #0
-	mov	x8, #0
-	mov	x9, #0
-	mov	x10, #0
-	mov	x11, #0
-	mov	x12, #0
-	mov	x13, #0
-	mov	x14, #0
-	mov	x15, #0
-	mov	x16, #0
-	mov	x17, #0
-	mov	x18, #0
-	mov	x19, #0
-	mov	x20, #0
-	mov	x21, #0
-	mov	x22, #0
-	mov	x23, #0
-	mov	x24, #0
-	mov	x25, #0
-	mov	x26, #0
-	mov	x27, #0
-	mov	x28, #0
-	mov	x29, #0
-	mov	x30, #0
-	
-	// from https://stackoverflow.com/questions/46194098/armv8-changing-from-el3-to-el1-secure
-	mov x0, xzr
-	orr x0, x0, #(1 << 29) // Checking http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0500d/CIHDIEBD.html
-	orr x0, x0, #(1 << 28) // Bits 29,28,23,22,20,11 should be 1 (res1 on documentation)
-	orr x0, x0, #(1 << 23)
-	orr x0, x0, #(1 << 22)
-	orr x0, x0, #(1 << 20)
-	orr x0, x0, #(1 << 11)
-	msr sctlr_el1, x0
-
+el1_entry_aarch64:
 	// setting up vector table (https://github.com/Xilinx/embeddedsw/blob/master/lib/bsp/standalone/src/arm/ARMv8/64bit/armclang/boot.S)
 	ldr x0, = exception_vector_table
 	msr vbar_el1, x0
@@ -58,7 +15,7 @@ _start:
 	msr	sctlr_el1, x1
 	isb
 
-	 //  Enable FP/SIMD for el1
+	//  Enable FP/SIMD for el1
 	mov	x0, #3 << 20
 	msr	cpacr_el1, x0
 	
@@ -72,7 +29,7 @@ _start:
 2:  // cpu id == 0
 
     // set top of stack just before our code (stack grows to a lower address per AAPCS64)
-    ldr     x1, =_start
+    ldr     x1, =el1_entry_aarch64
     mov     sp, x1
 
     // clear bss
@@ -80,10 +37,36 @@ _start:
     ldr     w2, =__bss_size
 3:  cbz     w2, 4f
     str     xzr, [x1], #8
-    sub     w2, w2, #1
-    cbnz    w2, 3b
+    sub		w2, w2, #1
+    cbnz	w2, 3b
 
     // jump to C code, should not return
 4:  bl      kernel_main
+
+// how to get from el3 to el1 is described here: https://developer.arm.com/documentation/102437/0100/Changing-Exception-levels
+.globl	_start
+_start:
 	// todo => implement a53 errata
 
+	// Configure SCR_EL3
+	// -----------------
+	MOV      w1, #0              // Initial value of register is unknown
+	ORR      w1, w1, #(1 << 11)  // set ST bit (disable trapping of timer control registers)
+	ORR      w1, w1, #(1 << 10)  // set RW bit (next lower EL in aarch64)
+	// ORR      w1, w1, #(1 << 3)   // Set EA bit (SError routed to EL3)
+	// ORR      w1, w1, #(1 << 2)   // Set FIQ bit (FIQs routed to EL3)
+	// ORR      w1, w1, #(1 << 1)   // Set IRQ bit (IRQs routed to EL3)
+	MSR      SCR_EL3, x1
+
+	 // Initialize SCTLR_EL1
+	// --------------------
+	// SCTLR_EL1 has an unknown reset value and must be configured
+	// before we can enter EL1
+	msr		SCTLR_EL1, xzr
+
+	ldr		x0, =el1_entry_aarch64
+	ldr 	x1, =AArch64_EL1_SP1
+	msr		ELR_EL3, x0 // where to branch to when exception completes
+	msr		SPSR_EL3, x1 // set the program state for this point to a known value
+
+	eret

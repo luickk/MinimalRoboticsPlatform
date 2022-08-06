@@ -25,6 +25,7 @@
     stp x26, x27, [sp, #16 * 13]
     stp x28, x29, [sp, #16 * 14]
 
+
     // store exception link register and exc. symptom reg
     mrs x0, elr_el1
     mrs x1, esr_el1
@@ -39,7 +40,7 @@
 
     // call exception handler
     bl \handler
-
+    
     // exit exception
     b .exit_exception
 .endm

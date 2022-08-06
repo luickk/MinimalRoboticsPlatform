@@ -9,8 +9,7 @@ The goal is to build a minimalistic robotic platform for embedded projects. The 
 ### CPU
 #### Interrupt controller
 
-Since the projects basics are developed on the qemu raspi3b machine, I'm restricted to it's given hardware restrictions. The A53 has a [GIC-400](https://docs.zephyrproject.org/3.0.0/boards/arm64/qemu_cortex_a53/doc/index.html) interrupt controller cpu interface and as such supports [gicv2 only](https://developer.arm.com/documentation/ka002107/latest).
-I reimplemented the basics (init) from the [official arm cpu driver](https://github.com/ARM-software/arm-trusted-firmware/blob/master/drivers/arm/gic/v2/gicv2_main.c) github repo.
+The Raspberry ships with the BCM2835 which is based on an Arm A53 but does not adapt its interrupt controller. More about the BCM2835s ic can be found [here](https://www.raspberrypi.org/app/uploads/2012/02/BCM2835-ARM-Peripherals.pdf)(p109) and [here](https://xinu.cs.mu.edu/index.php/BCM2835_Interrupt_Controller).
 
 ## Build
 
