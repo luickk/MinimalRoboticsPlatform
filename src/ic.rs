@@ -1,14 +1,97 @@
 use crate::utils;
 
-
 const RP_BASE: usize = 0x3F000000;
-const ENABLE_IRQ: usize = RP_BASE+0x0000B210;
-pub const IRQ_PENDING: usize = RP_BASE+0x0000B200;
+pub const IRQ_PENDING_BASIC: usize = RP_BASE+0x0000B200;
+const ENABLE_IRQ_1: usize = RP_BASE+0x0000B210;
+const ENABLE_IRQ_2: usize = RP_BASE+0x0000B214;
+const ENABLE_IRQ_BASIC: usize = RP_BASE+0x0000B218;
+
 const TIMER_CLO:usize = RP_BASE+0x00003004;
 const TIMER_C1:usize = RP_BASE+0x00003010;
-pub const ARM_TIMER_IRQ: u32 = 0 ^ (1 << 1);
-pub const ONE_OR_MORE_SET_IN_PENDING: u32 = 0 ^ (1 << 8);
 const TIMER_INTERVAL: u32 = 200000;
+
+// BANK0
+pub const ARM_TIMER: u32 = 0;
+pub const ARM_MAILBOX: u32 = 1 << 0;
+pub const ARM_DOORBELL_0: u32 = 1 << 1;
+pub const ARM_DOORBELL_1: u32 = 1 << 2;
+pub const VPU0_HALTED: u32 = 1 << 3;
+pub const VPU1_HALTED: u32 = 1 << 4;
+pub const ILLEGAL_TYPE0: u32 = 1 << 5;
+pub const ILLEGAL_TYPE1: u32 = 1 << 6;
+pub const PENDING_1: u32 = 1 << 7;
+pub const PENDING_2: u32 = 1 << 8;
+
+
+// BANK1
+pub const TIMER0: u32 = 0;
+pub const TIMER1: u32 = 1 << 0;
+pub const TIMER2: u32 = 1 << 1;
+pub const TIMER3: u32 = 1 << 2;
+pub const CODEC0: u32 = 1 << 3;
+pub const CODEC1: u32 = 1 << 4;
+pub const CODEC2: u32 = 1 << 5;
+pub const VC_JPEG: u32 = 1 << 6;
+pub const ISP: u32 = 1 << 7;
+pub const VC_USB: u32 = 1 << 8;
+pub const VC_3D: u32 = 1 << 9;
+pub const TRANSPOSER: u32 = 1 << 10;
+pub const MULTICORESYNC0: u32 = 1 << 11;
+pub const MULTICORESYNC1: u32 = 1 << 12;
+pub const MULTICORESYNC2: u32 = 1 << 13;
+pub const MULTICORESYNC3: u32 = 1 << 14;
+pub const DMA0: u32 = 1 << 15;
+pub const DMA1: u32 = 1 << 16;
+pub const VC_DMA2: u32 = 1 << 17;
+pub const VC_DMA3: u32 = 1 << 18;
+pub const DMA4: u32 = 1 << 19;
+pub const DMA5: u32 = 1 << 20;
+pub const DMA6: u32 = 1 << 21;
+pub const DMA7: u32 = 1 << 22;
+pub const DMA8: u32 = 1 << 23;
+pub const DMA9: u32 = 1 << 24;
+pub const DMA10: u32 = 1 << 25;
+// 27: DMA11-14 - shared interrupt for DMA 11 to 14
+pub const DMA11: u32 = 1 << 26;
+// 28: DMAALL - triggers on all dma interrupts (including chanel 15)
+pub const DMAALL: u32 = 1 << 27;
+pub const AUX: u32 = 1 << 28;
+pub const ARM: u32 = 1 << 29;
+pub const VPUDMA: u32 = 1 << 30;
+
+// BANK2
+pub const HOSTPORT: u32 = 0;
+pub const VIDEOSCALER: u32 = 1 << 0;
+pub const CCP2TX: u32 = 1 << 1;
+pub const SDC: u32 = 1 << 2;
+pub const DSI0: u32 = 1 << 3;
+pub const AVE: u32 = 1 << 4;
+pub const CAM0: u32 = 1 << 5;
+pub const CAM1: u32 = 1 << 6;
+pub const HDMI0: u32 = 1 << 7;
+pub const HDMI1: u32 = 1 << 8;
+pub const PIXELVALVE1: u32 = 1 << 9;
+pub const I2CSPISLV: u32 = 1 << 10;
+pub const DSI1: u32 = 1 << 11;
+pub const PWA0: u32 = 1 << 12;
+pub const PWA1: u32 = 1 << 13;
+pub const CPR: u32 = 1 << 14;
+pub const SMI: u32 = 1 << 15;
+pub const GPIO0: u32 = 1 << 16;
+pub const GPIO1: u32 = 1 << 17;
+pub const GPIO2: u32 = 1 << 18;
+pub const GPIO3: u32 = 1 << 29;
+pub const VC_I2C: u32 = 1 << 20;
+pub const VC_SPIv: u32 = 1 << 21;
+pub const VC_I2SPCM: u32 = 1 << 22;
+pub const VC_SDIO: u32 = 1 << 23;
+pub const VC_UART: u32 = 1 << 24;
+pub const SLIMBUS: u32 = 1 << 25;
+pub const VEC: u32 = 1 << 26;
+pub const CPG: u32 = 1 << 27;
+pub const RNG: u32 = 1 << 28;
+pub const VC_ARASANSDIO: u32 = 1 << 29;
+pub const AVSPMON: u32 = 1 << 30;
 
 // reads interrupt data placed by exc. vec from the stack
 #[repr(C)] 
@@ -105,7 +188,9 @@ pub fn timer_init () {
 
 pub fn init_ic() {
 	// enabling all irq types 
-	utils::write_to(ENABLE_IRQ, ARM_TIMER_IRQ);
+	utils::write_to(ENABLE_IRQ_1, 1 as u32);
+	utils::write_to(ENABLE_IRQ_2, 1 as u32);
+	utils::write_to(ENABLE_IRQ_BASIC, 1 as u32);
 	// configure irq mask
 	unsafe {
 		core::arch::asm!("msr daifclr, #0");

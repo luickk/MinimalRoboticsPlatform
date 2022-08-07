@@ -50,55 +50,55 @@
 exception_vector_table:
 
 .org 0x0000
-    EXCEPTION_VECTOR uncommon_trap_handler // el1_sp0_sync
+    EXCEPTION_VECTOR irq_elx_spx // el1_sp0_sync
 
 .org 0x0080
-    EXCEPTION_VECTOR uncommon_trap_handler // el1_sp0_irq
+    EXCEPTION_VECTOR irq_elx_spx // el1_sp0_irq
 
 .org 0x0100
-    EXCEPTION_VECTOR uncommon_trap_handler // el1_sp0_fiq
+    EXCEPTION_VECTOR irq_elx_spx // el1_sp0_fiq
 
 .org 0x0180
-    EXCEPTION_VECTOR uncommon_trap_handler // el1_sp0_error
+    EXCEPTION_VECTOR irq_elx_spx // el1_sp0_error
 
 
 .org 0x0200
-    EXCEPTION_VECTOR common_trap_handler // el1_sync (spx) selected bc issue I'm debugging is a sync exception
+    EXCEPTION_VECTOR irq_handler // el1_sync (spx) selected bc issue I'm debugging is a sync exception
 
 .org 0x0280
-    EXCEPTION_VECTOR common_trap_handler
+    EXCEPTION_VECTOR irq_handler
 
 .org 0x0300
-    EXCEPTION_VECTOR common_trap_handler
+    EXCEPTION_VECTOR irq_handler
 
 .org 0x0380
-    EXCEPTION_VECTOR common_trap_handler
+    EXCEPTION_VECTOR irq_handler
 
 
 .org 0x0400
-    EXCEPTION_VECTOR uncommon_trap_handler // el0_sync
+    EXCEPTION_VECTOR irq_elx_spx // el0_sync
 
 .org 0x0480
-    EXCEPTION_VECTOR uncommon_trap_handler // el0_irq
+    EXCEPTION_VECTOR irq_elx_spx // el0_irq
 
 .org 0x0500
-    EXCEPTION_VECTOR uncommon_trap_handler // el0_fiq
+    EXCEPTION_VECTOR irq_elx_spx // el0_fiq
 
 .org 0x0580
-    EXCEPTION_VECTOR uncommon_trap_handler // el0_error
+    EXCEPTION_VECTOR irq_elx_spx // el0_error
 
 
 .org 0x0600
-    EXCEPTION_VECTOR uncommon_trap_handler // el0_32_sync
+    EXCEPTION_VECTOR irq_elx_spx // el0_32_sync
 
 .org 0x0680
-    EXCEPTION_VECTOR uncommon_trap_handler // el0_32_irq
+    EXCEPTION_VECTOR irq_elx_spx // el0_32_irq
 
 .org 0x0700
-    EXCEPTION_VECTOR uncommon_trap_handler // el0_32_fiq
+    EXCEPTION_VECTOR irq_elx_spx // el0_32_fiq
 
 .org 0x0780
-    EXCEPTION_VECTOR uncommon_trap_handler // el0_32_error
+    EXCEPTION_VECTOR irq_elx_spx // el0_32_error
 
 .org 0x0800
 

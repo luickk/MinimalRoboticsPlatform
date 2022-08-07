@@ -9,7 +9,7 @@ The goal is to build a minimalistic robotic platform for embedded projects. The 
 ### CPU
 #### Interrupt controller
 
-The Raspberry ships with the BCM2835 which is based on an Arm A53 but does not adapt its interrupt controller. More about the BCM2835s ic can be found [here](https://www.raspberrypi.org/app/uploads/2012/02/BCM2835-ARM-Peripherals.pdf)(p109) and [here](https://xinu.cs.mu.edu/index.php/BCM2835_Interrupt_Controller).
+The Raspberry ships with the BCM2835 which is based on an Arm A53 but does not adapt its interrupt controller. More about the BCM2835s ic can be found [here](https://www.raspberrypi.org/app/uploads/2012/02/BCM2835-ARM-Peripherals.pdf)(p109) and [here](https://xinu.cs.mu.edu/index.php/BCM2835_Interrupt_Controller). The [linux driver implementation](https://github.com/torvalds/linux/blob/master/drivers/irqchip/irq-bcm2835.c) comments is also worth looking at.
 
 ## Build
 
