@@ -1,6 +1,5 @@
 #![no_main]
 #![no_std]
-#![feature(exclusive_range_pattern)]
 
 mod serial;
 mod utils;

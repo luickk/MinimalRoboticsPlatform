@@ -4,7 +4,7 @@
 
 .section .text.exceptions
 
-.macro EXCEPTION_VECTOR handler
+.macro EXCEPTION_VECTOR handler int_type
 
     sub sp, sp, #CONTEXT_SIZE
 
@@ -27,7 +27,7 @@
 
 
     // store exception link register and exc. symptom reg
-    mrs x0, elr_el1
+    ldr x0, \int_type
     mrs x1, esr_el1
     stp x0, x1, [sp, #16 * 15]
     
@@ -50,55 +50,55 @@
 exception_vector_table:
 
 .org 0x0000
-    EXCEPTION_VECTOR irq_elx_spx // el1_sp0_sync
+    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el1_sp0_sync
 
 .org 0x0080
-    EXCEPTION_VECTOR irq_elx_spx // el1_sp0_irq
+    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el1_sp0_irq
 
 .org 0x0100
-    EXCEPTION_VECTOR irq_elx_spx // el1_sp0_fiq
+    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el1_sp0_fiq
 
 .org 0x0180
-    EXCEPTION_VECTOR irq_elx_spx // el1_sp0_error
+    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el1_sp0_error
 
 
 .org 0x0200
-    EXCEPTION_VECTOR irq_handler // el1_sync (spx) selected bc issue I'm debugging is a sync exception
+    EXCEPTION_VECTOR irq_handler EL1_SYNC // el1_sync (spx) selected bc issue I'm debugging is a sync exception
 
 .org 0x0280
-    EXCEPTION_VECTOR irq_handler
+    EXCEPTION_VECTOR irq_handler EL1_IRQ // el1_irq
 
 .org 0x0300
-    EXCEPTION_VECTOR irq_handler
+    EXCEPTION_VECTOR irq_handler EL1_FIQ // el1_fiq
 
 .org 0x0380
-    EXCEPTION_VECTOR irq_handler
+    EXCEPTION_VECTOR irq_handler EL1_ERR // el1_error
 
 
 .org 0x0400
-    EXCEPTION_VECTOR irq_elx_spx // el0_sync
+    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el0_sync
 
 .org 0x0480
-    EXCEPTION_VECTOR irq_elx_spx // el0_irq
+    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el0_irq
 
 .org 0x0500
-    EXCEPTION_VECTOR irq_elx_spx // el0_fiq
+    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el0_fiq
 
 .org 0x0580
-    EXCEPTION_VECTOR irq_elx_spx // el0_error
+    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el0_error
 
 
 .org 0x0600
-    EXCEPTION_VECTOR irq_elx_spx // el0_32_sync
+    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el0_32_sync
 
 .org 0x0680
-    EXCEPTION_VECTOR irq_elx_spx // el0_32_irq
+    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el0_32_irq
 
 .org 0x0700
-    EXCEPTION_VECTOR irq_elx_spx // el0_32_fiq
+    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el0_32_fiq
 
 .org 0x0780
-    EXCEPTION_VECTOR irq_elx_spx // el0_32_error
+    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el0_32_error
 
 .org 0x0800
 
@@ -106,12 +106,12 @@ exception_vector_table:
 // restore link register
     ldr x30, [sp, #16 * 16]
 
-// restore exception link register and saved processor state register
-    ldp x0, x1, [sp, #16 * 15]
-    msr elr_el1, x0
-    msr esr_el1, x1
+    // restore exception link register and saved processor state register
+    // ldp x0, x1, [sp, #16 * 15]
+    // msr elr_el1, x0
+    // msr esr_el1, x1
 
-// restore general purpose registers
+    // restore general purpose registers
     ldp x28, x29, [sp, #16 * 14]
     ldp x26, x27, [sp, #16 * 13]
     ldp x24, x25, [sp, #16 * 12]
@@ -128,6 +128,6 @@ exception_vector_table:
     ldp x2, x3, [sp, #16 * 1]
     ldp x0, x1, [sp, #16 * 0]
 
-// restore stack pointer
+    // restore stack pointer
     add sp, sp, #CONTEXT_SIZE
     eret

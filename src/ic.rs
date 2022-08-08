@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+
 use crate::utils;
 
 const RP_BASE: usize = 0x3F000000;
@@ -9,6 +12,19 @@ const ENABLE_IRQ_BASIC: usize = RP_BASE+0x0000B218;
 const TIMER_CLO:usize = RP_BASE+0x00003004;
 const TIMER_C1:usize = RP_BASE+0x00003010;
 const TIMER_INTERVAL: u32 = 200000;
+
+// identifiers for the vector table ic_handler call
+#[no_mangle]
+pub static EL1_SYNC: u64 = 0x1;
+#[no_mangle]
+pub static EL1_IRQ: u64 = 0x2;
+#[no_mangle]
+pub static EL1_FIQ: u64 = 0x3;
+#[no_mangle]
+pub static EL1_ERR: u64 = 0x4;
+#[no_mangle]
+pub static ELX_SPX: u64 = 0x5;
+
 
 // BANK0
 pub const ARM_TIMER: u32 = 0;
@@ -82,7 +98,7 @@ pub const GPIO1: u32 = 1 << 17;
 pub const GPIO2: u32 = 1 << 18;
 pub const GPIO3: u32 = 1 << 29;
 pub const VC_I2C: u32 = 1 << 20;
-pub const VC_SPIv: u32 = 1 << 21;
+pub const VC_SPI: u32 = 1 << 21;
 pub const VC_I2SPCM: u32 = 1 << 22;
 pub const VC_SDIO: u32 = 1 << 23;
 pub const VC_UART: u32 = 1 << 24;
@@ -98,7 +114,7 @@ pub const AVSPMON: u32 = 1 << 30;
 #[derive(Clone, Copy)]
 pub struct ExceptionFrame {
     pub regs: [u64; 30],
-    pub elr_el1: u64,
+    pub int_type: u64,
     pub esr_el1: u64,
     pub spsr_el1: u64,
     pub lr: u64,
@@ -178,7 +194,6 @@ pub fn ec_from_u64(ec: u64) -> Option<ExceptionClass> {
 	    _ => None
 	}
 }	
-
 
 pub fn timer_init () {
 	let mut cur_val: u32 = utils::read_from(TIMER_CLO);

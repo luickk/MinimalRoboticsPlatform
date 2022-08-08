@@ -16,14 +16,33 @@ pub extern "C" fn ic_handle(exc: *const ic::ExceptionFrame) {
 		    let ec = exc.esr_el1 << 32; // 6 bits in size
 		    let ec = ec >> 58 as u64;
 		    if let Some(ec_type) = ic::ec_from_u64(ec){
-			    
 			    if ec_type != ic::ExceptionClass::UnknownReason {
+					kprint!(".........INT............\n");
 					kprint!("b0: {:#b} \n", irq_bank_0);
 					kprint!("b1: {:#b} \n", irq_bank_1);
 					kprint!("b2: {:#b} \n", irq_bank_2);
-				    kprint!("Esr: {:#b} \n", exc.esr_el1);
-				    kprint!("Ec: {:#b} \n", ec);
-				    kprint!("Ec: {:?} \n", ec_type);	
+
+					kprint!("INT type: ");
+					// ugly ugly rust. I want back to C ):
+					match exc.int_type {
+						0x1 => {
+				    		kprint!("EL1_SYNC \n");
+						},
+						0x2 => {
+				    		kprint!("EL1_FIQ \n");
+						},
+						0x3 => {
+				    		kprint!("EL1_IRQ \n");
+						},
+						0x4 => {
+				    		kprint!("EL1_ERR \n");
+						},
+						_ => {
+				    		kprint!("other \n");	
+						}
+					}
+				    kprint!("Ec: {:?} \n", ec_type);
+				    kprint!(".........INT............\n");	
 			    }
 		    } else {
 		    	kprint!("unknwown IRQ EC! \n");
@@ -68,7 +87,6 @@ pub extern "C" fn ic_handle(exc: *const ic::ExceptionFrame) {
 		// One or more bits set in pending register 2
 		ic::PENDING_2 => {
 			match irq_bank_2 {
-				ic::HOSTPORT => {},
 				_ => {
 					kprint!("Unknown IC bank 2 irq num: {:#b} \n", irq_bank_2);
 				}	
