@@ -2,6 +2,7 @@ const kprint = @import("serial.zig").kprint;
 const utils = @import("utils.zig");
 
 const intHandle = @import("intHandle.zig");
+const intController = @import("intController.zig");
 
 export fn kernel_main() callconv(.Naked) noreturn {
     // get address of external linker script variable which marks stack-top and heap-start
@@ -10,6 +11,11 @@ export fn kernel_main() callconv(.Naked) noreturn {
         unreachable;
     });
     _ = heap_start;
+
+    intController.timerInit();
+    intController.initIc();
+
+    utils.exceptionSvc();
 
     kprint("kernel boot complete \n", .{});
     while (true) {}

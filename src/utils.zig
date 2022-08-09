@@ -6,6 +6,11 @@ pub const PrintStyle = enum(u8) {
     binary = 2,
 };
 
+pub fn exceptionSvc() void {
+    // Supervisor call to allow application code to call the OS.  It generates an exception targeting exception level 1 (EL1).
+    asm volatile ("svc #0xdead");
+}
+
 // from zig std
 /// Compares two slices and returns whether they are equal.
 pub fn eql(comptime T: type, a: []const T, b: []const T) bool {
@@ -34,6 +39,18 @@ pub fn reverseString(str: [*]u8, len: usize) void {
         start += 1;
         end -= 1;
     }
+}
+
+// from zigs std lib
+pub const IntToEnumError = error{InvalidEnumTag};
+pub fn intToEnum(comptime EnumTag: type, tag_int: anytype) IntToEnumError!EnumTag {
+    inline for (@typeInfo(EnumTag).Enum.fields) |f| {
+        const this_tag_value = @field(EnumTag, f.name);
+        if (tag_int == @enumToInt(this_tag_value)) {
+            return this_tag_value;
+        }
+    }
+    return error.InvalidEnumTag;
 }
 
 // 20 is u64 max len in u8

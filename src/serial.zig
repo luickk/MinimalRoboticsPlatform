@@ -1,5 +1,5 @@
 const utils = @import("utils.zig");
-const adr = @import("raspberryAddr.zig");
+const addr = @import("raspberryAddr.zig");
 
 const KprintfParsingState = enum { filling_val, printing_ch };
 
@@ -11,7 +11,7 @@ pub const KprintfErr = error{
 };
 
 fn putChar(ch: u8) void {
-    adr.mmio_uart.* = ch;
+    addr.mmio_uart.* = ch;
 }
 
 fn print(print_string: []const u8) void {
