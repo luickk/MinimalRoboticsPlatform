@@ -1,7 +1,0 @@
-[package]
-name = "rust-rtos"
-version = "0.1.0"
-edition = "2021"
-build-std= "core"
-
-[dependencies] 

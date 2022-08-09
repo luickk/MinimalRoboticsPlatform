@@ -6,7 +6,7 @@ The goal is to build a minimalistic robotic platform for embedded projects. The 
 
 ## Why not Rust?
 
-I began this project in Rust but decided to switch to something (equally modern). Here is why.
+I began this project in Rust but decided to switch to Zig (equally modern). Here is why.
 The prime argument for Rust is safety, that is alsow true when it comes to embedded. The things is that I very rarely (wrote) saw embedded code that really made use (at least to an extend to which it would be relevant) of rusts safety since embedded code is mostly procedural and linear and not overly complex (opposing to higher level code). Zig on the other hand is a real improvement compared to rust bc it does not try to solve the problem through abstraction but concepts. I really tried rust in the beginning phase of this project which lead me to this conclusion.
 
 The Rust code can still be found in the seperate [rust branch](https://github.com/luickk/rust-rtos/tree/rust_code) and includes a proper Cargo build process(without making use of an external build tool) for the raspberry, as well as basic serial(with print! macro implementation) and interrupt controller utils.
