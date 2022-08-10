@@ -6,9 +6,9 @@ const os = @import("std").os;
 pub fn build(b: *std.build.Builder) void {
     const exe = b.addExecutable("kernel", null);
     exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
-    var l = b.addOptions();
-    l.addOption(bool, "is_qemu", true);
-    exe.addOptions("build_options", l);
+    var build_options = b.addOptions();
+    build_options.addOption(bool, "is_qemu", true);
+    exe.addOptions("build_options", build_options);
     exe.setBuildMode(std.builtin.Mode.ReleaseFast);
 
     exe.setLinkerScriptPath(std.build.FileSource{ .path = "src/linker.ld" });

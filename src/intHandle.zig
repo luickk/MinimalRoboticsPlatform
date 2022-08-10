@@ -1,15 +1,26 @@
 const kprint = @import("serial.zig").kprint;
 const utils = @import("utils.zig");
-const addr = @import("raspberryAddr.zig").iC;
+const addr = @import("raspberryAddr.zig").InterruptController;
 const iC = @import("intController.zig");
+const timer = @import("timer.zig");
 
-pub fn irq_handler(exc: *iC.ExceptionFrame) callconv(.C) void {
-    var irq_bank_0 = @intToPtr(*u32, addr.pendingBasic).*;
-    var irq_bank_2 = @intToPtr(*u32, addr.pendingBasic).*;
-    var irq_bank_1 = @intToPtr(*u32, addr.pendingBasic).*;
+const Bank0 = addr.Values.Bank0;
+const Bank1 = addr.Values.Bank1;
+const Bank2 = addr.Values.Bank2;
+
+pub fn irqHandler(exc: *iC.ExceptionFrame) callconv(.C) void {
+    var irq_bank_0 = @intToEnum(Bank0, @intToPtr(*u32, addr.pendingBasic).*);
+    var irq_bank_1 = @intToEnum(Bank1, @intToPtr(*u32, addr.pendingIrq1).*);
+    var irq_bank_2 = @intToEnum(Bank2, @intToPtr(*u32, addr.pendingIrq2).*);
+
+    // std intToEnum instead of build in in order to catch err
+    var int_type = utils.intToEnum(iC.ExceptionType, exc.int_type) catch {
+        kprint("int type not found \n", .{});
+        return;
+    };
 
     // if interrupt is triggerd and all banks indaddrate 0, src is not supported(?)
-    if (irq_bank_0 == 0 and irq_bank_1 == 0 and irq_bank_2 == 0) {
+    if (int_type == iC.ExceptionType.el1Sync) {
         var iss = @truncate(u25, exc.esr_el1);
         var il = @truncate(u1, exc.esr_el1 >> 25);
         var ec = @truncate(u6, exc.esr_el1 >> 26);
@@ -21,67 +32,57 @@ pub fn irq_handler(exc: *iC.ExceptionFrame) callconv(.C) void {
             kprint("esp exception class not found \n", .{});
             return;
         };
-        if (ec_en != iC.ExceptionClass.unknownReason) {
-            kprint(".........INT............\n", .{});
-            kprint("b0: {u} \n", .{irq_bank_0});
-            kprint("b1: {u} \n", .{irq_bank_1});
-            kprint("b2: {u} \n", .{irq_bank_2});
 
-            kprint("Exception Class(from esp reg): {s} \n", .{@tagName(ec_en)});
+        kprint(".........sync int............\n", .{});
 
-            if (il == 1) {
-                kprint("32 bit instruction trapped \n", .{});
-            } else {
-                kprint("16 bit instruction trapped \n", .{});
-            }
-            kprint(".........INT............\n", .{});
+        kprint("int type: {s} \n", .{@tagName(int_type)});
+        kprint("Exception Class(from esp reg): {s} \n", .{@tagName(ec_en)});
+        kprint("Int Type: {s} \n", .{@tagName(int_type)});
+
+        if (il == 1) {
+            kprint("32 bit instruction trapped \n", .{});
+        } else {
+            kprint("16 bit instruction trapped \n", .{});
         }
+        kprint(".........sync int............\n", .{});
     }
-    // switch (irq_bank_0) {
-    // 	addr::ARM_TIMER => {
-    // 		// system timer
-    // 		// todo => implement kernel timer
-    // 		// kprint!("arm timer irq b0\n");
-    // 		return;
-    // 	},
-    // 	addr::ARM_MAILBOX => {
-    // 		kprint!("arm mailbox\n");
-    // 	},
-    // 	addr::ARM_DOORBELL_0 => {
-    // 		kprint!("arm doorbell\n");
-    // 	},
-    // 	addr::ARM_DOORBELL_1 => {
-    // 		kprint!("armm doorbell 1 b1\n");
-    // 	},
-    // 	addr::VPU0_HALTED => {},
-    // 	addr::VPU1_HALTED => {},
-    // 	addr::ILLEGAL_TYPE0 => {},
-    // 	addr::ILLEGAL_TYPE1 => {},
-    // 	// One or more bits set in pending register 1
-    // 	addr::PENDING_1 => {
-    // 		match irq_bank_1 {
-    // 			// todo => implement timer
-    // 			addr::TIMER0 => {},
-    // 			addr::TIMER1 => {},
-    // 			addr::TIMER2 => {},
-    // 			addr::TIMER3 => {},
-    // 			_ => {
-    // 				kprint!("Unknown addr bank 1 irq num: {:#b} \n", irq_bank_1);
-    // 			}
-    // 		}
 
-    // 	},
-    // 	// One or more bits set in pending register 2
-    // 	addr::PENDING_2 => {
-    // 		match irq_bank_2 {
-    // 			_ => {
-    // 				kprint!("Unknown addr bank 2 irq num: {:#b} \n", irq_bank_2);
-    // 			}
-    // 		}
-    // 	},
-    // 	_ => {
-    // 		kprint!("Unknown addr bank 0 irq num: {:#b} \n", irq_bank_0);
-    // 	}
-    // }
+    switch (irq_bank_0) {
+        Bank0.armTimer => {
+            // system timer
+            // todo => implement kernel timer
+            timer.handleTimerIrq();
+            kprint("arm timer irq b0\n", .{});
+        },
+        Bank0.armMailbox => {
+            kprint("arm mailbox\n", .{});
+        },
+        Bank0.armDoorbell0 => {
+            kprint("arm doorbell\n", .{});
+        },
+        Bank0.armDoorbell1 => {
+            kprint("armm doorbell 1 b1\n", .{});
+        },
+        Bank0.vpu0Halted => {},
+        Bank0.vpu1Halted => {},
+        Bank0.illegalType0 => {},
+        Bank0.illegalType1 => {},
+        // One or more bits set in pending register 1
+        Bank0.pending1 => {
+            switch (irq_bank_1) {
+                else => {
+                    kprint("Unknown addr bank 1 irq num: {d} \n", .{irq_bank_1});
+                },
+            }
+        },
+        // One or more bits set in pending register 2
+        Bank0.pending2 => {
+            switch (irq_bank_2) {
+                else => {
+                    kprint("Unknown addr bank 2 irq num: {b} \n", .{irq_bank_2});
+                },
+            }
+        },
+    }
 }
-pub fn irq_elx_spx() callconv(.C) void {}
+pub fn irqElxSpx() callconv(.C) void {}

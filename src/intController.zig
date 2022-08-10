@@ -1,12 +1,19 @@
 const kprint = @import("serial.zig").kprint;
-const addr = @import("raspberryAddr.zig").iC;
+const addr = @import("raspberryAddr.zig").InterruptController;
 
 // identifiers for the vector table addr_handler call
-pub export const EL1_SYNC: u64 = 0x1;
-pub export const EL1_IRQ: u64 = 0x2;
-pub export const EL1_FIQ: u64 = 0x3;
-pub export const EL1_ERR: u64 = 0x4;
-pub export const ELX_SPX: u64 = 0x5;
+pub const ExceptionType = enum(u64) {
+    el1Sync = 0x1,
+    el1Irq = 0x2,
+    el1Fiq = 0x3,
+    el1Err = 0x4,
+    elxSpx = 0x5,
+};
+export const el1Sync = ExceptionType.el1Sync;
+export const el1Err = ExceptionType.el1Err;
+export const el1Fiq = ExceptionType.el1Fiq;
+export const el1Irq = ExceptionType.el1Irq;
+export const elxSpx = ExceptionType.elxSpx;
 
 pub const ExceptionClass = enum(u6) {
     unknownReason = 0b000000,
@@ -51,18 +58,13 @@ pub const ExceptionFrame = struct {
     lr: u64,
 };
 
-pub fn timerInit() void {
-    var cur_val: u32 = @intToPtr(*u32, addr.timerClo).*;
-    cur_val += addr.timerInterval;
-    @intToPtr(*u32, addr.timerC1).* = cur_val;
-}
-
 pub fn initIc() void {
     // enabling all irq types
-    @intToPtr(*u32, addr.enableIrq1).* = 1;
-    @intToPtr(*u32, addr.enableIrq2).* = 1;
-    @intToPtr(*u32, addr.enableIrqBasic).* = 1;
+    // enalbles system timer
+    @intToPtr(*u32, addr.enableIrq1).* = 1 << 1;
+    // @intToPtr(*u32, addr.enableIrq2).* = 1 << 1;
+    // @intToPtr(*u32, addr.enableIrqBasic).* = 1 << 1;
 
     // configure irq mask
-    asm volatile ("msr daifclr, #0");
+    asm volatile ("msr daifclr, #3");
 }

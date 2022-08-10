@@ -3,6 +3,8 @@ const utils = @import("utils.zig");
 
 const intHandle = @import("intHandle.zig");
 const intController = @import("intController.zig");
+const timer = @import("timer.zig");
+const proc = @import("processor.zig");
 
 export fn kernel_main() callconv(.Naked) noreturn {
     // get address of external linker script variable which marks stack-top and heap-start
@@ -11,17 +13,22 @@ export fn kernel_main() callconv(.Naked) noreturn {
         unreachable;
     });
     _ = heap_start;
+    var current_el = proc.getCurrentEl();
+    if (current_el != 1) {
+        kprint("el must be 1! (it is: {d})\n", .{current_el});
+        proc.panic();
+    }
 
-    intController.timerInit();
+    timer.initTimer();
     intController.initIc();
 
-    utils.exceptionSvc();
+    proc.exceptionSvc();
 
     kprint("kernel boot complete \n", .{});
     while (true) {}
 }
 
 comptime {
-    @export(intHandle.irq_handler, .{ .name = "irq_handler", .linkage = .Strong });
-    @export(intHandle.irq_elx_spx, .{ .name = "irq_elx_spx", .linkage = .Strong });
+    @export(intHandle.irqHandler, .{ .name = "irqHandler", .linkage = .Strong });
+    @export(intHandle.irqElxSpx, .{ .name = "irqElxSpx", .linkage = .Strong });
 }

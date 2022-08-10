@@ -50,55 +50,55 @@
 exception_vector_table:
 
 .org 0x0000
-    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el1_sp0_sync
+    EXCEPTION_VECTOR irqElxSpx elxSpx // el1_sp0_sync
 
 .org 0x0080
-    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el1_sp0_irq
+    EXCEPTION_VECTOR irqElxSpx elxSpx // el1_sp0_irq
 
 .org 0x0100
-    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el1_sp0_fiq
+    EXCEPTION_VECTOR irqElxSpx elxSpx // el1_sp0_fiq
 
 .org 0x0180
-    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el1_sp0_error
+    EXCEPTION_VECTOR irqElxSpx elxSpx // el1_sp0_error
 
 
 .org 0x0200
-    EXCEPTION_VECTOR irq_handler EL1_SYNC // el1_sync (spx) selected bc issue I'm debugging is a sync exception
+    EXCEPTION_VECTOR irqHandler el1Sync // el1Sync (spx) selected bc issue I'm debugging is a sync exception
 
 .org 0x0280
-    EXCEPTION_VECTOR irq_handler EL1_IRQ // el1_irq
+    EXCEPTION_VECTOR irqHandler el1Irq // el1Irq
 
 .org 0x0300
-    EXCEPTION_VECTOR irq_handler EL1_FIQ // el1_fiq
+    EXCEPTION_VECTOR irqHandler el1Fiq // el1Fiq
 
 .org 0x0380
-    EXCEPTION_VECTOR irq_handler EL1_ERR // el1_error
+    EXCEPTION_VECTOR irqHandler el1Err // el1Error
 
 
 .org 0x0400
-    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el0_sync
+    EXCEPTION_VECTOR irqElxSpx elxSpx // el0_sync
 
 .org 0x0480
-    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el0_irq
+    EXCEPTION_VECTOR irqElxSpx elxSpx // el0_irq
 
 .org 0x0500
-    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el0_fiq
+    EXCEPTION_VECTOR irqElxSpx elxSpx // el0_fiq
 
 .org 0x0580
-    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el0_error
+    EXCEPTION_VECTOR irqElxSpx elxSpx // el0_error
 
 
 .org 0x0600
-    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el0_32_sync
+    EXCEPTION_VECTOR irqElxSpx elxSpx // el0_32_sync
 
 .org 0x0680
-    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el0_32_irq
+    EXCEPTION_VECTOR irqElxSpx elxSpx // el0_32_irq
 
 .org 0x0700
-    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el0_32_fiq
+    EXCEPTION_VECTOR irqElxSpx elxSpx // el0_32_fiq
 
 .org 0x0780
-    EXCEPTION_VECTOR irq_elx_spx ELX_SPX // el0_32_error
+    EXCEPTION_VECTOR irqElxSpx elxSpx // el0_32_error
 
 .org 0x0800
 
