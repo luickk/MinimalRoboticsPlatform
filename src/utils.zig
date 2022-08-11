@@ -1,22 +1,5 @@
 const kprint = @import("serial.zig").kprint;
 
-pub const PrintStyle = enum(u8) {
-    string = 10,
-    hex = 16,
-    binary = 2,
-};
-
-// from zig std
-/// Compares two slices and returns whether they are equal.
-pub fn eql(comptime T: type, a: []const T, b: []const T) bool {
-    if (a.len != b.len) return false;
-    if (a.ptr == b.ptr) return true;
-    for (a) |item, index| {
-        if (b[index] != item) return false;
-    }
-    return true;
-}
-
 pub fn assert(ok: bool) void {
     if (!ok) unreachable; // assertion failure
 }
@@ -36,17 +19,11 @@ pub fn reverseString(str: [*]u8, len: usize) void {
     }
 }
 
-// from zigs std lib
-pub const IntToEnumError = error{InvalidEnumTag};
-pub fn intToEnum(comptime EnumTag: type, tag_int: anytype) IntToEnumError!EnumTag {
-    inline for (@typeInfo(EnumTag).Enum.fields) |f| {
-        const this_tag_value = @field(EnumTag, f.name);
-        if (tag_int == @enumToInt(this_tag_value)) {
-            return this_tag_value;
-        }
-    }
-    return error.InvalidEnumTag;
-}
+pub const PrintStyle = enum(u8) {
+    string = 10,
+    hex = 16,
+    binary = 2,
+};
 
 // 20 is u64 max len in u8
 pub fn uitoa(num: u64, print_style: PrintStyle) struct { arr: [20]u8, len: u8 } {
