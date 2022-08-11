@@ -29,7 +29,7 @@ el1_entry_aarch64:
 2:  // cpu id == 0
 
     // set top of stack just before our code (stack grows to a lower address per AAPCS64)
-    ldr     x1, =el1_entry_aarch64
+    ldr     x1, = __stack_top
     mov     sp, x1
 
     // clear bss

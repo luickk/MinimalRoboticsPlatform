@@ -10,7 +10,7 @@ const proc = @import("processor.zig");
 
 export fn kernel_main() callconv(.Naked) noreturn {
     // get address of external linker script variable which marks stack-top and heap-start
-    const mem_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "_end" }) orelse {
+    const mem_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "__stack_bottom" }) orelse {
         kprint("error reading _stack_top label\n", .{});
         unreachable;
     });
@@ -24,7 +24,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
     timer.initTimer();
     intController.initIc();
 
-    var alloc = KernelAllocator(100000, 10000, 1000, 100000).init(mem_start) catch |err| {
+    var alloc = KernelAllocator(10000, 10, 10, 200).init(mem_start) catch |err| {
         kprint("allocator error: {s} \n", .{@errorName(err)});
         unreachable;
     };
@@ -61,7 +61,8 @@ export fn kernel_main() callconv(.Naked) noreturn {
         kprint("allocator error: {s} \n", .{@errorName(err)});
         unreachable;
     };
-    alloc.free(p);
+    _ = p;
+    // alloc.free(p);
     // proc.exceptionSvc();
 
     kprint("kernel boot complete \n", .{});

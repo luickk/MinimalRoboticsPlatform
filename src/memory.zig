@@ -35,8 +35,8 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime buff_pages_size: usize
                 .kernel_mem = @intToPtr([*]u8, mem_start)[0..mem_size].*,
                 .kernel_mem_used = 0,
                 .n_pages = 0,
-                .pages = undefined,
-                .allocations = undefined,
+                .pages = [_]Page{.{ .data = undefined, .used = 0 }} ** buff_pages_size,
+                .allocations = [_]Allocation{.{ .data = undefined, .in_page = 0 }} ** buff_allocs_size,
                 .n_allocations = 0,
             };
             try ka.newPage();
@@ -57,10 +57,10 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime buff_pages_size: usize
 
             // zig does not let me do that ):
             // todo => fix (temp solution: increase page size)
-            // if ((self.pages[current_page].used + size) > self.pages[current_page].data.len) {
-            //     try self.newPage();
-            //     kprint("full new page \n", .{});
-            // }
+            if ((self.pages[current_page].used + size) > self.pages[current_page].data.len) {
+                try self.newPage();
+                kprint("full new page \n", .{});
+            }
 
             self.allocations[self.n_allocations] = Allocation{ .data = self.pages[current_page].data[self.pages[current_page].used .. self.pages[current_page].used + size], .in_page = current_page };
             self.n_allocations += 1;

@@ -17,3 +17,6 @@ SECTIONS
     _end = .;
 }
 __bss_size = (__bss_end - __bss_start)>>3;
+__stack_bottom = .;
+. = . + 0x1000;
+__stack_top = .;
