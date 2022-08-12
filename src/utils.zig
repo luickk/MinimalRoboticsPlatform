@@ -1,5 +1,11 @@
 const kprint = @import("serial.zig").kprint;
 
+pub fn printErrNoReturn(err: anytype) noreturn {
+    kprint("Error: {s} \n", .{@errorName(err)});
+    kprint("", .{});
+    unreachable;
+}
+
 pub fn assert(ok: bool) void {
     if (!ok) unreachable; // assertion failure
 }
