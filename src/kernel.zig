@@ -2,6 +2,7 @@ const std = @import("std");
 const kprint = @import("serial.zig").kprint;
 const utils = @import("utils.zig");
 const logger = @import("logger.zig");
+const tests = @import("tests.zig");
 
 // kernel services
 const KernelAllocator = @import("memory.zig").KernelAllocator;
@@ -22,39 +23,19 @@ export fn kernel_main() callconv(.Naked) noreturn {
         kprint("el must be 1! (it is: {d})\n", .{current_el});
         proc.panic();
     }
+    kprint("el 2 \n", .{});
 
     timer.initTimer();
+    kprint("timer inited \n", .{});
     intController.initIc();
+    kprint("ic inited \n", .{});
 
-    var alloc = KernelAllocator(10000, 1000, 100).init(mem_start) catch |err| utils.printErrNoReturn(err);
+    var alloc = KernelAllocator(5000000, 4096, 512).init(mem_start) catch |err| utils.printErrNoReturn(err);
+    kprint("kernel allocator inited \n", .{});
 
     kprint("Memory: {d}; Pages: {d}, Chunk per Page: {d},\n", .{ alloc.kernel_mem.len, alloc.pages.len, alloc.pages[0].chunks.len });
-
-    var p1 = alloc.alloc(u8, 875) catch |err| utils.printErrNoReturn(err);
-    kprint("allocated slice: {*} \n", .{p1});
-    var p2 = alloc.alloc(u8, 9) catch |err| utils.printErrNoReturn(err);
-    kprint("allocated slice: {*} \n", .{p2});
-    var p3 = alloc.alloc(u8, 43) catch |err| utils.printErrNoReturn(err);
-    kprint("allocated slice: {*} \n", .{p3});
-    var p4 = alloc.alloc(u8, 90) catch |err| utils.printErrNoReturn(err);
-    kprint("allocated slice: {*} \n", .{p4});
-    var p5 = alloc.alloc(u8, 156) catch |err| utils.printErrNoReturn(err);
-    kprint("allocated slice: {*} \n", .{p5});
-    var p6 = alloc.alloc(u8, 400) catch |err| utils.printErrNoReturn(err);
-    kprint("allocated slice: {*} \n", .{p6});
-    var p7 = alloc.alloc(u8, 875) catch |err| utils.printErrNoReturn(err);
-    kprint("allocated slice: {*} \n", .{p7});
-    logger.reportKMemStatus(&alloc);
-
-    alloc.free(u8, p1) catch |err| utils.printErrNoReturn(err);
-    alloc.free(u8, p2) catch |err| utils.printErrNoReturn(err);
-    alloc.free(u8, p3) catch |err| utils.printErrNoReturn(err);
-    alloc.free(u8, p4) catch |err| utils.printErrNoReturn(err);
-    alloc.free(u8, p5) catch |err| utils.printErrNoReturn(err);
-    alloc.free(u8, p6) catch |err| utils.printErrNoReturn(err);
-    alloc.free(u8, p7) catch |err| utils.printErrNoReturn(err);
-
-    logger.reportKMemStatus(&alloc);
+    // tests.testKMalloc(&alloc);
+    // logger.reportKMemStatus(&alloc);
 
     // proc.exceptionSvc();
     kprint("kernel boot complete \n", .{});

@@ -8,13 +8,12 @@ const addr = @import("raspberryAddr.zig");
 pub fn KernelAllocator(comptime mem_size: usize, comptime page_size: usize, comptime chunk_size: usize) type {
     const n_pages = try std.math.divTrunc(usize, mem_size, page_size);
     const n_chunks_per_page = try std.math.divTrunc(usize, page_size, chunk_size);
-    const max_allocs: usize = 10000;
+
     return struct {
         const Self = @This();
         const Error = error{
             OutOfPages,
             OutOfMem,
-            OutOfAllocs,
             AddrNotInMem,
             AddrNotValid,
             RequiresCrossPageChunking, // todo => implement!
@@ -27,6 +26,10 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime page_size: usize, comp
         const Page = struct {
             chunks: [n_chunks_per_page]Chunk,
             free: bool,
+            // freed chunks are not substraced!
+            // this value is only relevant as long as the array's index is on the struct
+            // if a new page has been created the not used chunks may be allocated by fragmented memory which does not increase the used_chunks counter
+            // since it cannot be known if the memory has already been accounted for.
             used_chunks: usize,
         };
 
@@ -41,9 +44,6 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime page_size: usize, comp
         pages: [n_pages]Page,
         used_pages: usize,
 
-        allocations: [max_allocs]Allocation,
-        used_allocs: usize,
-
         pub fn init(mem_start: usize) !Self {
             var ka = Self{
                 .kernel_mem = @intToPtr(*[mem_size]u8, mem_start),
@@ -52,9 +52,6 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime page_size: usize, comp
                 // unfolding whole mem tree right at the beginning
                 .pages = [_]Page{.{ .chunks = [_]Chunk{.{ .free = true }} ** n_chunks_per_page, .free = true, .used_chunks = 0 }} ** n_pages,
                 .used_pages = 0,
-
-                .allocations = [_]Allocation{.{ .in_page = 0, .chunk_range = .{ .first_chunk = undefined, .last_chunk = undefined } }} ** max_allocs,
-                .used_allocs = 0,
             };
             try ka.newPage();
             return ka;
@@ -71,22 +68,29 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime page_size: usize, comp
 
         pub fn alloc(self: *Self, comptime T: type, n: usize) ![]T {
             var current_page = self.used_pages - 1;
-            var req_chunks = try std.math.divCeil(usize, @sizeOf(T) * n, chunk_size);
+            var size = @sizeOf(T) * n;
+            var req_chunks = try std.math.divCeil(usize, size, chunk_size);
+            kprint("size: {d}, rc: {d} \n", .{ size, req_chunks });
             if (req_chunks > n_chunks_per_page)
                 return Error.RequiresCrossPageChunking;
-
+            if (try self.findFree(current_page, size)) |free_mem| {
+                return @as([]T, free_mem);
+            }
             if ((self.pages[current_page].used_chunks + req_chunks) > n_chunks_per_page) {
                 try self.newPage();
                 current_page = self.used_pages - 1;
             }
 
-            if (self.used_allocs >= max_allocs)
-                return Error.OutOfAllocs;
-            self.allocations[self.used_allocs].in_page = current_page;
-            self.allocations[self.used_allocs].chunk_range = .{ .first_chunk = self.pages[current_page].used_chunks, .last_chunk = self.pages[current_page].used_chunks + req_chunks };
-            var relative_mem_slice = self.kernel_mem[(current_page * page_size) + (self.allocations[self.used_allocs].chunk_range.first_chunk * chunk_size) .. (current_page * page_size) + (self.allocations[self.used_allocs].chunk_range.last_chunk * chunk_size)];
+            var first_chunk = self.pages[current_page].used_chunks;
+            var last_chunk = self.pages[current_page].used_chunks + req_chunks;
+            var kernel_mem_page_offset = (current_page * page_size);
+            var relative_mem_slice = self.kernel_mem[kernel_mem_page_offset + (first_chunk * chunk_size) .. kernel_mem_page_offset + (last_chunk * chunk_size)];
+
             self.pages[current_page].used_chunks += req_chunks;
-            self.used_allocs += 1;
+            var i: usize = 0;
+            while (i < req_chunks) : (i += 1) {
+                self.pages[current_page].chunks[first_chunk + i].free = false;
+            }
             return @as([]T, relative_mem_slice);
         }
 
@@ -108,10 +112,38 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime page_size: usize, comp
             var first_chunk_index = try std.math.divFloor(usize, offset_relative_to_page, chunk_size);
 
             var i: usize = 0;
-            while (i <= req_chunks) : (i += 1) {
+            while (i < req_chunks) : (i += 1) {
                 self.pages[in_page].chunks[first_chunk_index + i].free = true;
             }
-            self.pages[in_page].used_chunks -= req_chunks;
+        }
+
+        /// finds continous free memory in fragmented kernel memory; marks returned memory as not free!
+        pub fn findFree(self: *Self, to_page: usize, min_size: usize) !?[]u8 {
+            var continous_chunks: usize = 0;
+            var req_chunks = try std.math.divCeil(usize, min_size, chunk_size);
+            for (self.pages) |*page, p_i| {
+                if (p_i >= to_page) {
+                    return null;
+                }
+                for (page.chunks) |*chunk, c_i| {
+                    if (chunk.free) {
+                        continous_chunks += 1;
+                    } else {
+                        continous_chunks = 0;
+                    }
+                    if (continous_chunks >= req_chunks) {
+                        var first_chunk: usize = (c_i + 1) - req_chunks;
+                        var kernel_mem_offset = (page_size * p_i) + (first_chunk * chunk_size);
+
+                        var i: usize = 0;
+                        while (i < req_chunks) : (i += 1) {
+                            self.pages[p_i].chunks[first_chunk + i].free = false;
+                        }
+                        return self.kernel_mem[kernel_mem_offset .. kernel_mem_offset + min_size];
+                    }
+                }
+            }
+            return null;
         }
     };
 }
