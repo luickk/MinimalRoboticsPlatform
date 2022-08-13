@@ -4,10 +4,10 @@ const kprint = @import("serial.zig").kprint;
 
 pub fn reportKMemStatus(alloc: anytype) void {
     kprint("-------------- \n", .{});
-    kprint("kmem: used {d}, pages used: {d} \n", .{ alloc.kernel_mem_used, alloc.used_pages });
+    kprint("kmem: used {d} \n", .{alloc.kernel_mem_used});
 
     var chunks_used: usize = 0;
-    for (page.chunks) |*chunk| {
+    for (alloc.chunks) |*chunk| {
         if (!chunk.free)
             chunks_used += 1;
     }

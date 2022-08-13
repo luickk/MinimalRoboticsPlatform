@@ -25,14 +25,14 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime chunk_size: usize) typ
         kernel_mem_used: usize,
 
         chunks: [n_chunks]Chunk,
-        used_chunks: usite,
+        used_chunks: usize,
 
         pub fn init(mem_start: usize) !Self {
             var ka = Self{
                 .kernel_mem = @intToPtr(*[mem_size]u8, mem_start),
                 .kernel_mem_used = 0,
 
-                .chunks = [_]Chunk{.{ .free = true }} ** n_chunks_per_page,
+                .chunks = [_]Chunk{.{ .free = true }} ** n_chunks,
                 .used_chunks = 0,
             };
             return ka;
@@ -41,7 +41,7 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime chunk_size: usize) typ
         pub fn alloc(self: *Self, comptime T: type, n: usize) ![]T {
             var size = @sizeOf(T) * n;
             var req_chunks = try std.math.divCeil(usize, size, chunk_size);
-            if (try self.findFree(size)) |free_mem| {
+            if (try self.findFree(self.used_chunks, size)) |free_mem| {
                 return @as([]T, free_mem);
             }
             if (self.used_chunks + req_chunks > n_chunks)
@@ -50,6 +50,7 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime chunk_size: usize) typ
             var first_chunk = self.used_chunks;
             var last_chunk = self.used_chunks + req_chunks;
             self.used_chunks += req_chunks;
+            self.kernel_mem_used += req_chunks * chunk_size;
 
             var i: usize = 0;
             while (i < req_chunks) : (i += 1) {
@@ -78,10 +79,14 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime chunk_size: usize) typ
         }
 
         /// finds continous free memory in fragmented kernel memory; marks returned memory as not free!
-        pub fn findFree(self: *Self, to_page: usize, min_size: usize) !?[]u8 {
+        pub fn findFree(self: *Self, to_chunk: usize, min_size: usize) !?[]u8 {
             var continous_chunks: usize = 0;
             var req_chunks = try std.math.divCeil(usize, min_size, chunk_size);
-            for (chunks) |*chunk, i| {
+            for (self.chunks) |*chunk, i| {
+                if (i >= to_chunk) {
+                    return null;
+                }
+
                 if (chunk.free) {
                     continous_chunks += 1;
                 } else {
@@ -90,11 +95,11 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime chunk_size: usize) typ
                 if (continous_chunks >= req_chunks) {
                     var first_chunk: usize = (i + 1) - req_chunks;
 
-                    var i: usize = 0;
-                    while (i < req_chunks) : (i += 1) {
-                        self.chunks[first_chunk + i].free = false;
+                    var j: usize = 0;
+                    while (j < req_chunks) : (j += 1) {
+                        self.chunks[first_chunk + j].free = false;
                     }
-
+                    kprint("free used at chunk: {d} \n", .{first_chunk});
                     var kernel_mem_offset = first_chunk * chunk_size;
                     return self.kernel_mem[kernel_mem_offset .. kernel_mem_offset + min_size];
                 }

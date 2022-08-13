@@ -30,12 +30,12 @@ export fn kernel_main() callconv(.Naked) noreturn {
     intController.initIc();
     kprint("ic inited \n", .{});
 
-    var alloc = KernelAllocator(5000000, 4096, 512).init(mem_start) catch |err| utils.printErrNoReturn(err);
+    var alloc = KernelAllocator(5000000, 512).init(mem_start) catch |err| utils.printErrNoReturn(err);
+    _ = alloc;
     kprint("kernel allocator inited \n", .{});
 
-    kprint("Memory: {d}; Pages: {d}, Chunk per Page: {d},\n", .{ alloc.kernel_mem.len, alloc.pages.len, alloc.pages[0].chunks.len });
-    // tests.testKMalloc(&alloc);
-    // logger.reportKMemStatus(&alloc);
+    tests.testKMalloc(&alloc);
+    logger.reportKMemStatus(&alloc);
 
     // proc.exceptionSvc();
     kprint("kernel boot complete \n", .{});
