@@ -2,6 +2,71 @@ const rpBase: usize = 0x3f000000;
 
 pub const serialMmio = @intToPtr(*volatile u8, rpBase + 0x201000);
 
+// exported bc required in boot assembler
+pub const Vmem = struct {
+    // vm
+    pub const vaStart: usize = 0xffff000000000000;
+
+    pub const Values = struct {
+        pub const physMemorySize: usize = 0x40000000;
+
+        pub const pageMask: usize = 0xfffffffffffff000;
+        pub const pageShift: usize = 12;
+        pub const tableShift: usize = 9;
+        pub const sectionShift: usize = (pageShift + tableShift);
+
+        pub const pageSize: usize = (1 << pageShift);
+        pub const sectionSize: usize = (1 << sectionShift);
+
+        pub const lowMemory: usize = (2 * sectionSize);
+        pub const highMemory: usize = rpBase;
+
+        pub const pagingMemory: usize = (highMemory - lowMemory);
+        pub const pagingPages: usize = (pagingMemory / pageSize);
+
+        pub const ptrsPerTable: usize = (1 << tableShift);
+
+        pub const pgdShift: usize = pageShift + 3 * tableShift;
+        pub const pudShift: usize = pageShift + 2 * tableShift;
+        pub const pmdShift: usize = pageShift + tableShift;
+
+        pub const pgDirSize: usize = (3 * pageSize);
+    };
+};
+
+pub const Mmu = struct {
+    // address values
+    pub const Values = struct {
+        // mmz
+        pub const mmTypePageTable: usize = 0x3;
+        pub const mmTypePage: usize = 0x3;
+        pub const mmTypeBlock: usize = 0x1;
+        pub const mmAccess: usize = (0x1 << 10);
+        pub const mmAccessPermission: usize = (0x01 << 6);
+
+        // Memory region attributes:
+        // n = AttrIndx[2:0]
+        // =    n   MAIR
+        // DEVICE_nGnRnE    000 00000000
+        // NORMAL_NC = 001  01000100
+        pub const mtDeviceNGnRnE: usize = 0x0;
+        pub const mtNormalNc: usize = 0x1;
+        pub const mtDeviceNGnRnEflags: usize = 0x00;
+        pub const mtNormalNcFlags: usize = 0x44;
+        pub const mairValue: usize = (mtDeviceNGnRnEflags << (8 * mtDeviceNGnRnE)) | (mtNormalNcFlags << (8 * mtNormalNc));
+
+        pub const mmuFlags: usize = (mmTypeBlock | (mtNormalNc << 2) | mmAccess);
+        pub const mmuDeviceFlags: usize = (mmTypeBlock | (mtDeviceNGnRnE << 2) | mmAccess);
+        pub const mmutPteFlags: usize = (mmTypePageTable | (mtNormalNc << 2) | mmAccess | mmAccessPermission);
+
+        pub const tcrT0sz: usize = (64 - 48);
+        pub const tcrT1sz: usize = ((64 - 48) << 16);
+        pub const tcrTg04k = (0 << 14);
+        pub const tcrTg14k: usize = (2 << 30);
+        pub const tcrValue: usize = (tcrT0sz | tcrT1sz | tcrTg04k | tcrTg14k);
+    };
+};
+
 pub const Timer = struct {
     pub const timerClo: usize = rpBase + 0x00003004;
     pub const timerC1: usize = rpBase + 0x00003010;

@@ -23,7 +23,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
         kprint("el must be 1! (it is: {d})\n", .{current_el});
         proc.panic();
     }
-    kprint("el 2 \n", .{});
+    kprint("el 1 \n", .{});
 
     timer.initTimer();
     kprint("timer inited \n", .{});
@@ -34,8 +34,8 @@ export fn kernel_main() callconv(.Naked) noreturn {
     _ = alloc;
     kprint("kernel allocator inited \n", .{});
 
-    tests.testKMalloc(&alloc);
-    logger.reportKMemStatus(&alloc);
+    // tests.testKMalloc(&alloc);
+    // logger.reportKMemStatus(&alloc);
 
     // proc.exceptionSvc();
     kprint("kernel boot complete \n", .{});

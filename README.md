@@ -1,4 +1,4 @@
-# Rust RealTime Microkernel
+# Embedded Robotics Kernel
 
 ## Goal
 
@@ -19,3 +19,7 @@ The Rust code can still be found in the seperate [rust branch](https://github.co
 The Raspberry ships with the BCM2835 which is based on an Arm A53 but does not adapt its interrupt controller. More about the BCM2835s ic can be found [here](https://www.raspberrypi.org/app/uploads/2012/02/BCM2835-ARM-Peripherals.pdf)(p109) and [here](https://xinu.cs.mu.edu/index.php/BCM2835_Interrupt_Controller). The [linux driver implementation](https://github.com/torvalds/linux/blob/master/drivers/irqchip/irq-bcm2835.c) comments is also worth looking at.
 
 
+#### MMU
+
+The best lecture to undestand the MMU is probably the [official Arm documentation](https://developer.arm.com/documentation/100940/0101), which does a very good job in explaining the concepts of the mmu.
+Since this project requires multiple applications running at the same time, virtual memory is indispensable for safety and performance.
