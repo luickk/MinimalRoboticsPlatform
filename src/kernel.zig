@@ -10,35 +10,37 @@ const intHandle = @import("intHandle.zig");
 const intController = @import("intController.zig");
 const timer = @import("timer.zig");
 const proc = @import("processor.zig");
+const mmu = @import("mmu.zig");
 
 export fn kernel_main() callconv(.Naked) noreturn {
     // get address of external linker script variable which marks stack-top and heap-start
-    const mem_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "__stack_top" }) orelse {
-        kprint("error reading _stack_top label\n", .{});
-        unreachable;
-    });
+    // const mem_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "__stack_top" }) orelse {
+    //     kprint("error reading _stack_top label\n", .{});
+    //     unreachable;
+    // });
 
-    var current_el = proc.getCurrentEl();
-    if (current_el != 1) {
-        kprint("el must be 1! (it is: {d})\n", .{current_el});
-        proc.panic();
-    }
+    // var current_el = proc.getCurrentEl();
+    // if (current_el != 1) {
+    //     kprint("el must be 1! (it is: {d})\n", .{current_el});
+    //     proc.panic();
+    // }
     kprint("el 1 \n", .{});
 
-    timer.initTimer();
-    kprint("timer inited \n", .{});
-    intController.initIc();
-    kprint("ic inited \n", .{});
+    // timer.initTimer();
+    // kprint("timer inited \n", .{});
+    // intController.initIc();
+    // kprint("ic inited \n", .{});
 
-    var alloc = KernelAllocator(5000000, 512).init(mem_start) catch |err| utils.printErrNoReturn(err);
-    _ = alloc;
-    kprint("kernel allocator inited \n", .{});
+    // var alloc = KernelAllocator(5000000, 512).init(mem_start) catch |err| utils.printErrNoReturn(err);
+    // _ = alloc;
+    // kprint("kernel allocator inited \n", .{});
 
-    // tests.testKMalloc(&alloc);
-    // logger.reportKMemStatus(&alloc);
+    // // tests.testKMalloc(&alloc);
+    // // logger.reportKMemStatus(&alloc);
 
-    // proc.exceptionSvc();
-    kprint("kernel boot complete \n", .{});
+    // // proc.exceptionSvc();
+    mmu.testc();
+    // kprint("kernel boot complete \n", .{});
     while (true) {}
 }
 

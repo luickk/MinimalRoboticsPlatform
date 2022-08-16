@@ -1,4 +1,4 @@
- #include "mmu.S"
+#include "mmu.S"
 
 // advanced boot
 // is meant to setup the main kernel thread running in el1(erets to el2 and then in el1_entry_aarch64 to el1) with mmu disable, exc.vec. table setup, slave core disabled and fp/ smid operations enabled
@@ -7,7 +7,6 @@
 .equ AArch64_EL1_SP1,  0x05    // EL1h
 
 el1_entry_aarch64:
-	//setup_mmu
 	// setting up vector table (https://github.com/Xilinx/embeddedsw/blob/master/lib/bsp/standalone/src/arm/ARMv8/64bit/armclang/boot.S)
 	ldr x0, = exception_vector_table
 	msr vbar_el1, x0
@@ -41,17 +40,23 @@ el1_entry_aarch64:
     // jump to C code, should not return
 
     // load km fn addr (without offset) in order to longjump to kernel vm
-	// ldr	x2, =kernel_main
-	// mov	x0, #SCTLR_MMU_ENABLED  
-	// msr	sctlr_el1, x0
-// 4:  bl  x2
+4:	setup_mmu
+	isb
+	ldr	x2, =kernel_main
+	// SCTLR_MMU_ENABLED  
+	mov	x0, (1 << 0)
+	msr	sctlr_el1, x0
+	br x2
 
-4:  bl  kernel_main
+// 4:  bl  kernel_main
 
 // how to get from el3 to el1 is described here: https://developer.arm.com/documentation/102437/0100/Changing-Exception-levels
 .globl	_start
 _start:
-	// todo => implement a53 errata
+	// disabling mmu
+	mov	x1, #0x0
+	msr	sctlr_el1, x1
+	isb
 
 	// Configure SCR_EL3
 	// -----------------

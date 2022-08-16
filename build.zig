@@ -15,6 +15,7 @@ pub fn build(b: *std.build.Builder) void {
     exe.addObjectFile("src/kernel.zig");
     exe.addCSourceFile("src/asm/adv_boot.S", &.{});
     exe.addCSourceFile("src/asm/exc_vec.S", &.{});
+    exe.addCSourceFile("src/asm/mmu.S", &.{});
 
     exe.install();
 
@@ -23,9 +24,16 @@ pub fn build(b: *std.build.Builder) void {
     if (b.args) |args| {
         qemu_no_disp.addArgs(args);
     }
-
     const run_step_serial = b.step("qemu", "emulate the kernel with no graphics and output uart to console");
     run_step_serial.dependOn(&qemu_no_disp.step);
+
+    const qemu_gdb_no_disp = b.addSystemCommand(&.{ "qemu-system-aarch64", "-s", "-S", "-machine", "raspi3b", "-kernel", "zig-out/bin/kernel", "-serial", "stdio", "-display", "none" });
+    qemu_gdb_no_disp.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        qemu_gdb_no_disp.addArgs(args);
+    }
+    const run_step_serial_gdb = b.step("qemu-gdb", "emulate the kernel with no graphics and output uart to console");
+    run_step_serial_gdb.dependOn(&qemu_gdb_no_disp.step);
 
     const test_obj_step = b.addTest("src/utils.zig");
     const test_step = b.step("test", "Run tests for testable kernel parts");

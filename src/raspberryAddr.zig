@@ -1,12 +1,12 @@
-const rpBase: usize = 0x3f000000;
+pub const rpBase: usize = 0x3f000000;
+pub const vaStart: usize = 0xffff000000000000;
+pub const peripheralBase: usize = vaStart + rpBase;
 
-pub const serialMmio = @intToPtr(*volatile u8, rpBase + 0x201000);
+pub const serialMmio = @intToPtr(*volatile u8, peripheralBase + 0x201000);
 
 // exported bc required in boot assembler
 pub const Vmem = struct {
     // vm
-    pub const vaStart: usize = 0xffff000000000000;
-
     pub const Values = struct {
         pub const physMemorySize: usize = 0x40000000;
 
