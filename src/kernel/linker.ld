@@ -1,14 +1,12 @@
-ENTRY(_start)
-
+ENTRY(kernel_main)
 SECTIONS
-{   
+{
     . = ALIGN(0x8);
     .exceptions : AT(0x0) {
         *(.text.exc_vec);
     }
-    . = 0x800;
-    .boot : {
-        *(.text.boot)
+
+    .text : {
         *(.text);
         *(.text.*);
         _boot_sizeof = SIZEOF(.boot);
@@ -29,15 +27,6 @@ SECTIONS
         *(.bss.*);
         *(COMMON);
         _bss_end = .;
-    }
-
-    .exceptions : ALIGN(0x8) {
-        *(.text.exc_vec);
-    }
-        
-    .paging_tbl : ALIGN(0x00001000) {
-        _pg_dir = .;
-        . += (3 * (1 << 12));
     }
 
     .stack : ALIGN(16) {

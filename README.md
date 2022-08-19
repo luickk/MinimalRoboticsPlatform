@@ -13,7 +13,9 @@ The Rust code can still be found in the seperate [rust branch](https://github.co
 
 ## Seperation in bootloader and kernel
 
-Because it simplifies linking and building the kernel as a whole.
+Because it simplifies linking and building the kernel as a whole. Linking the whole kernel is difficult because it requires the linker to link symbols with VMA offsets that are not supported in size and causes more issues when it comes to relocaiton. 
+Both the bootloader and kernel are compiled&linked seperately, then concatenated. The bootloader then relocates the kernel code and prepares the exception vec tables, mmu(kernel page tables).
+
 
 ## Implementations
 

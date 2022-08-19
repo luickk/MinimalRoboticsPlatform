@@ -4,30 +4,43 @@ const warn = @import("std").debug.warn;
 const os = @import("std").os;
 
 pub fn build(b: *std.build.Builder) void {
+    var build_options = b.addOptions();
+    build_options.addOption(bool, "is_qemu", true);
+
+    var peripherals = std.build.Pkg{ .name = "peripherals", .path = std.build.FileSource{ .path = "src/peripherals/peripherals.zig" } };
 
     // bootloader
     const bl_exe = b.addExecutable("bootloader", null);
-    bl_exe.addPackagePath("peripherals", "src/peripherals/peripherals.zig");
+    bl_exe.addPackage(peripherals);
 
     bl_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
-    var build_options = b.addOptions();
-    build_options.addOption(bool, "is_qemu", true);
     bl_exe.addOptions("build_options", build_options);
     bl_exe.setBuildMode(std.builtin.Mode.ReleaseSafe);
-
     bl_exe.setLinkerScriptPath(std.build.FileSource{ .path = "src/bootloader/linker.ld" });
-
     // bl_exe.force_pic = true;
     // bl_exe.link_eh_frame_hdr = true;
     // bl_exe.link_emit_relocs = true;
     // bl_exe.pie = true;
     // bl_exe.link_z_notext = true;
-
     bl_exe.addObjectFile("src/bootloader/main.zig");
     bl_exe.addCSourceFile("src/bootloader/asm/adv_boot.S", &.{});
     bl_exe.addCSourceFile("src/bootloader/asm/exc_vec.S", &.{});
-
     bl_exe.install();
+
+    // kernel
+    const kernel_exe = b.addExecutable("kernel", null);
+    kernel_exe.addPackage(peripherals);
+    kernel_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
+    kernel_exe.addOptions("build_options", build_options);
+    kernel_exe.setBuildMode(std.builtin.Mode.ReleaseSafe);
+    kernel_exe.setLinkerScriptPath(std.build.FileSource{ .path = "src/kernel/linker.ld" });
+    // bl_exe.force_pic = true;
+    // bl_exe.link_eh_frame_hdr = true;
+    // bl_exe.link_emit_relocs = true;
+    // bl_exe.pie = true;
+    // bl_exe.link_z_notext = true;
+    kernel_exe.addObjectFile("src/kernel/kernel.zig");
+    kernel_exe.install();
 
     const qemu_no_disp = b.addSystemCommand(&.{ "qemu-system-aarch64", "-machine", "raspi3b", "-kernel", "zig-out/bin/bootloader", "-serial", "stdio", "-display", "none" });
     qemu_no_disp.step.dependOn(b.getInstallStep());
