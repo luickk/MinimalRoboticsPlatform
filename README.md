@@ -11,6 +11,10 @@ The prime argument for Rust is safety, that is alsow true when it comes to embed
 
 The Rust code can still be found in the seperate [rust branch](https://github.com/luickk/rust-rtos/tree/rust_code) and includes a proper Cargo build process(without making use of an external build tool) for the raspberry, as well as basic serial(with print! macro implementation) and interrupt controller utils.
 
+## Seperation in bootloader and kernel
+
+Because it simplifies linking and building the kernel as a whole.
+
 ## Implementations
 
 ### CPU

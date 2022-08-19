@@ -14,7 +14,7 @@ const mmu = @import("mmu.zig");
 
 export fn kernel_main() callconv(.Naked) noreturn {
     // get address of external linker script variable which marks stack-top and heap-start
-    // const mem_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "__stack_top" }) orelse {
+    // const mem_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "_stack_top" }) orelse {
     //     kprint("error reading _stack_top label\n", .{});
     //     unreachable;
     // });

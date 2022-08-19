@@ -1,8 +1,8 @@
+.section ".text.boot"
 #include "mmu.S"
 
 // advanced boot
 // is meant to setup the main kernel thread running in el1(erets to el2 and then in el1_entry_aarch64 to el1) with mmu disable, exc.vec. table setup, slave core disabled and fp/ smid operations enabled
-.section ".text.boot"
 
 .equ AArch64_EL1_SP1,  0x05    // EL1h
 
@@ -15,44 +15,33 @@ el1_entry_aarch64:
 	//  Enable FP/SIMD for el1
 	mov	x0, #3 << 20
 	msr	cpacr_el1, x0
-	
- 	// read cpu id, stop slave cores (https://github.com/bztsrc/raspi3-tutorial/blob/master/05_uart0/start.S )
-    mrs x1, mpidr_el1
-    and x1, x1, #3
-    cbz x1, 2f
-    // cpu id > 0, stop
-1:  wfe
-    b   1b
-2:  // cpu id == 0
+
+
+    adr	x0, _bss_start
+	adr	x1, _bss_end
+	sub	x1, x1, x0
+	bl 	memzero
+	isb 
 
     // set top of stack just before our code (stack grows to a lower address per AAPCS64)
-    ldr x1, = __stack_top
+    ldr x1, = _stack_top
     mov sp, x1
 
-    // clear bss
-    ldr x1, =__bss_start
-    ldr w2, =__bss_size
-3:  cbz w2, 4f
-    str xzr, [x1], #8
-    sub w2, w2, #1
-    cbnz w2, 3b
-
-    // jump to C code, should not return
-
     // load km fn addr (without offset) in order to longjump to kernel vm
-4:	setup_mmu
+	setup_mmu
 	isb
-	ldr	x2, =kernel_main
-	// SCTLR_MMU_ENABLED  
-	mov	x0, (1 << 0)
-	msr	sctlr_el1, x0
-	br x2
 
-// 4:  bl  kernel_main
+	bl  bl_main
 
 // how to get from el3 to el1 is described here: https://developer.arm.com/documentation/102437/0100/Changing-Exception-levels
 .globl	_start
 _start:
+	mrs	x0, mpidr_el1		
+	and	x0, x0,#0xFF // Check processor id
+	cbz	x0, master // Hang for all non-primary CPU
+	b	proc_hang
+
+master:
 	// disabling mmu
 	mov	x1, #0x0
 	msr	sctlr_el1, x1
@@ -80,3 +69,6 @@ _start:
 	msr SPSR_EL3, x1 // set the program state for this point to a known value
 
 	eret
+
+proc_hang: 
+	b proc_hang

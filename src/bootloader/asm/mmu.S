@@ -1,3 +1,4 @@
+
 // todo => use linked symbols!!
 #define DEVICE_BASE 0x3f000000
 #define VA_START 0xffff000000000000
@@ -24,7 +25,7 @@
 #define PUD_SHIFT PAGE_SHIFT + 2*TABLE_SHIFT
 #define PMD_SHIFT PAGE_SHIFT + TABLE_SHIFT
 
-#define PG_DIR_SIZE   (3 * PAGE_SIZE)
+#define _pg_dir_SIZE   (3 * PAGE_SIZE)
 
 #define MM_TYPE_PAGE_TABLE 0x3
 #define MM_TYPE_PAGE 0x3
@@ -56,13 +57,20 @@
 #define TCR_TG1_4K (2 << 30)
 #define TCR_VALUE (TCR_T0SZ | TCR_T1SZ | TCR_TG0_4K | TCR_TG1_4K)
 
+.globl memzero
+memzero:
+    str xzr, [x0], #8
+    subs x1, x1, #8
+    b.gt memzero
+    ret
+
 .macro setup_mmu
     bl  __create_page_tables
 
     mov x0, #VA_START 
     add sp, x0, #LOW_MEMORY
 
-    adrp    x0, pg_dir   
+    adrp    x0, _pg_dir   
     msr ttbr1_el1, x0
 
     ldr x0, =(TCR_VALUE)  
@@ -104,16 +112,11 @@
 __create_page_tables:
     mov x29, x30  // save return address
 
-    adrp    x0, pg_dir
-    mov x1, #PG_DIR_SIZE
+    adrp    x0, _pg_dir
+    mov x1, #_pg_dir_SIZE
+    bl  memzero
 
-memzero:
-    str xzr, [x0], #8
-    subs x1, x1, #8
-    b.gt memzero
-    ret
-
-    adrp    x0, pg_dir
+    adrp    x0, _pg_dir
     mov x1, #VA_START 
     create_pgd_entry x0, x1, x2, x3
 
@@ -139,7 +142,7 @@ memzero:
 //     mov x0, vaStart           
 //     add sp, x0, lowMemory
 
-//     adrp    x0, pg_dir              
+//     adrp    x0, _pg_dir              
 //     msr ttbr1_el1, x0
 
 //     ldr x0, =(tcrValue)        
@@ -181,11 +184,11 @@ memzero:
 // __create_page_tables:
 //     mov x29, x30 // save return address
 
-//     adrp x0, pg_dir
+//     adrp x0, _pg_dir
 //     mov x1, pgDirSize
 //     bl  memzero
 
-//     adrp    x0, pg_dir
+//     adrp    x0, _pg_dir
 //     mov x1, vaStart 
 //     create_pgd_entry x0, x1, x2, x3
 

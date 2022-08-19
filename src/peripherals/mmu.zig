@@ -49,7 +49,7 @@ pub export const tcrTg04k = addrMmu.Values.tcrTg04k;
 pub export const tcrTg14k = addrMmu.Values.tcrTg14k;
 pub export const tcrValue = addrMmu.Values.tcrValue;
 
-extern const pg_dir: u8;
+extern const _pg_dir: u8;
 
 pub fn testc() void {
     kprint("test mmu \n", .{});

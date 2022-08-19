@@ -4,22 +4,32 @@ const warn = @import("std").debug.warn;
 const os = @import("std").os;
 
 pub fn build(b: *std.build.Builder) void {
-    const exe = b.addExecutable("kernel", null);
-    exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
+
+    // bootloader
+    const bl_exe = b.addExecutable("bootloader", null);
+    bl_exe.addPackagePath("peripherals", "src/peripherals/peripherals.zig");
+
+    bl_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
     var build_options = b.addOptions();
     build_options.addOption(bool, "is_qemu", true);
-    exe.addOptions("build_options", build_options);
-    exe.setBuildMode(std.builtin.Mode.ReleaseFast);
+    bl_exe.addOptions("build_options", build_options);
+    bl_exe.setBuildMode(std.builtin.Mode.ReleaseSafe);
 
-    exe.setLinkerScriptPath(std.build.FileSource{ .path = "src/linker.ld" });
-    exe.addObjectFile("src/kernel.zig");
-    exe.addCSourceFile("src/asm/adv_boot.S", &.{});
-    exe.addCSourceFile("src/asm/exc_vec.S", &.{});
-    exe.addCSourceFile("src/asm/mmu.S", &.{});
+    bl_exe.setLinkerScriptPath(std.build.FileSource{ .path = "src/bootloader/linker.ld" });
 
-    exe.install();
+    // bl_exe.force_pic = true;
+    // bl_exe.link_eh_frame_hdr = true;
+    // bl_exe.link_emit_relocs = true;
+    // bl_exe.pie = true;
+    // bl_exe.link_z_notext = true;
 
-    const qemu_no_disp = b.addSystemCommand(&.{ "qemu-system-aarch64", "-machine", "raspi3b", "-kernel", "zig-out/bin/kernel", "-serial", "stdio", "-display", "none" });
+    bl_exe.addObjectFile("src/bootloader/main.zig");
+    bl_exe.addCSourceFile("src/bootloader/asm/adv_boot.S", &.{});
+    bl_exe.addCSourceFile("src/bootloader/asm/exc_vec.S", &.{});
+
+    bl_exe.install();
+
+    const qemu_no_disp = b.addSystemCommand(&.{ "qemu-system-aarch64", "-machine", "raspi3b", "-kernel", "zig-out/bin/bootloader", "-serial", "stdio", "-display", "none" });
     qemu_no_disp.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
         qemu_no_disp.addArgs(args);
@@ -27,7 +37,7 @@ pub fn build(b: *std.build.Builder) void {
     const run_step_serial = b.step("qemu", "emulate the kernel with no graphics and output uart to console");
     run_step_serial.dependOn(&qemu_no_disp.step);
 
-    const qemu_gdb_no_disp = b.addSystemCommand(&.{ "qemu-system-aarch64", "-s", "-S", "-machine", "raspi3b", "-kernel", "zig-out/bin/kernel", "-serial", "stdio", "-display", "none" });
+    const qemu_gdb_no_disp = b.addSystemCommand(&.{ "qemu-system-aarch64", "-s", "-S", "-machine", "raspi3b", "-kernel", "zig-out/bin/bootloader", "-serial", "stdio", "-display", "none" });
     qemu_gdb_no_disp.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
         qemu_gdb_no_disp.addArgs(args);

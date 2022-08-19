@@ -1,9 +1,9 @@
 const std = @import("std");
-const kprint = @import("serial.zig").kprint;
-const utils = @import("utils.zig");
-const addr = @import("raspberryAddr.zig").InterruptController;
-const iC = @import("intController.zig");
-const timer = @import("timer.zig");
+const periph = @import("peripherals");
+const kprint = periph.serial.kprint;
+const addr = periph.rbAddr.InterruptController;
+const iC = periph.intController;
+const timer = periph.timer;
 
 const Bank0 = addr.Values.Bank0;
 const Bank1 = addr.Values.Bank1;
