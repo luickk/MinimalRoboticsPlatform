@@ -1,6 +1,7 @@
 ENTRY(kernel_main)
 SECTIONS
 {
+    . = 0xffff000000000000;
     . = ALIGN(0x8);
     .exceptions : AT(0x0) {
         *(.text.exc_vec);

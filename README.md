@@ -16,6 +16,9 @@ The Rust code can still be found in the seperate [rust branch](https://github.co
 Because it simplifies linking and building the kernel as a whole. Linking the whole kernel is difficult because it requires the linker to link symbols with VMA offsets that are not supported in size and causes more issues when it comes to relocaiton. 
 Both the bootloader and kernel are compiled&linked seperately, then concatenated. The bootloader then relocates the kernel code and prepares the exception vec tables, mmu(kernel page tables).
 
+### Qemu Testing
+
+In order to test the bootloader/ kernel, qemu offers `-kernel` but since this project aims for a realworld deployment, the build script includes a option for an SD-Card build which is loaded by the Raspberry (rom contained) bootloader.
 
 ## Implementations
 
