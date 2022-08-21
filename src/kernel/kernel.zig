@@ -15,18 +15,19 @@ const intHandle = @import("intHandle.zig");
 const mmu = periph.mmu;
 
 export fn kernel_main() callconv(.Naked) noreturn {
+    kprint("kernel started! \n", .{});
     // get address of external linker script variable which marks stack-top and heap-start
     // const mem_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "_stack_top" }) orelse {
     //     kprint("error reading _stack_top label\n", .{});
     //     unreachable;
     // });
+    // _ = mem_start;
 
     // var current_el = proc.getCurrentEl();
     // if (current_el != 1) {
     //     kprint("el must be 1! (it is: {d})\n", .{current_el});
     //     proc.panic();
     // }
-    kprint("el 1 \n", .{});
 
     // timer.initTimer();
     // kprint("timer inited \n", .{});

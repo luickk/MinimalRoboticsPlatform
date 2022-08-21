@@ -25,7 +25,7 @@
 #define PUD_SHIFT PAGE_SHIFT + 2*TABLE_SHIFT
 #define PMD_SHIFT PAGE_SHIFT + TABLE_SHIFT
 
-#define _pg_dir_SIZE   (3 * PAGE_SIZE)
+#define _bl_pg_dir_SIZE   (3 * PAGE_SIZE)
 
 #define MM_TYPE_PAGE_TABLE 0x3
 #define MM_TYPE_PAGE 0x3
@@ -70,7 +70,7 @@ memzero:
     mov x0, #VA_START 
     add sp, x0, #LOW_MEMORY
 
-    adrp    x0, _pg_dir   
+    adrp    x0, _bl_pg_dir   
     msr ttbr1_el1, x0
 
     ldr x0, =(TCR_VALUE)  
@@ -112,11 +112,11 @@ memzero:
 __create_page_tables:
     mov x29, x30  // save return address
 
-    adrp    x0, _pg_dir
-    mov x1, #_pg_dir_SIZE
+    adrp    x0, _bl_pg_dir
+    mov x1, #_bl_pg_dir_SIZE
     bl  memzero
 
-    adrp    x0, _pg_dir
+    adrp    x0, _bl_pg_dir
     mov x1, #VA_START 
     create_pgd_entry x0, x1, x2, x3
 
@@ -142,7 +142,7 @@ __create_page_tables:
 //     mov x0, vaStart           
 //     add sp, x0, lowMemory
 
-//     adrp    x0, _pg_dir              
+//     adrp    x0, _bl_pg_dir              
 //     msr ttbr1_el1, x0
 
 //     ldr x0, =(tcrValue)        
@@ -184,11 +184,11 @@ __create_page_tables:
 // __create_page_tables:
 //     mov x29, x30 // save return address
 
-//     adrp x0, _pg_dir
+//     adrp x0, _bl_pg_dir
 //     mov x1, pgDirSize
 //     bl  memzero
 
-//     adrp    x0, _pg_dir
+//     adrp    x0, _bl_pg_dir
 //     mov x1, vaStart 
 //     create_pgd_entry x0, x1, x2, x3
 

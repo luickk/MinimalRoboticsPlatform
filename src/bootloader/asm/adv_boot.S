@@ -17,14 +17,14 @@ el1_entry_aarch64:
 	msr	cpacr_el1, x0
 
 
-    adr	x0, _bss_start
-	adr	x1, _bss_end
+    adr	x0, _bl_bss_start
+	adr	x1, _bl_bss_end
 	sub	x1, x1, x0
 	bl 	memzero
 	isb 
 
     // set top of stack just before our code (stack grows to a lower address per AAPCS64)
-    ldr x1, = _stack_top
+    ldr x1, = _bl_stack_top
     mov sp, x1
 
     // load km fn addr (without offset) in order to longjump to kernel vm
