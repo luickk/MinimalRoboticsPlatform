@@ -1,13 +1,20 @@
 const bl_utils = @import("utils.zig");
 const intHandle = @import("intHandle.zig");
-const proc = @import("peripherals").processor;
-const kprint = @import("peripherals").serial.kprint;
+const periph = @import("peripherals");
+const proc = periph.processor;
+const intController = periph.intController;
+const kprint = periph.serial.kprint;
 
 export fn bl_main() callconv(.Naked) noreturn {
 
+    // const kernel_entry = @extern(?*fn () noreturn, .{ .name = "_kernelrom_start", .linkage = .Strong }) orelse {
+    //     kprint("error reading _kernelrom_start label\n", .{});
+    //     unreachable;
+    // };
+
     // get address of external linker script variable which marks stack-top and kernel start
-    const bl_stack_top: usize = @ptrToInt(@extern(?*u8, .{ .name = "_bl_stack_top", .linkage = .Strong }) orelse {
-        kprint("error reading _stack_top label\n", .{});
+    const kernel_entry: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernelrom_start", .linkage = .Strong }) orelse {
+        kprint("error reading _kernelrom_start label\n", .{});
         unreachable;
     });
 
@@ -16,14 +23,15 @@ export fn bl_main() callconv(.Naked) noreturn {
         kprint("el must be 1! (it is: {d})\n", .{current_el});
         proc.panic();
     }
-    kprint("bl setup mmu, el1, exc table \n", .{});
+    kprint("bl setup mmu, el1, exc table. \n", .{});
 
-    var kernel_main = @intToPtr(*fn () noreturn, bl_stack_top + 1);
+    // set pc to kernel_entry
+    proc.branchToAddr(kernel_entry);
+
     // from now on addresses are translated
-
     // proc.enableMmu();
-    kernel_main.*();
 
+    kprint("should not be reached \n", .{});
     unreachable;
 }
 

@@ -8,7 +8,14 @@ pub fn enableMmu() void {
     const mmu_en: usize = 1 << 0;
     asm volatile ("msr sctlr_el1, %[mmu_en]"
         :
-        : [mmu_en] "{rax}" (mmu_en),
+        : [mmu_en] "rax" (mmu_en),
+    );
+}
+
+pub fn branchToAddr(addr: u64) void {
+    asm volatile ("br %[pc_addr]"
+        :
+        : [pc_addr] "rax" (addr),
     );
 }
 
@@ -22,7 +29,7 @@ pub fn disableMmu() void {
     const mmu_en: usize = 0;
     asm volatile ("msr sctlr_el1, %[mmu_en]"
         :
-        : [mmu_en] "{rax}" (mmu_en),
+        : [mmu_en] "rax" (mmu_en),
     );
 }
 

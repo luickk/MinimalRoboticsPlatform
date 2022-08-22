@@ -17,10 +17,11 @@ pub fn build(b: *std.build.Builder) !void {
 
     bl_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
     bl_exe.addOptions("build_options", build_options);
-    bl_exe.setBuildMode(std.builtin.Mode.ReleaseSafe);
+    bl_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
     bl_exe.setLinkerScriptPath(std.build.FileSource{ .path = "src/bootloader/linker.ld" });
+    bl_exe.code_model = .large;
     bl_exe.force_pic = false;
-    bl_exe.linkage = std.build.LibExeObjStep.Linkage.static;
+    bl_exe.linkage = .static;
     bl_exe.addObjectFile("src/bootloader/main.zig");
     bl_exe.addCSourceFile("src/bootloader/asm/adv_boot.S", &.{});
     bl_exe.addCSourceFile("src/bootloader/asm/exc_vec.S", &.{});
@@ -33,27 +34,29 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.addPackage(utils);
     kernel_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
     kernel_exe.addOptions("build_options", build_options);
-    kernel_exe.setBuildMode(std.builtin.Mode.ReleaseSafe);
+    kernel_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
+    kernel_exe.force_pic = false;
+    kernel_exe.code_model = .large;
+    kernel_exe.linkage = .static;
     kernel_exe.setLinkerScriptPath(std.build.FileSource{ .path = "src/kernel/linker.ld" });
-    bl_exe.force_pic = false;
-    bl_exe.linkage = std.build.LibExeObjStep.Linkage.static;
     kernel_exe.addObjectFile("src/kernel/kernel.zig");
     // kernel_exe.install();
     kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).artifact.install();
 
     var concatStep = ConcateBinsStep.create(b, "zig-out/bin/bootloader", "zig-out/bin/kernel.bin", "zig-out/bin/mergedKernel");
+    var pad_bl = b.addSystemCommand(&.{ "dd", "if=/dev/zero", "of=zig-out/bin/bootloader", "bs=1", "count=1", "seek=100k", "status=none" });
 
-    const qemu_no_disp = b.addSystemCommand(&.{ "qemu-system-aarch64", "-machine", "raspi3b", "-kernel", "zig-out/bin/mergedKernel", "-serial", "stdio", "-display", "none" });
     const run_step_serial = b.step("qemu", "emulate the kernel with no graphics and output uart to console");
     run_step_serial.dependOn(b.getInstallStep());
+    run_step_serial.dependOn(&pad_bl.step);
     run_step_serial.dependOn(&concatStep.step);
-    run_step_serial.dependOn(&qemu_no_disp.step);
+    run_step_serial.dependOn(&b.addSystemCommand(&.{ "qemu-system-aarch64", "-machine", "raspi3b", "-kernel", "zig-out/bin/mergedKernel", "-serial", "stdio", "-display", "none" }).step);
 
-    const qemu_gdb_no_disp = b.addSystemCommand(&.{ "qemu-system-aarch64", "-s", "-S", "-machine", "raspi3b", "-kernel", "zig-out/bin/bootloader", "-serial", "stdio", "-display", "none" });
     const run_step_serial_gdb = b.step("qemu-gdb", "emulate the kernel with no graphics and output uart to console");
     run_step_serial_gdb.dependOn(b.getInstallStep());
-    run_step_serial.dependOn(&concatStep.step);
-    run_step_serial_gdb.dependOn(&qemu_gdb_no_disp.step);
+    run_step_serial_gdb.dependOn(&pad_bl.step);
+    run_step_serial_gdb.dependOn(&concatStep.step);
+    run_step_serial_gdb.dependOn(&b.addSystemCommand(&.{ "qemu-system-aarch64", "-s", "-S", "-machine", "raspi3b", "-kernel", "zig-out/bin/bootloader", "-serial", "stdio", "-display", "none" }).step);
 
     const test_obj_step = b.addTest("src/utils.zig");
     const test_step = b.step("test", "Run tests for testable kernel parts");

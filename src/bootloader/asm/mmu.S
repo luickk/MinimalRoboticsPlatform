@@ -70,7 +70,7 @@ memzero:
     mov x0, #VA_START 
     add sp, x0, #LOW_MEMORY
 
-    adrp    x0, _bl_pg_dir   
+    adrp    x0, _pg_dir   
     msr ttbr1_el1, x0
 
     ldr x0, =(TCR_VALUE)  
@@ -112,11 +112,11 @@ memzero:
 __create_page_tables:
     mov x29, x30  // save return address
 
-    adrp    x0, _bl_pg_dir
+    adrp    x0, _pg_dir
     mov x1, #_bl_pg_dir_SIZE
     bl  memzero
 
-    adrp    x0, _bl_pg_dir
+    adrp    x0, _pg_dir
     mov x1, #VA_START 
     create_pgd_entry x0, x1, x2, x3
 

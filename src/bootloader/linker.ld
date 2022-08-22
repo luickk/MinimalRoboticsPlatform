@@ -7,37 +7,42 @@ SECTIONS {
         *(.text.boot)
         *(.text);
         *(.text.*);
-    } > ROM
+    } > BOOT_ROM
     
+    .got : { 
+        *(.got.plt);
+        *(.got);
+    } > BOOT_ROM
+
     .exceptions : ALIGN(0x8) {
         *(.text.exc_vec);
-    } > ROM
+    } > BOOT_ROM
 
     .rodata : ALIGN(0x8) {
         *(.rodata);
         *(.rodata.*);
-    } > ROM
+    } > RAM
 
     .bss : ALIGN(0x10) {
-        _bl_bss_start = .;
+        _bss_start = .;
         *(.bss.*);
         *(COMMON);
-        _bl_bss_end = .;
-    } > ROM
+        _bss_end = .;
+    } > RAM
 
     .paging_tbl : ALIGN(0x00001000) {
-        _bl_pg_dir = .;
+        _pg_dir = .;
         . += (3 * (1 << 12));
-    } > ROM
+    } > RAM
 
     .data : {
         *(.data);
         *(.data.*);
-    } > ROM
+    } > RAM
      
     .stack : ALIGN(16) {
-        _bl_stack_bottom = .;
+        _stack_bottom = .;
         . = . + 0x1000;
-        _bl_stack_top = .;   
-    } > ROM
+        _stack_top = .;   
+    } > RAM
 }
