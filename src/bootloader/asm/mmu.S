@@ -1,3 +1,4 @@
+.section ".text.mmu"
 
 // todo => use linked symbols!!
 #define DEVICE_BASE 0x3f000000
@@ -64,7 +65,9 @@ memzero:
     b.gt memzero
     ret
 
-.macro setup_mmu
+.globl setup_mmu
+setup_mmu:
+    mov x29, x30  // save return address
     bl  __create_page_tables
 
     mov x0, #VA_START 
@@ -77,8 +80,9 @@ memzero:
     msr tcr_el1, x0
 
     ldr x0, =(MAIR_VALUE)
-    msr mair_el1, x0    
-.endm
+    msr mair_el1, x0
+    mov x30, x29  // restore return addressw
+    ret
 
 .macro  create_pgd_entry, tbl, virt, tmp1, tmp2
     create_table_entry \tbl, \virt, PGD_SHIFT, \tmp1, \tmp2
@@ -114,7 +118,8 @@ __create_page_tables:
 
     adrp    x0, _pg_dir
     mov x1, #_bl_pg_dir_SIZE
-    bl  memzero
+    // todo => restore memzero
+    // bl  memzero
 
     adrp    x0, _pg_dir
     mov x1, #VA_START 

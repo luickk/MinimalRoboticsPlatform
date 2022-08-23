@@ -13,10 +13,10 @@ export fn bl_main() callconv(.Naked) noreturn {
     // };
 
     // get address of external linker script variable which marks stack-top and kernel start
-    const kernel_entry: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernelrom_start", .linkage = .Strong }) orelse {
-        kprint("error reading _kernelrom_start label\n", .{});
-        unreachable;
-    });
+    // const kernel_entry: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernelrom_start", .linkage = .Strong }) orelse {
+    //     kprint("error reading _kernelrom_start label\n", .{});
+    //     unreachable;
+    // });
 
     var current_el = proc.getCurrentEl();
     if (current_el != 1) {
@@ -26,12 +26,14 @@ export fn bl_main() callconv(.Naked) noreturn {
     kprint("bl setup mmu, el1, exc table. \n", .{});
 
     // set pc to kernel_entry
-    proc.branchToAddr(kernel_entry);
+    proc.branchToAddr(0x36000);
 
     // from now on addresses are translated
     // proc.enableMmu();
 
     kprint("should not be reached \n", .{});
+
+    while (true) {}
     unreachable;
 }
 

@@ -25,8 +25,9 @@ pub fn build(b: *std.build.Builder) !void {
     bl_exe.addObjectFile("src/bootloader/main.zig");
     bl_exe.addCSourceFile("src/bootloader/asm/adv_boot.S", &.{});
     bl_exe.addCSourceFile("src/bootloader/asm/exc_vec.S", &.{});
+    bl_exe.addCSourceFile("src/bootloader/asm/mmu.S", &.{});
     bl_exe.install();
-    // bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).artifact.install();
+    bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).artifact.install();
 
     // kernel
     const kernel_exe = b.addExecutable("kernel", null);
@@ -40,23 +41,27 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.linkage = .static;
     kernel_exe.setLinkerScriptPath(std.build.FileSource{ .path = "src/kernel/linker.ld" });
     kernel_exe.addObjectFile("src/kernel/kernel.zig");
-    // kernel_exe.install();
+    kernel_exe.install();
     kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).artifact.install();
 
-    var concatStep = ConcateBinsStep.create(b, "zig-out/bin/bootloader", "zig-out/bin/kernel.bin", "zig-out/bin/mergedKernel");
+    var qemu_args = [_][]const u8{ "qemu-system-aarch64", "-machine", "raspi3b", "-device", "loader,file=zig-out/bin/mergedKernel,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" };
+    var concatStep = ConcateBinsStep.create(b, "zig-out/bin/bootloader.bin", "zig-out/bin/kernel.bin", "zig-out/bin/mergedKernel");
     var pad_bl = b.addSystemCommand(&.{ "dd", "if=/dev/zero", "of=zig-out/bin/bootloader", "bs=1", "count=1", "seek=100k", "status=none" });
 
     const run_step_serial = b.step("qemu", "emulate the kernel with no graphics and output uart to console");
     run_step_serial.dependOn(b.getInstallStep());
     run_step_serial.dependOn(&pad_bl.step);
     run_step_serial.dependOn(&concatStep.step);
-    run_step_serial.dependOn(&b.addSystemCommand(&.{ "qemu-system-aarch64", "-machine", "raspi3b", "-kernel", "zig-out/bin/mergedKernel", "-serial", "stdio", "-display", "none" }).step);
+    run_step_serial.dependOn(&b.addSystemCommand(&qemu_args).step);
 
     const run_step_serial_gdb = b.step("qemu-gdb", "emulate the kernel with no graphics and output uart to console");
+    var gdb_qemu = b.addSystemCommand(&qemu_args);
+    gdb_qemu.addArg("-s");
+    gdb_qemu.addArg("-S");
     run_step_serial_gdb.dependOn(b.getInstallStep());
     run_step_serial_gdb.dependOn(&pad_bl.step);
     run_step_serial_gdb.dependOn(&concatStep.step);
-    run_step_serial_gdb.dependOn(&b.addSystemCommand(&.{ "qemu-system-aarch64", "-s", "-S", "-machine", "raspi3b", "-kernel", "zig-out/bin/bootloader", "-serial", "stdio", "-display", "none" }).step);
+    run_step_serial_gdb.dependOn(&gdb_qemu.step);
 
     const test_obj_step = b.addTest("src/utils.zig");
     const test_step = b.step("test", "Run tests for testable kernel parts");
@@ -93,12 +98,15 @@ const ConcateBinsStep = struct {
         var f_concated = try std.fs.cwd().createFile(self.out_file_path, .{ .read = true });
         defer f_concated.close();
 
+        var index: usize = 0;
         var buf = [_]u8{0} ** 1024;
         var read_size: usize = buf.len;
         while (read_size >= buf.len) {
             read_size = try in_stream_1.readAll(&buf);
             try f_concated.writeAll(buf[0..read_size]);
+            index += read_size;
         }
+        // std.debug.print("at index: {d} \n", .{index});
         read_size = buf.len;
         while (read_size >= buf.len) {
             read_size = try in_stream_2.readAll(&buf);

@@ -8,7 +8,7 @@ SECTIONS {
         *(.text.);
         *(.text.*);
     } > KERNEL_ROM
-    
+
     .exceptions : ALIGN(0x8) {
         *(.text.exc_vec);
     } > KERNEL_ROM

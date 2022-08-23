@@ -1,7 +1,7 @@
 MEMORY {
-  BOOT_ROM (rx) : ORIGIN = 0x800, LENGTH = 102048
-  KERNEL_ROM (rx) : ORIGIN = 0x196a0, LENGTH = 102048
-  RAM (!rx) : org = 0x32540, l = 1M
+  BOOT_ROM (rx) : ORIGIN = 0x0, LENGTH = 102048
+  KERNEL_ROM (rx) : ORIGIN = 0x18ea0, LENGTH = 102048
+  RAM (!rx) : org = 0x31d40, l = 1M
 }
 
 _bootrom_start = ORIGIN(BOOT_ROM);
