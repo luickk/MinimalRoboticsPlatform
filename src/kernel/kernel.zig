@@ -42,7 +42,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
     // // logger.reportKMemStatus(&alloc);
 
     // // proc.exceptionSvc();
-    mmu.testc();
+    // mmu.testc();
     // kprint("kernel boot complete \n", .{});
     while (true) {}
 }

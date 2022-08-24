@@ -5,7 +5,7 @@ ENTRY(_start)
 SECTIONS {
     .boot : ALIGN(16) {
         *(.text.boot)
-        *(.text);
+        *(.text.);
         *(.text.*);
     } > BOOT_ROM
     
@@ -23,14 +23,14 @@ SECTIONS {
         *(.rodata.*);
     } > RAM
 
-    .bss : ALIGN(0x10) {
+    .bss (NOLOAD) : ALIGN(0x10) {
         _bss_start = .;
         *(.bss.*);
         *(COMMON);
         _bss_end = .;
     } > RAM
 
-    .paging_tbl : ALIGN(0x00001000) {
+    .paging_tbl (NOLOAD) : ALIGN(0x00001000) {
         _pg_dir = .;
         . += (3 * (1 << 12));
     } > RAM
@@ -40,7 +40,7 @@ SECTIONS {
         *(.data.*);
     } > RAM
      
-    .stack : ALIGN(16) {
+    .stack (NOLOAD) : ALIGN(16) {
         _stack_bottom = .;
         . = . + 0x1000;
         _stack_top = .;   

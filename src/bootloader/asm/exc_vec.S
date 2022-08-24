@@ -103,7 +103,7 @@ exception_vector_table:
 .org 0x0800
 
 .exit_exception:
-// restore link register
+    // restore link register
     ldr x30, [sp, #16 * 16]
 
     // restore exception link register and saved processor state register
