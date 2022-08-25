@@ -1,10 +1,4 @@
-pub fn enableMmu() void {
-
-    // SCTLR_MMU_ENABLED
-    // ldr  x2, = bl_main
-    // mov  x0, (1 << 0)
-    // msr  sctlr_el1, x0
-    // br x2
+pub inline fn enableMmu() void {
     const mmu_en: usize = 1 << 0;
     asm volatile ("msr sctlr_el1, %[mmu_en]"
         :
@@ -12,14 +6,14 @@ pub fn enableMmu() void {
     );
 }
 
-pub fn branchToAddr(addr: u64) void {
+pub inline fn branchToAddr(addr: u64) void {
     asm volatile ("br %[pc_addr]"
         :
         : [pc_addr] "rax" (addr),
     );
 }
 
-pub fn disableMmu() void {
+pub inline fn disableMmu() void {
     const mmu_en: usize = 0;
     asm volatile ("msr sctlr_el1, %[mmu_en]"
         :

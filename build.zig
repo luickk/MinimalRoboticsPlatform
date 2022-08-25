@@ -27,7 +27,7 @@ pub fn build(b: *std.build.Builder) !void {
     bl_exe.addCSourceFile("src/bootloader/asm/exc_vec.S", &.{});
     bl_exe.addCSourceFile("src/bootloader/asm/mmu.S", &.{});
     bl_exe.install();
-    bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = 1000 }).artifact.install();
+    bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = 2000 }).artifact.install();
 
     // kernel
     const kernel_exe = b.addExecutable("kernel", null);
@@ -87,7 +87,7 @@ const ConcateBinsStep = struct {
         var f1_opened = try std.fs.cwd().openFile(self.f1_path, .{});
         var in_stream_1 = std.io.bufferedReader(f1_opened.reader()).reader();
         defer f1_opened.close();
-        std.debug.print("bootloader size: {d} \n", .{(try f1_opened.stat()).size});
+        // std.debug.print("bootloader size: {d} \n", .{(try f1_opened.stat()).size});
 
         var f2_opened = try std.fs.cwd().openFile(self.f2_path, .{});
         var in_stream_2 = std.io.bufferedReader(f2_opened.reader()).reader();

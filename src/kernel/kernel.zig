@@ -2,19 +2,16 @@ const std = @import("std");
 const periph = @import("peripherals");
 
 const kprint = periph.serial.kprint;
-// const utils = @import("utils.zig");
-// const logger = @import("logger.zig");
-// const tests = @import("tests.zig");
-
 // kernel services
 // const KernelAllocator = @import("memory.zig").KernelAllocator;
 const intHandle = @import("intHandle.zig");
-// const intController = periph.intController;
-// const timer = periph.timer;
-// const proc = periph.processor;
+const intController = periph.intController;
+const timer = periph.timer;
+const proc = periph.processor;
 const mmu = periph.mmu;
 
 export fn kernel_main() callconv(.Naked) noreturn {
+    // proc.enableMmu();
     kprint("kernel started! \n", .{});
     // get address of external linker script variable which marks stack-top and heap-start
     // const mem_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "_stack_top" }) orelse {
