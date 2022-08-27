@@ -43,20 +43,19 @@ _start:
 
 el1_entry_aarch64:
 	// setting up vector table (https://github.com/Xilinx/embeddedsw/blob/master/lib/bsp/standalone/src/arm/ARMv8/64bit/armclang/boot.S)
-	// ldr x0, = exception_vector_table
-	// msr vbar_el1, x0
-	// isb
+	ldr x0, =_exception_vector_table
+	msr vbar_el1, x0
+	isb
 
 	//  Enable FP/SIMD for el1
 	mov	x0, #3 << 20
 	msr	cpacr_el1, x0
 
-
-    // adr	x0, _bss_start
-	// adr	x1, _bss_end
-	// sub	x1, x1, x0
-	// bl 	memzero
-	// isb 
+    adr	x0, _bss_start
+	adr	x1, _bss_end
+	sub	x1, x1, x0
+	 bl 	memzero
+	isb 
 
     // set top of stack just before our code (stack grows to a lower address per AAPCS64)
     ldr x1, = _stack_top
@@ -64,9 +63,6 @@ el1_entry_aarch64:
 
     // load km fn addr (without offset) in order to longjump to kernel vm
 	bl 	_create_page_tables
-
-	mov	x0, #VA_START			
-	add	sp, x0, #LOW_MEMORY
 
 	adrp	x0, _pg_dir				
 	msr	ttbr1_el1, x0
@@ -76,9 +72,7 @@ el1_entry_aarch64:
 
 	ldr	x0, =(MAIR_VALUE)
 	msr	mair_el1, x0
-
-
-	// isb
+	isb
 
 	bl  bl_main
 

@@ -27,7 +27,7 @@ pub fn build(b: *std.build.Builder) !void {
     bl_exe.addCSourceFile("src/bootloader/asm/exc_vec.S", &.{});
     bl_exe.addCSourceFile("src/bootloader/asm/mmu.S", &.{});
     bl_exe.install();
-    bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = 2000 }).artifact.install();
+    bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = 502404 }).artifact.install();
 
     // kernel
     const kernel_exe = b.addExecutable("kernel", null);

@@ -2,7 +2,7 @@
 
 .equ CONTEXT_SIZE, 264
 
-.section .text.exceptions
+.section .text.exc_vec
 
 .macro EXCEPTION_VECTOR handler int_type
 
@@ -46,8 +46,8 @@
 .endm
 
 // https://developer.arm.com/documentation/100933/0100/AArch64-exception-vector-table
-.globl exception_vector_table
-exception_vector_table:
+.globl _exception_vector_table
+_exception_vector_table:
 
 .org 0x0000
     EXCEPTION_VECTOR irqElxSpx elxSpx // el1_sp0_sync

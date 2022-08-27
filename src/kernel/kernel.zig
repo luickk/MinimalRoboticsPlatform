@@ -11,8 +11,8 @@ const proc = periph.processor;
 const mmu = periph.mmu;
 
 export fn kernel_main() callconv(.Naked) noreturn {
-    // proc.enableMmu();
     kprint("kernel started! \n", .{});
+
     // get address of external linker script variable which marks stack-top and heap-start
     // const mem_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "_stack_top" }) orelse {
     //     kprint("error reading _stack_top label\n", .{});
@@ -39,12 +39,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
     // // logger.reportKMemStatus(&alloc);
 
     // // proc.exceptionSvc();
-    // mmu.testc();
+
     // kprint("kernel boot complete \n", .{});
     while (true) {}
-}
-
-comptime {
-    @export(intHandle.irqHandler, .{ .name = "irqHandler", .linkage = .Strong });
-    @export(intHandle.irqElxSpx, .{ .name = "irqElxSpx", .linkage = .Strong });
 }

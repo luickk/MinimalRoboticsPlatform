@@ -10,12 +10,13 @@ const Bank1 = addr.Values.Bank1;
 const Bank2 = addr.Values.Bank2;
 
 pub fn irqHandler(exc: *iC.ExceptionFrame) callconv(.C) void {
-
+    kprint("irqHandler \n", .{});
     // std intToEnum instead of build in in order to catch err
     var int_type = std.meta.intToEnum(iC.ExceptionType, exc.int_type) catch {
         kprint("int type not found \n", .{});
         return;
     };
+
     if (int_type == iC.ExceptionType.el1Sync) {
         var iss = @truncate(u25, exc.esr_el1);
         var il = @truncate(u1, exc.esr_el1 >> 25);
@@ -39,22 +40,25 @@ pub fn irqHandler(exc: *iC.ExceptionFrame) callconv(.C) void {
             kprint("16 bit instruction trapped \n", .{});
         }
         kprint(".........sync exc............\n", .{});
+    } else {
+        var irq_bank_0 = std.meta.intToEnum(Bank0, @intToPtr(*u32, addr.pendingBasic).*) catch {
+            kprint("bank0 int type not found. \n", .{});
+            return;
+        };
+        var irq_bank_1 = std.meta.intToEnum(Bank1, @intToPtr(*u32, addr.pendingIrq1).*) catch {
+            kprint("bank1 int type not found. \n", .{});
+            return;
+        };
+        var irq_bank_2 = std.meta.intToEnum(Bank2, @intToPtr(*u32, addr.pendingIrq2).*) catch {
+            kprint("bank2 int type not found. \n", .{});
+            return;
+        };
+        kprint(".........Async int............\n", .{});
+        kprint("Async ({s}) bank irq num: {s} \n", .{ @tagName(int_type), @tagName(irq_bank_0) });
+        kprint("Bank 0: {s}; Bank 1: {s}; Bank 2: {s} \n", .{ @tagName(irq_bank_0), @tagName(irq_bank_1), @tagName(irq_bank_2) });
+        kprint(".........Async int............\n", .{});
     }
-    var irq_bank_0 = std.meta.intToEnum(Bank0, @intToPtr(*u32, addr.pendingBasic).*) catch {
-        kprint("bank0 int type not found. \n", .{});
-        return;
-    };
-    var irq_bank_1 = std.meta.intToEnum(Bank1, @intToPtr(*u32, addr.pendingIrq1).*) catch {
-        kprint("bank1 int type not found. \n", .{});
-        return;
-    };
-    var irq_bank_2 = std.meta.intToEnum(Bank2, @intToPtr(*u32, addr.pendingIrq2).*) catch {
-        kprint("bank2 int type not found. \n", .{});
-        return;
-    };
-    kprint(".........Async int............\n", .{});
-    kprint("Async ({s}) bank irq num: {s} \n", .{ @tagName(int_type), @tagName(irq_bank_0) });
-    kprint("Bank 0: {s}; Bank 1: {s}; Bank 2: {s} \n", .{ @tagName(irq_bank_0), @tagName(irq_bank_1), @tagName(irq_bank_2) });
-    kprint(".........Async int............\n", .{});
 }
-pub fn irqElxSpx() callconv(.C) void {}
+pub fn irqElxSpx() callconv(.C) void {
+    kprint("irqElxSpx \n", .{});
+}

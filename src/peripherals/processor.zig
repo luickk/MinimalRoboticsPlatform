@@ -4,6 +4,7 @@ pub inline fn enableMmu() void {
         :
         : [mmu_en] "rax" (mmu_en),
     );
+    asm volatile ("isb");
 }
 
 pub inline fn branchToAddr(addr: u64) void {
@@ -21,7 +22,7 @@ pub inline fn disableMmu() void {
     );
 }
 
-pub fn exceptionSvc() void {
+pub inline fn exceptionSvc() void {
     // Supervisor call to allow application code to call the OS.  It generates an exception targeting exception level 1 (EL1).
     asm volatile ("svc #0xdead");
 }

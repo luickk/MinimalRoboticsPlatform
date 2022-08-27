@@ -5,9 +5,10 @@ const periph = @import("peripherals");
 const proc = periph.processor;
 const intController = periph.intController;
 const kprint = periph.serial.kprint;
+const mmu = periph.mmu;
 
 export fn bl_main() callconv(.Naked) noreturn {
-
+    intController.initIc();
     // const kernel_entry = @extern(?*fn () noreturn, .{ .name = "_kernelrom_start", .linkage = .Strong }) orelse {
     //     kprint("error reading _kernelrom_start label\n", .{});
     //     unreachable;
@@ -18,6 +19,7 @@ export fn bl_main() callconv(.Naked) noreturn {
         kprint("error reading _kernelrom_start label\n", .{});
         unreachable;
     });
+
     const kernel_end: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernelrom_end", .linkage = .Strong }) orelse {
         kprint("error reading _kernelrom_end label\n", .{});
         unreachable;
@@ -37,17 +39,20 @@ export fn bl_main() callconv(.Naked) noreturn {
         kprint("el must be 1! (it is: {d})\n", .{current_el});
         proc.panic();
     }
+
+    // proc.exceptionSvc();
+
     kprint("[bootloader] setup mmu, el1, exc table. \n", .{});
 
-    std.mem.copy(u8, kernel_target_loc, kernel);
+    // std.mem.copy(u8, kernel_target_loc, kernel);
 
-    kprint("[bootloader] kernel copied \n", .{});
+    // kprint("[bootloader] kernel copied \n", .{});
 
     // from now on addresses are translated
     // proc.enableMmu();
 
     // set pc to kernel_entry
-    // proc.branchToAddr(0xffff000000000000);
+    proc.branchToAddr(kernel_entry);
 
     // kprint("should not be reached \n", .{});
 
