@@ -10,8 +10,6 @@ const mmu = periph.mmu;
 export fn bl_main() callconv(.Naked) noreturn {
     intController.initIc();
 
-    // proc.exceptionSvc();
-
     // get address of external linker script variable which marks stack-top and kernel start
     const kernel_entry: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernelrom_start", .linkage = .Strong }) orelse {
         kprint("error reading _kernelrom_start label\n", .{});
@@ -26,14 +24,13 @@ export fn bl_main() callconv(.Naked) noreturn {
         kprint("kernel size cacl error \n", .{});
         unreachable;
     };
-    // kprint("size: {d} \n", .{kernel_size});
 
-    var kernel: []u8 = undefined;
-    kernel.ptr = @intToPtr([*]u8, kernel_entry);
-    kernel.len = kernel_size;
+    var kernel_bl: []u8 = undefined;
+    kernel_bl.ptr = @intToPtr([*]u8, kernel_entry);
+    kernel_bl.len = kernel_size;
 
     var kernel_target_loc: []u8 = undefined;
-    kernel_target_loc.ptr = @intToPtr([*]u8, mmu.kernelPh2Virt(0x20000000));
+    kernel_target_loc.ptr = @intToPtr([*]u8, mmu.addrToSecure(0x20000000));
     kernel_target_loc.len = kernel_size;
 
     var current_el = proc.getCurrentEl();
@@ -42,17 +39,19 @@ export fn bl_main() callconv(.Naked) noreturn {
         proc.panic();
     }
 
+    // base table addr, page shift, table shift
+    var ttbr0 = mmu.PageTable.init(0x100, 12, 9);
+    ttbr0.writeTable();
+
     proc.enableMmu();
 
     kprint("[bootloader] setup mmu, el1, exc table. \n", .{});
     kprint("[bootloader] Copying kernel to secure: 0x{x}, with size: {d} \n", .{ @ptrToInt(kernel_target_loc.ptr), kernel_target_loc.len });
-    std.mem.copy(u8, kernel_target_loc, kernel);
+    std.mem.copy(u8, kernel_target_loc, kernel_bl);
     kprint("[bootloader] kernel copied \n", .{});
 
     kprint("[bootloader] jumping to secure kernel copy \n", .{});
     proc.branchToAddr(@ptrToInt(kernel_target_loc.ptr));
-
-    // kprint("should not be reached \n", .{});
 
     while (true) {}
 }

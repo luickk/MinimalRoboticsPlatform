@@ -4,6 +4,11 @@ const warn = @import("std").debug.warn;
 const os = @import("std").os;
 
 pub fn build(b: *std.build.Builder) !void {
+    // ! have to be in sync with linker script vars !
+    // todo => export(?) vars from build.zig to linker script
+    const linker_bootloader_bin_size = 502404;
+    // const linker_kernel_bin_size = 502404;
+
     var build_options = b.addOptions();
     build_options.addOption(bool, "is_qemu", true);
 
@@ -27,7 +32,7 @@ pub fn build(b: *std.build.Builder) !void {
     bl_exe.addCSourceFile("src/bootloader/asm/exc_vec.S", &.{});
     bl_exe.addCSourceFile("src/bootloader/asm/mmu.S", &.{});
     bl_exe.install();
-    bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = 502404 }).artifact.install();
+    bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = linker_bootloader_bin_size }).artifact.install();
 
     // kernel
     const kernel_exe = b.addExecutable("kernel", null);
