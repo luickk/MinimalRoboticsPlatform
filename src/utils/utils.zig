@@ -1,4 +1,6 @@
-const kprint = @import("serial.zig").kprint;
+const periph = @import("peripherals");
+
+const kprint = periph.serial.kprint;
 
 pub fn printErrNoReturn(err: anytype) noreturn {
     kprint("Error: {s} \n", .{@errorName(err)});

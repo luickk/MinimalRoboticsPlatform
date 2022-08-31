@@ -66,7 +66,7 @@ memzero:
     b.gt memzero
     br lr
 
-.macro  create_pgd_entry, tbl, virt, tmp1, tmp2
+.macro create_pgd_entry, tbl, virt, tmp1, tmp2
     create_table_entry \tbl, \virt, PGD_SHIFT, \tmp1, \tmp2
     create_table_entry \tbl, \virt, PUD_SHIFT, \tmp1, \tmp2
 .endm
@@ -83,21 +83,45 @@ memzero:
 .macro  create_block_map, tbl, phys, start, end, flags, tmp1
     lsr \start, \start, #SECTION_SHIFT
     and \start, \start, #PTRS_PER_TABLE - 1         // table index
+
     lsr \end, \end, #SECTION_SHIFT
     and \end, \end, #PTRS_PER_TABLE - 1             // table end index
+
     lsr \phys, \phys, #SECTION_SHIFT
     mov \tmp1, #\flags
     orr \phys, \tmp1, \phys, lsl #SECTION_SHIFT         // table entry
+
 9999:   str \phys, [\tbl, \start, lsl #3]               // store the entry
     add \start, \start, #1                  // next entry
-    add \phys, \phys, #SECTION_SIZE             // next block
+    add \phys, \phys, #SECTION_SIZE // next block
     cmp \start, \end
     b.ls    9999b
 .endm
 
 
-.globl _create_page_tables
-_create_page_tables:
+.globl _init_pt_id_mapped
+_init_pt_id_mapped:
+    mov x29, x30 // save return address
+
+    adrp    x0, _id_mapped_dir
+    mov x1, #PG_DIR_SIZE
+    bl  memzero
+
+    adrp    x0, _id_mapped_dir
+    mov x1, xzr 
+    create_pgd_entry x0, x1, x2, x3
+
+    mov     x1, xzr
+    mov     x2, xzr
+    // todo => fix; should be working with x3 =0x40000000
+    ldr x3, =(VA_START + PHYS_MEMORY_SIZE - SECTION_SIZE)
+    create_block_map x0, x1, x2, x3, MMU_FLAGS, x4
+
+    mov x30, x29
+    ret
+
+.global _init_pt_higher_mem
+_init_pt_higher_mem:
     mov x29, x30                        // save return address
 
     adrp    x0, _pg_dir

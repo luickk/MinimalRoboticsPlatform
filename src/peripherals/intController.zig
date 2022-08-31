@@ -65,5 +65,5 @@ pub fn initIc() void {
     // @intToPtr(*u32, addr.enableIrq2).* = 1 << 1;
     // @intToPtr(*u32, addr.enableIrqBasic).* = 1 << 1;
 
-    // asm volatile ("msr daifclr, #3");
+    asm volatile ("msr daifclr, #3");
 }

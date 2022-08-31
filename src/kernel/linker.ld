@@ -1,7 +1,8 @@
 ENTRY(kernel_main)
 
 SECTIONS {
-    . = 0xffff000000000000;
+    . = 0xffff000002000000;
+
     .text : ALIGN(16) {
         *(.text.kernel_main);
         *(.text.);
@@ -27,6 +28,8 @@ SECTIONS {
     .paging_tbl (NOLOAD) : ALIGN(0x00001000) {
         _pg_dir = .;
         . += (3 * (1 << 12));
+        _id_mapped_dir = .;
+        . += (3 * (1 << 12));
     }
 
     .data : {
@@ -37,6 +40,6 @@ SECTIONS {
     .stack (NOLOAD) : ALIGN(16) {
         _stack_bottom = .;
         . = . + 0x1000;
-        _stack_top = .;   
+        _stack_top = .;
     }
 }

@@ -9,10 +9,8 @@ const mmu = periph.mmu;
 
 export fn bl_main() callconv(.Naked) noreturn {
     intController.initIc();
-    // const kernel_entry = @extern(?*fn () noreturn, .{ .name = "_kernelrom_start", .linkage = .Strong }) orelse {
-    //     kprint("error reading _kernelrom_start label\n", .{});
-    //     unreachable;
-    // };
+
+    // proc.exceptionSvc();
 
     // get address of external linker script variable which marks stack-top and kernel start
     const kernel_entry: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernelrom_start", .linkage = .Strong }) orelse {
@@ -29,10 +27,14 @@ export fn bl_main() callconv(.Naked) noreturn {
         unreachable;
     };
     // kprint("size: {d} \n", .{kernel_size});
-    var kernel = @ptrCast(*[]u8, &.{ .ptr = @intToPtr(*u8, kernel_entry), .len = kernel_size }).*;
-    var kernel_target_loc = @ptrCast(*[]u8, &.{ .ptr = 0xffff000000000000, .len = kernel_size }).*;
-    _ = kernel;
-    _ = kernel_target_loc;
+
+    var kernel: []u8 = undefined;
+    kernel.ptr = @intToPtr([*]u8, kernel_entry);
+    kernel.len = kernel_size;
+
+    var kernel_target_loc: []u8 = undefined;
+    kernel_target_loc.ptr = @intToPtr([*]u8, mmu.kernelPh2Virt(0x20000000));
+    kernel_target_loc.len = kernel_size;
 
     var current_el = proc.getCurrentEl();
     if (current_el != 1) {
@@ -40,19 +42,15 @@ export fn bl_main() callconv(.Naked) noreturn {
         proc.panic();
     }
 
-    // proc.exceptionSvc();
+    proc.enableMmu();
 
     kprint("[bootloader] setup mmu, el1, exc table. \n", .{});
+    kprint("[bootloader] Copying kernel to secure: 0x{x}, with size: {d} \n", .{ @ptrToInt(kernel_target_loc.ptr), kernel_target_loc.len });
+    std.mem.copy(u8, kernel_target_loc, kernel);
+    kprint("[bootloader] kernel copied \n", .{});
 
-    // std.mem.copy(u8, kernel_target_loc, kernel);
-
-    // kprint("[bootloader] kernel copied \n", .{});
-
-    // from now on addresses are translated
-    // proc.enableMmu();
-
-    // set pc to kernel_entry
-    proc.branchToAddr(kernel_entry);
+    kprint("[bootloader] jumping to secure kernel copy \n", .{});
+    proc.branchToAddr(@ptrToInt(kernel_target_loc.ptr));
 
     // kprint("should not be reached \n", .{});
 

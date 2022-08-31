@@ -54,7 +54,7 @@ el1_entry_aarch64:
     adr	x0, _bss_start
 	adr	x1, _bss_end
 	sub	x1, x1, x0
-	 bl 	memzero
+	bl 	memzero
 	isb 
 
     // set top of stack just before our code (stack grows to a lower address per AAPCS64)
@@ -62,9 +62,14 @@ el1_entry_aarch64:
     mov sp, x1
 
     // load km fn addr (without offset) in order to longjump to kernel vm
-	bl 	_create_page_tables
+	bl 	_init_pt_id_mapped
 
-	adrp	x0, _pg_dir				
+	adrp	x0, _id_mapped_dir				
+	msr	ttbr0_el1, x0
+
+	bl _init_pt_higher_mem
+
+	adrp	x0, _pg_dir
 	msr	ttbr1_el1, x0
 
 	ldr	x0, =(TCR_VALUE)		
@@ -83,7 +88,7 @@ master:
 	isb
 
 	// Configure SCR_EL3
-	// -----------------
+	// -----------------dd
 	mov w1, #0      // Initial value of register is unknown
 	orr w1, w1, #(1 << 11)  // set ST bit (disable trapping of timer control registers)
 	orr w1, w1, #(1 << 10)  // set RW bit (next lower EL in aarch64)

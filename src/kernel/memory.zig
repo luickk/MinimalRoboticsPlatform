@@ -1,7 +1,9 @@
 const std = @import("std");
-const kprint = @import("serial.zig").kprint;
-const utils = @import("utils.zig");
-const addr = @import("raspberryAddr.zig");
+const periph = @import("peripherals");
+const utils = @import("utils");
+
+const kprint = periph.serial.kprint;
+const addr = periph.rbAddr;
 
 // (this is my first ever allocator; I've not read any other code base; this implementation is probably slow and ineffective!.)
 // todo => alignment!!!
