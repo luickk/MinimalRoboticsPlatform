@@ -16,6 +16,15 @@ export fn bl_main() callconv(.Naked) noreturn {
         unreachable;
     });
 
+    const test_dir_pt: usize = @ptrToInt(@extern(?*u8, .{ .name = "_test_dir", .linkage = .Strong }) orelse {
+        kprint("error reading _kernelrom_start label\n", .{});
+        unreachable;
+    });
+    const id_mapped: usize = @ptrToInt(@extern(?*u8, .{ .name = "_id_mapped_dir", .linkage = .Strong }) orelse {
+        kprint("error reading _kernelrom_start label\n", .{});
+        unreachable;
+    });
+
     const kernel_end: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernelrom_end", .linkage = .Strong }) orelse {
         kprint("error reading _kernelrom_end label\n", .{});
         unreachable;
@@ -40,9 +49,20 @@ export fn bl_main() callconv(.Naked) noreturn {
     }
 
     // base table addr, page shift, table shift
-    var ttbr0 = mmu.PageTable.init(0x100, 12, 9);
+    var ttbr0 = mmu.PageTable.init(test_dir_pt, 12, 9);
     ttbr0.writeTable();
-
+    kprint("_pg_test: {x} \n", .{test_dir_pt});
+    kprint("_id_mapped: {x} \n", .{id_mapped});
+    kprint("[bootloader] enabling mmu... \n", .{});
+    var i: usize = 0;
+    while (i < ttbr0.pg_dir_size) : (i += 1) {
+        kprint("{x}, ", .{@intToPtr(*u8, test_dir_pt + i).*});
+    }
+    // kprint("----------------------- \n", .{});
+    // i = 0;
+    // while (i < ttbr0.table.len) : (i += 1) {
+    //     kprint("{x}, ", .{@intToPtr(*u8, id_mapped + i).*});
+    // }
     proc.enableMmu();
 
     kprint("[bootloader] setup mmu, el1, exc table. \n", .{});

@@ -1,3 +1,4 @@
+const std = @import("std");
 const addr = @import("raspberryAddr.zig");
 const addrMmu = @import("raspberryAddr.zig").Mmu;
 const addrVmem = @import("raspberryAddr.zig").Vmem;
@@ -54,77 +55,102 @@ extern const _pg_dir: u8;
 pub const PageTable = struct {
     table_base_addr: usize,
 
-    page_shift: usize,
-    table_shift: usize,
+    page_shift: u6,
+    table_shift: u6,
 
-    section_shift: usize,
+    section_shift: u6,
     page_size: usize,
     section_size: usize,
 
     low_mem: usize,
     high_mem: usize,
 
-    paging_mem: usize,
     paging_pages: usize,
     descriptors_per_table: usize,
-    pgd_shift: usize,
-    pud_shift: usize,
-    pmd_shift: usize,
+    pgd_shift: u6,
+    pud_shift: u6,
+    pmd_shift: u6,
     pg_dir_size: usize,
 
-    table: []u8,
+    table: [*]u32,
 
-    pub fn init(base_addr: usize, page_shift: u8, table_shift: u8) PageTable {
-        const page_size = 1 << page_shift;
-        const section_shift = page_shift + table_shift;
-        const section_size = 1 << section_shift;
-        var table: []u32 = undefined;
-        table.ptr = self.table_base_addr;
+    pub const BlockPopulationType = enum { sections, pages };
+    pub const TransLvl = enum { first, second, third };
+
+    pub fn init(base_addr: usize, page_shift: u6, table_shift: u6) PageTable {
+        const page_size = @as(usize, 1) << page_shift;
+        const section_shift: u6 = page_shift + table_shift;
+        const section_size = @as(usize, 1) << section_shift;
+        const pg_dir_size = 3 * page_size;
 
         return PageTable{
             .table_base_addr = base_addr,
+
+            // shifts
             .page_shift = page_shift,
             .table_shift = table_shift,
             .section_shift = section_shift,
-            .page_size = page_size,
-            .section_size = section_size,
 
-            .low_mem = 2 * section_size,
-            .high_mem = addr.rpBase,
-
-            .paging_pages = (addr.rpBase - 2 * section_size) / page_size,
-            .descriptors_per_table = 1 << table_shift,
             .pgd_shift = page_shift + 3 * table_shift,
             .pud_shift = page_shift + 2 * table_shift,
             .pmd_shift = page_shift + table_shift,
 
-            .pg_dir_size = 3 * page_size,
-            .table = table,
+            // sizes
+            .page_size = page_size,
+            .section_size = section_size,
+            .pg_dir_size = pg_dir_size,
+
+            // n
+            .paging_pages = (addr.rpBase - 2 * section_size) / page_size,
+            .descriptors_per_table = @as(usize, 1) << table_shift,
+
+            // memory
+            .low_mem = 2 * section_size,
+            .high_mem = addr.rpBase,
+            .table = @intToPtr([*]u32, base_addr),
         };
     }
 
-    fn createTableEntry(self: *PageTable, addr: usize) u32 {
-        return (self.table_base_addr + addr) | addrMmu.Values.mmTypePageTable;
-    }
-    fn createTableDescriptor(self: *PageTable, phys_addr: usize, shift: usize) u32 {
-        return (phys_addr << shift) | addrMmu.Values.mmuFlags;
+    // a table entry always points to a next lvl table addr
+    fn newTableEntry(self: *PageTable, pointing_to_addr: usize) u32 {
+        return @truncate(u32, (self.table_base_addr + pointing_to_addr) | addrMmu.Values.mmTypePageTable);
     }
 
-    fn populateTableSection(self: *PageTable, n_table: usize, phys_addr: usize) void {
-        var i: usize = 0;
-        while (i < self.page_size) : (i += 1) {
-            phys_addr += self.section_size;
-            sefl.table[n_table * self.page_size + r] = createTableDescriptor(phys_addr, self.section_shift);
+    // describes a block of memory, depending on granule
+    fn newBlockEntry(phys_addr: usize, shift: u6) u32 {
+        return @truncate(u32, (phys_addr << shift) | addrMmu.Values.mmuFlags);
+    }
+
+    // newBlock populates block entries in a certain translation table lvl
+    fn newBlock(self: *PageTable, pg_table_addr: usize, virt_start_addr: usize, virt_end_addr: usize, phys_addr: usize, shift: u6) void {
+        var phys_count = phys_addr;
+        var i: usize = virt_start_addr;
+        while (i < virt_end_addr) : (i += 1) {
+            self.table[pg_table_addr + virt_start_addr + i] = newBlockEntry(phys_count, shift);
+            phys_count += self.section_size;
         }
     }
 
+    fn zeroPgDir(self: *PageTable) void {
+        var i: usize = 0;
+        while (i < self.pg_dir_size) : (i += 1) {
+            // self.table[i] = 0xFFFFFFFF;
+            // el.* = 0xFFFFFFFF;
+            @intToPtr(*u32, 0xb000 + i).* = 0xFFFFFFFF;
+        }
+    }
     pub fn writeTable(self: *PageTable) void {
-        // creating table entry lvl 1 (points to next entry below)
-        table[0] = self.createTableEntry(2 * self.page_size);
+        kprint("table addr: {x}, size: {d} \n", .{ @ptrToInt(self.table), self.pg_dir_size });
+        self.zeroPgDir();
 
-        // creating table entry lvl 2 (points to next )
-        table[2 * self.page_size] = self.createTableEntry(3);
-        self.populateTable(2);
+        kprint("text: {x} \n", .{self.page_size});
+        // creating table entry lvl 1 (points to next entry below)
+        self.table[0] = self.newTableEntry(1 * self.page_size);
+
+        // next entry
+        self.table[1 * self.page_size] = self.newTableEntry(2 * self.page_size);
+
+        self.newBlock(2 * self.page_size, 0, 0x40000000, 0, self.section_shift);
     }
 };
 
