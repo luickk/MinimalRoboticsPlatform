@@ -52,7 +52,7 @@ SECTIONS {
         _stack_top = .;   
     } > BOOT_ROM
 
-    .paging_tbl : ALIGN(0x00001000) {
+    .paging_tbl : ALIGN(0x1000) {
         _pg_dir = .;
         . += (3 * (1 << 12));
         _id_mapped_dir = .;

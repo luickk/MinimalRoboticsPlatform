@@ -34,6 +34,7 @@ export fn bl_main() callconv(.Naked) noreturn {
         unreachable;
     };
 
+    @alignCast(0x1000, @intToPtr(*u32, 0xd000)).* = 0xFFFF;
     var kernel_bl: []u8 = undefined;
     kernel_bl.ptr = @intToPtr([*]u8, kernel_entry);
     kernel_bl.len = kernel_size;
@@ -47,17 +48,25 @@ export fn bl_main() callconv(.Naked) noreturn {
         kprint("el must be 1! (it is: {d})\n", .{current_el});
         proc.panic();
     }
-
     // base table addr, page shift, table shift
-    var ttbr0 = mmu.PageTable.init(test_dir_pt, 12, 9);
+    var ttbr0 = mmu.PageTable.init(test_dir_pt + 1, 12, 9);
     ttbr0.writeTable();
     kprint("_pg_test: {x} \n", .{test_dir_pt});
     kprint("_id_mapped: {x} \n", .{id_mapped});
     kprint("[bootloader] enabling mmu... \n", .{});
     var i: usize = 0;
-    while (i < ttbr0.pg_dir_size) : (i += 1) {
-        kprint("{x}, ", .{@intToPtr(*u8, test_dir_pt + i).*});
+    while (i < 8200) : (i += 1) {
+        var val = @intToPtr(*u8, test_dir_pt + i).*;
+        if (val != 0)
+            kprint("{d} (addr: {x}): {x} \n", .{ i, test_dir_pt + i, val });
     }
+    kprint("-------------------------------------------------------------------------- \n", .{});
+    // i = 0;
+    // while (i < ttbr0.pg_dir_size) : (i += 1) {
+    //     var val = @intToPtr(*u8, id_mapped + i).*;
+    //     if (val != 0)
+    //         kprint("{d} (addr: {x}): {x} \n", .{ i, id_mapped + i, val });
+    // }
     // kprint("----------------------- \n", .{});
     // i = 0;
     // while (i < ttbr0.table.len) : (i += 1) {

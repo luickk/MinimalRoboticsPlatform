@@ -22,7 +22,7 @@ pub fn build(b: *std.build.Builder) !void {
 
     bl_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
     bl_exe.addOptions("build_options", build_options);
-    bl_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
+    bl_exe.setBuildMode(std.builtin.Mode.ReleaseSmall);
     bl_exe.setLinkerScriptPath(std.build.FileSource{ .path = "src/bootloader/linker.ld" });
     bl_exe.code_model = .large;
     bl_exe.force_pic = false;
@@ -40,7 +40,7 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.addPackage(utils);
     kernel_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
     kernel_exe.addOptions("build_options", build_options);
-    kernel_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
+    kernel_exe.setBuildMode(std.builtin.Mode.ReleaseSmall);
     kernel_exe.force_pic = false;
     kernel_exe.code_model = .large;
     kernel_exe.linkage = .static;
