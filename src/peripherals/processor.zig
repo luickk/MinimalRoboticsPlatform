@@ -34,4 +34,6 @@ pub fn getCurrentEl() u64 {
     return x >> 2;
 }
 
-pub fn panic() void {}
+pub fn panic() noreturn {
+    while (true) {}
+}

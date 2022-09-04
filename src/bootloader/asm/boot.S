@@ -61,8 +61,7 @@ el1_entry_aarch64:
     ldr x1, = _stack_top
     mov sp, x1
 
-    // load km fn addr (without offset) in order to longjump to kernel vm
-	bl 	_init_pt_id_mapped
+	//bl 	_init_pt_id_mapped
 
 	adrp	x0, _id_mapped_dir				
 	msr	ttbr0_el1, x0
