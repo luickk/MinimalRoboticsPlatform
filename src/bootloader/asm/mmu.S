@@ -103,11 +103,11 @@ memzero:
 _init_pt_id_mapped:
     mov x29, x30 // save return address
 
-    adrp    x0, _id_mapped_dir
+    adrp    x0, _ttbr0_dir
     mov x1, #PG_DIR_SIZE
     bl  memzero
 
-    adrp    x0, _id_mapped_dir
+    adrp    x0, _ttbr0_dir
     mov x1, xzr 
     create_pgd_entry x0, x1, x2, x3
 
@@ -124,11 +124,11 @@ _init_pt_id_mapped:
 _init_pt_higher_mem:
     mov x29, x30                        // save return address
 
-    adrp    x0, _pg_dir
+    adrp    x0, _ttbr1_dir
     mov x1, #PG_DIR_SIZE
     bl  memzero
 
-    adrp    x0, _pg_dir
+    adrp    x0, _ttbr1_dir
     mov x1, #VA_START 
     create_pgd_entry x0, x1, x2, x3
 

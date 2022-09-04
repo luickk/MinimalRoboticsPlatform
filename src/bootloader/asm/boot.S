@@ -63,12 +63,12 @@ el1_entry_aarch64:
 
 	//bl 	_init_pt_id_mapped
 
-	adrp	x0, _id_mapped_dir				
+	adrp	x0, _ttbr0_dir				
 	msr	ttbr0_el1, x0
 
-	bl _init_pt_higher_mem
+	// bl _init_pt_higher_mem
 
-	adrp	x0, _pg_dir
+	adrp	x0, _ttbr1_dir
 	msr	ttbr1_el1, x0
 
 	ldr	x0, =(TCR_VALUE)		

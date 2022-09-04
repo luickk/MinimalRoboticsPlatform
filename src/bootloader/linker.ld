@@ -53,9 +53,9 @@ SECTIONS {
     } > BOOT_ROM
 
     .paging_tbl : ALIGN(0x1000) {
-        _pg_dir = .;
-        . += (3 * (1 << 12));
-        _id_mapped_dir = .;
-        . += (3 * (1 << 12));
+        _ttbr1_dir = .;
+        . += (4 * (1 << 12));
+        _ttbr0_dir = .;
+        . += (4 * (1 << 12));
     } > BOOT_ROM
 }

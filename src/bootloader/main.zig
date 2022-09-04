@@ -2,6 +2,7 @@ const std = @import("std");
 const bl_utils = @import("utils.zig");
 const intHandle = @import("intHandle.zig");
 const periph = @import("peripherals");
+const addr = periph.rbAddr;
 const proc = periph.processor;
 const intController = periph.intController;
 const bprint = periph.serial.bprint;
@@ -21,8 +22,13 @@ export fn bl_main() callconv(.Naked) noreturn {
         bl_utils.panic();
     });
 
-    const id_mapped: usize = @ptrToInt(@extern(?*u8, .{ .name = "_id_mapped_dir", .linkage = .Strong }) orelse {
-        bprint("error reading _kernelrom_start label\n", .{});
+    const _ttbr0_dir: usize = @ptrToInt(@extern(?*u8, .{ .name = "_ttbr0_dir", .linkage = .Strong }) orelse {
+        bprint("error reading _ttbr0_dir label\n", .{});
+        bl_utils.panic();
+    });
+
+    const _ttbr1_dir: usize = @ptrToInt(@extern(?*u8, .{ .name = "_ttbr1_dir", .linkage = .Strong }) orelse {
+        bprint("error reading _ttbr1_dir label\n", .{});
         bl_utils.panic();
     });
     const kernel_size: usize = std.math.sub(usize, kernel_end, kernel_entry) catch {
@@ -47,14 +53,36 @@ export fn bl_main() callconv(.Naked) noreturn {
         bprint("el must be 1! (it is: {d})\n", .{current_el});
         bl_utils.panic();
     }
+
+    // MMU page dir config
+
     // base table addr, page shift, table shift
     // writing to _id_mapped_dir(label) page table and creating new
     // identity mapped memory for bootloader to kernel transfer
-    var ttbr0 = mmu.PageTable.init(id_mapped, 12, 9) catch |e| {
+    var ttbr0 = mmu.PageDir.init(.{ .base_addr = _ttbr0_dir, .page_shift = 12, .table_shift = 9 }) catch |e| {
         bprint("Page table init error, {s}\n", .{@errorName(e)});
         bl_utils.panic();
     };
-    ttbr0.writeTable();
+    ttbr0.zeroPgDir();
+
+    ttbr0.newTransLvl(.first_lvl, 0, mmu.MmuFlags.mmTypePageTable);
+    ttbr0.newTransLvl(.second_lvl, 0, mmu.MmuFlags.mmTypePageTable);
+
+    // identity mapped!
+    ttbr0.populateTransLvl(.{ .trans_lvl = .third_lvl, .pop_type = .section, .virt_start_addr = 0, .virt_end_addr = 18446462599804485632, .phys_addr = 0, .flags = mmu.MmuFlags.mmuFlags });
+
+    var ttbr1 = mmu.PageDir.init(.{ .base_addr = _ttbr1_dir, .page_shift = 12, .table_shift = 9 }) catch |e| {
+        bprint("Page table init error, {s}\n", .{@errorName(e)});
+        bl_utils.panic();
+    };
+    ttbr1.zeroPgDir();
+    ttbr1.newTransLvl(.first_lvl, addr.vaStart, mmu.MmuFlags.mmTypePageTable);
+    ttbr1.newTransLvl(.second_lvl, addr.vaStart, mmu.MmuFlags.mmTypePageTable);
+
+    ttbr1.populateTransLvl(.{ .trans_lvl = .third_lvl, .pop_type = .section, .virt_start_addr = addr.vaStart, .virt_end_addr = 18446462599787708416, .phys_addr = 0, .flags = mmu.MmuFlags.mmuFlags });
+    ttbr1.populateTransLvl(.{ .trans_lvl = .third_lvl, .pop_type = .section, .virt_start_addr = addr.vaStart + addr.rpBase, .virt_end_addr = 18446462599804485632, .phys_addr = addr.rpBase, .flags = mmu.MmuFlags.mmuFlags });
+
+    // MMU page dir config
 
     bprint("[bootloader] enabling mmu... \n", .{});
 

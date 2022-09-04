@@ -34,39 +34,6 @@ pub const Vmem = struct {
     };
 };
 
-pub const Mmu = struct {
-    // address values
-    pub const Values = struct {
-        // mmz
-        pub const mmTypePageTable: usize = 0x3;
-        pub const mmTypePage: usize = 0x3;
-        pub const mmTypeBlock: usize = 0x1;
-        pub const mmAccess: usize = (0x1 << 10);
-        pub const mmAccessPermission: usize = (0x01 << 6);
-
-        // Memory region attributes:
-        // n = AttrIndx[2:0]
-        // =    n   MAIR
-        // DEVICE_nGnRnE    000 00000000
-        // NORMAL_NC = 001  01000100
-        pub const mtDeviceNGnRnE: usize = 0x0;
-        pub const mtNormalNc: usize = 0x1;
-        pub const mtDeviceNGnRnEflags: usize = 0x00;
-        pub const mtNormalNcFlags: usize = 0x44;
-        pub const mairValue: usize = (mtDeviceNGnRnEflags << (8 * mtDeviceNGnRnE)) | (mtNormalNcFlags << (8 * mtNormalNc));
-
-        pub const mmuFlags: usize = (mmTypeBlock | (mtNormalNc << 2) | mmAccess);
-        pub const mmuDeviceFlags: usize = (mmTypeBlock | (mtDeviceNGnRnE << 2) | mmAccess);
-        pub const mmutPteFlags: usize = (mmTypePageTable | (mtNormalNc << 2) | mmAccess | mmAccessPermission);
-
-        pub const tcrT0sz: usize = (64 - 48);
-        pub const tcrT1sz: usize = ((64 - 48) << 16);
-        pub const tcrTg04k = (0 << 14);
-        pub const tcrTg14k: usize = (2 << 30);
-        pub const tcrValue: usize = (tcrT0sz | tcrT1sz | tcrTg04k | tcrTg14k);
-    };
-};
-
 pub const Timer = struct {
     pub const timerClo: usize = rpBase + 0x00003004;
     pub const timerC1: usize = rpBase + 0x00003010;
