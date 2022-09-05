@@ -79,6 +79,9 @@ pub const PageDir = struct {
         var start_va: usize = args.virt_start_addr;
         start_va >>= @truncate(u6, self.page_shift + ((3 - @enumToInt(args.trans_lvl)) * self.table_shift));
         start_va &= self.descriptors_per_table - 1;
+        // start_va = toUnsecure(usize, start_va);
+        // start_va /= step_size;
+
         // ! use descriptors_per_table for pg_dir slice index and pagesize for newTableEntry (since the latter is in bytes and the pg_dir slice index in usize)
         self.pg_dir[(@enumToInt(args.trans_lvl) * self.descriptors_per_table) + start_va] = (self.table_base_addr + ((@enumToInt(args.trans_lvl) + 1) * self.page_size)) | fflags;
     }
@@ -104,12 +107,12 @@ pub const PageDir = struct {
         // phys_count |= phys_shifted;
 
         var i: usize = args.virt_start_addr;
-        i >>= shift;
-        i &= self.descriptors_per_table - 1;
+        i = toUnsecure(usize, i, null);
+        i /= step_size;
 
         var i_max: usize = args.virt_end_addr;
-        i_max >>= shift;
-        i_max &= (self.descriptors_per_table - 1);
+        i_max = toUnsecure(usize, i_max, null);
+        i_max /= step_size;
 
         while (i <= i_max) : (i += 1) {
             self.pg_dir[@enumToInt(args.trans_lvl) * self.descriptors_per_table + i] = phys_count;
@@ -124,30 +127,28 @@ pub const PageDir = struct {
     }
 };
 
-pub inline fn toSecure(comptime T: type, inp: T) !T {
+pub inline fn toSecure(comptime T: type, inp: T, granule: ?usize) T {
+    var gran = granule orelse addr.vaStart;
     switch (@typeInfo(T)) {
         .Pointer => {
-            return @intToPtr(T, @ptrToInt(inp) | 0xFFFF000000000000);
+            return @intToPtr(T, @ptrToInt(inp) | gran);
         },
         .Int => {
-            return inp | 0xFFFF000000000000;
+            return inp | gran;
         },
-        else => {
-            return Error.AddrTypeNotSupported;
-        },
+        else => @compileError("mmu address translation: not supported type"),
     }
 }
 
-pub inline fn toUnsecure(comptime T: type, inp: T) !T {
+pub inline fn toUnsecure(comptime T: type, inp: T, granule: ?usize) T {
+    var gran = granule orelse addr.vaStart;
     switch (@typeInfo(T)) {
         .Pointer => {
-            return @intToPtr(T, @ptrToInt(inp) & ~(0xFFFF000000000000));
+            return @intToPtr(T, @ptrToInt(inp) & ~(gran));
         },
         .Int => {
-            return inp & ~(0xFFFF000000000000);
+            return inp & ~(gran);
         },
-        else => {
-            return Error.AddrTypeNotSupported;
-        },
+        else => @compileError("mmu address translation: not supported type"),
     }
 }

@@ -14,10 +14,7 @@ pub const SerialKernelWriter = struct {
     fn appendWrite(self: *SerialKernelWriter, data: []const u8) error{}!usize {
         _ = self;
         for (data) |ch| {
-            var sec_addr = mmu.toSecure(*volatile u8, addr.serialMmio) catch |e| {
-                bprint("{s}", .{@errorName(e)});
-                unreachable;
-            };
+            var sec_addr = mmu.toSecure(*volatile u8, addr.serialMmio, null);
             sec_addr.* = ch;
             // addr.serialMmio.* = ch;
         }

@@ -42,10 +42,7 @@ export fn bl_main() callconv(.Naked) noreturn {
     kernel_bl.len = kernel_size;
 
     var kernel_target_loc: []u8 = undefined;
-    kernel_target_loc.ptr = @intToPtr([*]u8, mmu.toSecure(usize, 0x20000000) catch |e| {
-        bprint("{s}", .{@errorName(e)});
-        bl_utils.panic();
-    });
+    kernel_target_loc.ptr = @intToPtr([*]u8, mmu.toSecure(usize, 0x20000000, null));
     kernel_target_loc.len = kernel_size;
 
     var current_el = proc.getCurrentEl();
