@@ -31,6 +31,7 @@ pub const MmuFlags = struct {
     pub const tcrValue: usize = (tcrT0sz | tcrT1sz | tcrTg04k | tcrTg14k);
 };
 
+// only 4096 granule (yet)
 pub const PageDir = struct {
     table_base_addr: usize,
 
@@ -56,7 +57,6 @@ pub const PageDir = struct {
         pg_dir.ptr = @intToPtr([*]usize, args.base_addr);
         // max 4 pages -> u64 array -> x / 8
         pg_dir.len = try std.math.divExact(usize, 4 * page_size, 8);
-
         return PageDir{
             .table_base_addr = args.base_addr,
             // shifts
@@ -74,15 +74,13 @@ pub const PageDir = struct {
     }
 
     // a pg_dir entry always points to a next lvl pg_dir addr
-    pub fn newTransLvl(self: *PageDir, trans_lvl: TransLvl, virt_start_addr: usize, flags: ?usize) void {
-        var fflags = flags orelse 0;
-        // lsr \tmp1, \virt, #\shift
-        // and \tmp1, \tmp1, #PTRS_PER_TABLE - 1
-        var start_va = virt_start_addr;
-        start_va >>= @truncate(u6, self.page_shift + ((3 - @enumToInt(trans_lvl)) * self.table_shift));
+    pub fn newTransLvl(self: *PageDir, args: struct { trans_lvl: TransLvl, virt_start_addr: usize, flags: ?usize }) void {
+        var fflags = args.flags orelse 0;
+        var start_va: usize = args.virt_start_addr;
+        start_va >>= @truncate(u6, self.page_shift + ((3 - @enumToInt(args.trans_lvl)) * self.table_shift));
         start_va &= self.descriptors_per_table - 1;
         // ! use descriptors_per_table for pg_dir slice index and pagesize for newTableEntry (since the latter is in bytes and the pg_dir slice index in usize)
-        self.pg_dir[@enumToInt(trans_lvl) * self.descriptors_per_table] = (self.table_base_addr + ((@enumToInt(trans_lvl) + 1) * self.page_size)) | fflags;
+        self.pg_dir[(@enumToInt(args.trans_lvl) * self.descriptors_per_table) + start_va] = (self.table_base_addr + ((@enumToInt(args.trans_lvl) + 1) * self.page_size)) | fflags;
     }
 
     // newBlock populates block PageDir in a certain translation pg_dir lvl
@@ -101,9 +99,9 @@ pub const PageDir = struct {
             },
         }
 
-        var phys_count = args.phys_addr;
-        phys_count >>= shift;
-        phys_count |= args.flags;
+        var phys_count = args.phys_addr | args.flags;
+        // phys_count >>= shift;
+        // phys_count |= phys_shifted;
 
         var i: usize = args.virt_start_addr;
         i >>= shift;

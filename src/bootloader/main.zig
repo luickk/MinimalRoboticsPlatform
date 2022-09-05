@@ -56,7 +56,6 @@ export fn bl_main() callconv(.Naked) noreturn {
 
     // MMU page dir config
 
-    // base table addr, page shift, table shift
     // writing to _id_mapped_dir(label) page table and creating new
     // identity mapped memory for bootloader to kernel transfer
     var ttbr0 = mmu.PageDir.init(.{ .base_addr = _ttbr0_dir, .page_shift = 12, .table_shift = 9 }) catch |e| {
@@ -65,27 +64,29 @@ export fn bl_main() callconv(.Naked) noreturn {
     };
     ttbr0.zeroPgDir();
 
-    ttbr0.newTransLvl(.first_lvl, 0, mmu.MmuFlags.mmTypePageTable);
-    ttbr0.newTransLvl(.second_lvl, 0, mmu.MmuFlags.mmTypePageTable);
+    ttbr0.newTransLvl(.{ .trans_lvl = .first_lvl, .virt_start_addr = 0, .flags = mmu.MmuFlags.mmTypePageTable });
+    ttbr0.newTransLvl(.{ .trans_lvl = .second_lvl, .virt_start_addr = 0, .flags = mmu.MmuFlags.mmTypePageTable });
 
     // identity mapped!
     ttbr0.populateTransLvl(.{ .trans_lvl = .third_lvl, .pop_type = .section, .virt_start_addr = 0, .virt_end_addr = 18446462599804485632, .phys_addr = 0, .flags = mmu.MmuFlags.mmuFlags });
 
+    // creating virtual address space for kernel
     var ttbr1 = mmu.PageDir.init(.{ .base_addr = _ttbr1_dir, .page_shift = 12, .table_shift = 9 }) catch |e| {
         bprint("Page table init error, {s}\n", .{@errorName(e)});
         bl_utils.panic();
     };
     ttbr1.zeroPgDir();
-    ttbr1.newTransLvl(.first_lvl, addr.vaStart, mmu.MmuFlags.mmTypePageTable);
-    ttbr1.newTransLvl(.second_lvl, addr.vaStart, mmu.MmuFlags.mmTypePageTable);
+    ttbr1.newTransLvl(.{ .trans_lvl = .first_lvl, .virt_start_addr = addr.vaStart, .flags = mmu.MmuFlags.mmTypePageTable });
+    ttbr1.newTransLvl(.{ .trans_lvl = .second_lvl, .virt_start_addr = addr.vaStart, .flags = mmu.MmuFlags.mmTypePageTable });
 
     ttbr1.populateTransLvl(.{ .trans_lvl = .third_lvl, .pop_type = .section, .virt_start_addr = addr.vaStart, .virt_end_addr = 18446462599787708416, .phys_addr = 0, .flags = mmu.MmuFlags.mmuFlags });
     ttbr1.populateTransLvl(.{ .trans_lvl = .third_lvl, .pop_type = .section, .virt_start_addr = addr.vaStart + addr.rpBase, .virt_end_addr = 18446462599804485632, .phys_addr = addr.rpBase, .flags = mmu.MmuFlags.mmuFlags });
 
+    proc.isb();
+
     // MMU page dir config
 
     bprint("[bootloader] enabling mmu... \n", .{});
-
     proc.enableMmu();
 
     bprint("[bootloader] setup mmu, el1, exc table. \n", .{});

@@ -61,7 +61,7 @@ pub const ExceptionFrame = struct {
 pub fn initIc() void {
     // enabling all irq types
     // enalbles system timer
-    @intToPtr(*u32, addr.enableIrq1).* = 1 << 1;
+    // @intToPtr(*u32, addr.enableIrq1).* = 1 << 1;
     // @intToPtr(*u32, addr.enableIrq2).* = 1 << 1;
     // @intToPtr(*u32, addr.enableIrqBasic).* = 1 << 1;
 
