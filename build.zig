@@ -45,6 +45,7 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.linkage = .static;
     kernel_exe.setLinkerScriptPath(std.build.FileSource{ .path = "src/kernel/linker.ld" });
     kernel_exe.addObjectFile("src/kernel/kernel.zig");
+    kernel_exe.addCSourceFile("src/peripherals/asm/processor.S", &.{});
     kernel_exe.install();
     kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).artifact.install();
 

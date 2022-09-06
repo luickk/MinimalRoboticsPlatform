@@ -26,10 +26,8 @@ SECTIONS {
     }
 
     .paging_tbl (NOLOAD) : ALIGN(0x00001000) {
-        _pg_dir = .;
-        . += (3 * (1 << 12));
-        _id_mapped_dir = .;
-        . += (3 * (1 << 12));
+        _kernel_ttbr1_dir = .;
+        . += (4 * (1 << 12));
     }
 
     .data : {

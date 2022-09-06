@@ -16,6 +16,10 @@ The Rust code can still be found in the separate [rust branch](https://github.co
 Because it simplifies linking and building the kernel as a whole. Linking both the kernel and bootloader is difficult(and error-prone) because it requires the linker to link symbols with VMA offsets that are not supported in size and causes more issues when it comes to relocation of the kernel. 
 Both the bootloader and kernel are compiled&linked separately, then their binaries are concatenated(all in build.zig). The bootloader then prepares the exception vectors, mmu, memory drivers and relocates the kernel code.
 
+## MMU
+
+I rewrote a complete mmu "composer" with which one can easily configure the page dir in a simple and readable manner. Currently the composer only supports 4096 granule.
+
 ### Qemu Testing
 
 In order to test the bootloader/ kernel, qemu offers `-kernel` but that includes a number of abstractions that are not wanted since I want to keep the development at least somewhat close to a real board. Instead, the booloader (which includes the kernel) is loaded with `-device loader`.
