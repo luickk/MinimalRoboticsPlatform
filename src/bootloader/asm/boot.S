@@ -1,33 +1,3 @@
-#define TCR_T0SZ (64 - 48) 
-#define TCR_T1SZ ((64 - 48) << 16)
-#define TCR_TG0_4K (0 << 14)
-#define TCR_TG1_4K (2 << 30)
-#define TCR_VALUE (TCR_T0SZ | TCR_T1SZ | TCR_TG0_4K | TCR_TG1_4K)
-
-/*
- * Memory region attributes:
- *
- *   n = AttrIndx[2:0]
- * n   MAIR
- *   DEVICE_nGnRnE  000 00000000
- *   NORMAL_NC 001 01000100
- */
-#define MT_DEVICE_nGnRnE  0x0
-#define MT_NORMAL_NC 0x1
-#define MT_DEVICE_nGnRnE_FLAGS 0x00
-#define MT_NORMAL_NC_FLAGS 0x44
-#define MAIR_VALUE (MT_DEVICE_nGnRnE_FLAGS << (8 * MT_DEVICE_nGnRnE)) | (MT_NORMAL_NC_FLAGS << (8 * MT_NORMAL_NC))
-
-#define PAGE_SHIFT 12
-#define TABLE_SHIFT  9
-#define SECTION_SHIFT (PAGE_SHIFT + TABLE_SHIFT)
-#define SECTION_SIZE (1 << SECTION_SHIFT)   
-#define LOW_MEMORY (2 * SECTION_SIZE)
-#define VA_START 0xffff000000000000
-
-// advanced boot
-// is meant to setup the main kernel thread running in el1(erets to el2 and then in el1_entry_aarch64 to el1) with mmu disable, exc.vec. table setup, slave core disabled and fp/ smid operations enabled
-
 .section ".text.boot"
 
 .equ AArch64_EL1_SP1,  0x05    // EL1h
@@ -61,20 +31,16 @@ el1_entry_aarch64:
     ldr x1, = _stack_top
     mov sp, x1
 
-	// bl 	_init_pt_id_mapped
-
 	adrp	x0, _ttbr0_dir				
 	msr	ttbr0_el1, x0
-
-	// bl _init_pt_higher_mem
 
 	adrp	x0, _ttbr1_dir
 	msr	ttbr1_el1, x0
 
-	ldr	x0, =(TCR_VALUE)		
+	ldr	x0, _tcrVal
 	msr	tcr_el1, x0
 
-	ldr	x0, =(MAIR_VALUE)
+	ldr	x0, _mairVal
 	msr	mair_el1, x0
 	isb
 
@@ -111,3 +77,10 @@ master:
 
 proc_hang: 
 	b proc_hang
+
+.globl memzero
+memzero:
+    str xzr, [x0], #8
+    subs x1, x1, #8
+    b.gt memzero
+    br lr

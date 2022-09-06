@@ -30,7 +30,6 @@ pub fn build(b: *std.build.Builder) !void {
     bl_exe.addObjectFile("src/bootloader/main.zig");
     bl_exe.addCSourceFile("src/bootloader/asm/boot.S", &.{});
     bl_exe.addCSourceFile("src/bootloader/asm/exc_vec.S", &.{});
-    bl_exe.addCSourceFile("src/bootloader/asm/mmu.S", &.{});
     bl_exe.install();
     bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = linker_bootloader_bin_size }).artifact.install();
 

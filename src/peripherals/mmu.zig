@@ -4,8 +4,6 @@ const addrMmu = @import("raspberryAddr.zig").Mmu;
 const addrVmem = @import("raspberryAddr.zig").Vmem;
 const bprint = @import("serial.zig").bprint;
 
-const Error = error{AddrTypeNotSupported};
-
 pub const MmuFlags = struct {
     // mmu
     pub const mmTypePageTable: usize = 0x3;
@@ -30,6 +28,8 @@ pub const MmuFlags = struct {
     pub const tcrTg14k: usize = (2 << 30);
     pub const tcrValue: usize = (tcrT0sz | tcrT1sz | tcrTg04k | tcrTg14k);
 };
+export const _mairVal = MmuFlags.mairValue;
+export const _tcrVal = MmuFlags.tcrValue;
 
 // only 4096 granule (yet)
 pub const PageDir = struct {
@@ -76,18 +76,16 @@ pub const PageDir = struct {
     // a pg_dir entry always points to a next lvl pg_dir addr
     pub fn newTransLvl(self: *PageDir, args: struct { trans_lvl: TransLvl, virt_start_addr: usize, flags: ?usize }) void {
         var fflags = args.flags orelse 0;
-        var start_va: usize = args.virt_start_addr;
-        start_va >>= @truncate(u6, self.page_shift + ((3 - @enumToInt(args.trans_lvl)) * self.table_shift));
-        start_va &= self.descriptors_per_table - 1;
-        // start_va = toUnsecure(usize, start_va);
-        // start_va /= step_size;
+
+        // start_va >>= @truncate(u6, self.page_shift + ((3 - @enumToInt(args.trans_lvl)) * self.table_shift));
+        // start_va &= self.descriptors_per_table - 1;
 
         // ! use descriptors_per_table for pg_dir slice index and pagesize for newTableEntry (since the latter is in bytes and the pg_dir slice index in usize)
-        self.pg_dir[(@enumToInt(args.trans_lvl) * self.descriptors_per_table) + start_va] = (self.table_base_addr + ((@enumToInt(args.trans_lvl) + 1) * self.page_size)) | fflags;
+        self.pg_dir[(@enumToInt(args.trans_lvl) * self.descriptors_per_table)] = (self.table_base_addr + ((@enumToInt(args.trans_lvl) + 1) * self.page_size)) | fflags;
     }
 
     // newBlock populates block PageDir in a certain translation pg_dir lvl
-    pub fn populateTransLvl(self: *PageDir, args: struct { trans_lvl: TransLvl, pop_type: BlockPopulationType, virt_start_addr: usize, virt_end_addr: usize, phys_addr: usize, flags: usize }) void {
+    pub fn populateTransLvl(self: *PageDir, args: struct { trans_lvl: TransLvl, pop_type: BlockPopulationType, virt_start_addr: usize, virt_end_addr: usize, phys_addr: usize, flags: usize }) !void {
         var shift: u6 = undefined;
         var step_size: usize = undefined;
 
@@ -108,11 +106,11 @@ pub const PageDir = struct {
 
         var i: usize = args.virt_start_addr;
         i = toUnsecure(usize, i, null);
-        i /= step_size;
+        i = try std.math.divExact(usize, i, step_size);
 
         var i_max: usize = args.virt_end_addr;
         i_max = toUnsecure(usize, i_max, null);
-        i_max /= step_size;
+        i_max = try std.math.divExact(usize, i_max, step_size);
 
         while (i <= i_max) : (i += 1) {
             self.pg_dir[@enumToInt(args.trans_lvl) * self.descriptors_per_table + i] = phys_count;

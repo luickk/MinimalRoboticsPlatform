@@ -64,8 +64,11 @@ export fn bl_main() callconv(.Naked) noreturn {
     ttbr0.newTransLvl(.{ .trans_lvl = .first_lvl, .virt_start_addr = 0, .flags = mmu.MmuFlags.mmTypePageTable });
     ttbr0.newTransLvl(.{ .trans_lvl = .second_lvl, .virt_start_addr = 0, .flags = mmu.MmuFlags.mmTypePageTable });
 
-    // identity mapped!
-    ttbr0.populateTransLvl(.{ .trans_lvl = .third_lvl, .pop_type = .section, .virt_start_addr = 0, .virt_end_addr = 18446462599804485632, .phys_addr = 0, .flags = mmu.MmuFlags.mmuFlags });
+    // identity mapped memory for bootloader and kernel contrtol handover!
+    ttbr0.populateTransLvl(.{ .trans_lvl = .third_lvl, .pop_type = .section, .virt_start_addr = 0, .virt_end_addr = 0x40000000, .phys_addr = 0, .flags = mmu.MmuFlags.mmuFlags }) catch |e| {
+        bprint("populateTransLvl err: {s} \n", .{@errorName(e)});
+        bl_utils.panic();
+    };
 
     // creating virtual address space for kernel
     var ttbr1 = mmu.PageDir.init(.{ .base_addr = _ttbr1_dir, .page_shift = 12, .table_shift = 9 }) catch |e| {
@@ -76,9 +79,17 @@ export fn bl_main() callconv(.Naked) noreturn {
     ttbr1.newTransLvl(.{ .trans_lvl = .first_lvl, .virt_start_addr = addr.vaStart, .flags = mmu.MmuFlags.mmTypePageTable });
     ttbr1.newTransLvl(.{ .trans_lvl = .second_lvl, .virt_start_addr = addr.vaStart, .flags = mmu.MmuFlags.mmTypePageTable });
 
-    ttbr1.populateTransLvl(.{ .trans_lvl = .third_lvl, .pop_type = .section, .virt_start_addr = addr.vaStart, .virt_end_addr = 18446462599787708416, .phys_addr = 0, .flags = mmu.MmuFlags.mmuFlags });
-    ttbr1.populateTransLvl(.{ .trans_lvl = .third_lvl, .pop_type = .section, .virt_start_addr = addr.vaStart + addr.rpBase, .virt_end_addr = 18446462599804485632, .phys_addr = addr.rpBase, .flags = mmu.MmuFlags.mmuFlags });
-
+    // mapping general kernel mem
+    ttbr1.populateTransLvl(.{ .trans_lvl = .third_lvl, .pop_type = .section, .virt_start_addr = addr.vaStart, .virt_end_addr = addr.vaStart + addr.rpBase, .phys_addr = 0, .flags = mmu.MmuFlags.mmuFlags }) catch |e| {
+        bprint("populateTransLvl err: {s} \n", .{@errorName(e)});
+        bl_utils.panic();
+    };
+    // mapping devices from base address
+    ttbr1.populateTransLvl(.{ .trans_lvl = .third_lvl, .pop_type = .section, .virt_start_addr = addr.vaStart + addr.rpBase, .virt_end_addr = addr.vaStart + 0x40000000, .phys_addr = addr.rpBase, .flags = mmu.MmuFlags.mmuFlags }) catch |e| {
+        bprint("populateTransLvl err: {s} \n", .{@errorName(e)});
+        bl_utils.panic();
+    };
+    bprint("tcr: {b}, mair: {b} \n", .{ mmu.MmuFlags.tcrT0sz, mmu.MmuFlags.mairValue });
     proc.isb();
 
     // MMU page dir config
