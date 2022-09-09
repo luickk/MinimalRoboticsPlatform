@@ -46,6 +46,7 @@ pub const PageDir = struct {
     max_lvl: TransLvl,
     table_size: usize,
     pg_dir: []volatile usize,
+    map_pg_dir: []volatile [512]usize,
 
     pub const BlockPopulationType = enum { section, page };
     // third (or fourth...) not required for the (currently) only supported granule
@@ -59,6 +60,10 @@ pub const PageDir = struct {
         const page_size = @as(usize, 1) << args.page_shift;
         const section_shift = args.page_shift + args.table_shift;
         const section_size = @as(usize, 1) << section_shift;
+        const table_size = @as(usize, 1) << args.table_shift;
+        var map_pg_dir: []volatile [512]usize = undefined;
+        map_pg_dir.ptr = @intToPtr([*]volatile [512]usize, args.base_addr);
+        map_pg_dir.len = 512 * page_size;
 
         var pg_dir: []volatile usize = undefined;
         pg_dir.ptr = @intToPtr([*]usize, args.base_addr);
@@ -74,12 +79,13 @@ pub const PageDir = struct {
             // sizes
             .page_size = page_size,
             .section_size = section_size,
-            .table_size = @as(usize, 1) << args.table_shift,
+            .table_size = table_size,
 
             .max_lvl = .third_lvl,
             .mapping = args.mapping,
             .table_base_addr = args.base_addr,
             .pg_dir = pg_dir,
+            .map_pg_dir = map_pg_dir,
         };
     }
 
@@ -91,30 +97,39 @@ pub const PageDir = struct {
     // 512^(i-1)*4096
     pub fn mapMem(self: *PageDir) !void {
         // calc amounts of tables required per lvl
-        var table_n = [_]usize{0} ** 3;
+        var table_entries = [_]usize{0} ** 3;
         var i: usize = 0;
         while (i <= @enumToInt(self.max_lvl)) : (i += 1) {
-            table_n[i] = try std.math.divCeil(usize, self.mapping.mem_size, self.calcTransLvlEntrySize(@intToEnum(TransLvl, i)));
+            table_entries[i] = try std.math.divCeil(usize, self.mapping.mem_size, self.calcTransLvlEntrySize(@intToEnum(TransLvl, i)));
         }
-        var base_dir_offset = toUnsecure(usize, @ptrToInt(self.pg_dir.ptr));
+        var base_dir_offset = toUnsecure(usize, @ptrToInt(self.map_pg_dir.ptr));
         i = 0;
         var phys_count = self.mapping.phys_addr | MmuFlags.mmTypePageTable;
-        var table_complete_offset: usize = 0;
+        var pg_dir_offset: usize = 0;
 
         while (i <= @enumToInt(self.max_lvl)) : (i += 1) {
             var j: usize = 1;
             // kprint("i: {d} ({d})\n", .{ i, tables });
-            while (j <= table_n[i]) : (j += 1) {
-                // last lvl translation links to physical mem
-                if (i == @enumToInt(self.max_lvl)) {
-                    self.pg_dir[table_complete_offset + j] = phys_count;
-                    phys_count += self.page_size;
-                    // trans layer before link to next tables
-                } else {
-                    self.pg_dir[table_complete_offset + j] = (base_dir_offset + table_complete_offset + table_n[i] + j * self.table_size) | MmuFlags.mmTypePageTable;
+
+            var req_tables = try std.math.divCeil(usize, table_entries[i], self.table_size);
+            var k: usize = 0;
+            var curr_table_entries = table_entries[i];
+            while (k < req_tables) : (k += 1) {
+                while (j <= curr_table_entries) : (j += 1) {
+                    // last lvl translation links to physical mem
+                    if (i == @enumToInt(self.max_lvl)) {
+                        self.map_pg_dir[pg_dir_offset][j] = phys_count;
+                        phys_count += self.page_size;
+                        // trans layer before link to next tables
+                    } else {
+                        self.map_pg_dir[k][j] = @ptrToInt(&self.map_pg_dir[pg_dir_offset + j]) | MmuFlags.mmTypePageTable;
+                    }
+                    pg_dir_offset += 1;
+                    if (k > self.table_size)
+                        break;
                 }
+                curr_table_entries -= self.table_size;
             }
-            table_complete_offset = self.table_size - table_n[i];
         }
 
         i = 0;

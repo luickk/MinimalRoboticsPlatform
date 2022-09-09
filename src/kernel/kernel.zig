@@ -67,7 +67,6 @@ export fn kernel_main() callconv(.Naked) noreturn {
     };
     ttbr0.zeroPgDir();
 
-    kprint("{x} \n", .{_u_ttbr0_dir});
     ttbr0.mapMem() catch |e| {
         kprint("memory mapping error: {s} \n", .{@errorName(e)});
         k_utils.panic();
