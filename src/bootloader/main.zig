@@ -8,6 +8,8 @@ const intController = periph.intController;
 const bprint = periph.serial.bprint;
 const mmu = periph.mmu;
 
+// todo => unify kernel, bootloader size & linking to 1 var in build.zig
+// todo => loader kernel at proper address (not 0x200...)
 export fn bl_main() callconv(.Naked) noreturn {
     intController.initIc();
 
@@ -42,7 +44,7 @@ export fn bl_main() callconv(.Naked) noreturn {
     kernel_bl.len = kernel_size;
 
     var kernel_target_loc: []u8 = undefined;
-    kernel_target_loc.ptr = @intToPtr([*]u8, mmu.toSecure(usize, 0x20000000, null));
+    kernel_target_loc.ptr = @intToPtr([*]u8, mmu.toSecure(usize, 0x20000000));
     kernel_target_loc.len = kernel_size;
 
     var current_el = proc.getCurrentEl();
@@ -55,33 +57,30 @@ export fn bl_main() callconv(.Naked) noreturn {
 
     // writing to _id_mapped_dir(label) page table and creating new
     // identity mapped memory for bootloader to kernel transfer
-    var ttbr0 = mmu.PageDir.init(.{ .base_addr = _ttbr0_dir, .page_shift = 12, .table_shift = 9 }) catch |e| {
+    var bootloader_mapping = mmu.PageDir.Mapping{ .mem_size = 0x40000000, .virt_start_addr = 0, .phys_addr = 0 };
+    var ttbr0 = mmu.PageDir.init(.{ .base_addr = _ttbr0_dir, .mapping = bootloader_mapping, .page_shift = 12, .table_shift = 9 }) catch |e| {
         bprint("Page table init error, {s}\n", .{@errorName(e)});
         bl_utils.panic();
     };
     ttbr0.zeroPgDir();
-
     // identity mapped memory for bootloader and kernel contrtol handover!
-    ttbr0.populateTransLvl(.{ .trans_lvl = .first_lvl, .pop_type = .section, .virt_start_addr = 0, .virt_end_addr = 0x40000000, .phys_addr = 0, .flags = mmu.MmuFlags.mmuFlags }) catch |e| {
-        bprint("populateTransLvl err: {s} \n", .{@errorName(e)});
+    ttbr0.populateTableWithPhys(.{ .trans_lvl = .first_lvl, .pop_type = .section, .mapping = bootloader_mapping, .flags = mmu.MmuFlags.mmuFlags }) catch |e| {
+        bprint("populateTableWithPhys err: {s} \n", .{@errorName(e)});
         bl_utils.panic();
     };
 
     // creating virtual address space for kernel
-    var ttbr1 = mmu.PageDir.init(.{ .base_addr = _ttbr1_dir, .page_shift = 12, .table_shift = 9 }) catch |e| {
+    var kernel_mapping = mmu.PageDir.Mapping{ .mem_size = 0x40000000, .virt_start_addr = addr.vaStart, .phys_addr = 0 };
+    var ttbr1 = mmu.PageDir.init(.{ .base_addr = _ttbr1_dir, .mapping = kernel_mapping, .page_shift = 12, .table_shift = 9 }) catch |e| {
         bprint("Page table init error, {s}\n", .{@errorName(e)});
         bl_utils.panic();
     };
+
     ttbr1.zeroPgDir();
 
-    // mapping general kernel mem
-    ttbr1.populateTransLvl(.{ .trans_lvl = .first_lvl, .pop_type = .section, .virt_start_addr = addr.vaStart, .virt_end_addr = addr.vaStart + addr.rpBase, .phys_addr = 0, .flags = mmu.MmuFlags.mmuFlags }) catch |e| {
-        bprint("populateTransLvl err: {s} \n", .{@errorName(e)});
-        bl_utils.panic();
-    };
-    // mapping devices from base address
-    ttbr1.populateTransLvl(.{ .trans_lvl = .first_lvl, .pop_type = .section, .virt_start_addr = addr.vaStart + addr.rpBase, .virt_end_addr = addr.vaStart + 0x40000000, .phys_addr = addr.rpBase, .flags = mmu.MmuFlags.mmuFlags }) catch |e| {
-        bprint("populateTransLvl err: {s} \n", .{@errorName(e)});
+    // mapping general kernel mem (inlcuding device base)
+    ttbr1.populateTableWithPhys(.{ .trans_lvl = .first_lvl, .pop_type = .section, .mapping = kernel_mapping, .flags = mmu.MmuFlags.mmuFlags }) catch |e| {
+        bprint("populateTableWithPhys err: {s} \n", .{@errorName(e)});
         bl_utils.panic();
     };
 

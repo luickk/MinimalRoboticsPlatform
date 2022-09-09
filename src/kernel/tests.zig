@@ -3,7 +3,6 @@ const utils = @import("utils.zig");
 const kprint = @import("serial.zig").kprint;
 const logger = @import("logger.zig");
 
-// todo => not an automated test. (yet)
 pub fn testKMalloc(alloc: anytype) void {
     var p1 = alloc.alloc(u8, 875) catch |err| utils.printErrNoReturn(err);
     kprint("allocated slice: {*} \n", .{p1});

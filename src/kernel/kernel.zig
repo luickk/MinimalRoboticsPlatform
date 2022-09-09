@@ -22,7 +22,11 @@ export fn kernel_main() callconv(.Naked) noreturn {
     //     unreachable;
     // });
     const _k_ttbr1_dir: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernel_ttbr1_dir" }) orelse {
-        kprint("error reading _stack_top label\n", .{});
+        kprint("error reading _kernel_ttbr1_dir label\n", .{});
+        unreachable;
+    });
+    const _u_ttbr0_dir: usize = @ptrToInt(@extern(?*u8, .{ .name = "_user_ttbr0_dir" }) orelse {
+        kprint("error reading _user_ttbr0_dir label\n", .{});
         unreachable;
     });
     var current_el = proc.getCurrentEl();
@@ -41,35 +45,61 @@ export fn kernel_main() callconv(.Naked) noreturn {
     // kprint("kernel allocator inited \n", .{});
 
     // creating virtual address space for kernel
-    var ttbr1 = mmu.PageDir.init(.{ .base_addr = _k_ttbr1_dir, .page_shift = 12, .table_shift = 9 }) catch |e| {
+    var kernel_mapping = mmu.PageDir.Mapping{ .mem_size = 0x40000000, .virt_start_addr = addr.vaStart, .phys_addr = 0 };
+
+    var ttbr1 = mmu.PageDir.init(.{ .base_addr = _k_ttbr1_dir, .page_shift = 12, .mapping = kernel_mapping, .table_shift = 9 }) catch |e| {
         kprint("Page table init error, {s}\n", .{@errorName(e)});
         k_utils.panic();
     };
+
     ttbr1.zeroPgDir();
-    // ttbr1.newTransLvl(.{ .trans_lvl = .first_lvl, .virt_start_addr = addr.vaStart, .flags = mmu.MmuFlags.mmTypePageTable });
 
     // mapping general kernel mem
-    ttbr1.populateTransLvl(.{ .trans_lvl = .first_lvl, .pop_type = .section, .virt_start_addr = addr.vaStart, .virt_end_addr = addr.vaStart + addr.rpBase, .phys_addr = 0, .flags = mmu.MmuFlags.mmuFlags }) catch |e| {
-        kprint("populateTransLvl err: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
-    // mapping devices from base address
-    ttbr1.populateTransLvl(.{ .trans_lvl = .first_lvl, .pop_type = .section, .virt_start_addr = addr.vaStart + addr.rpBase, .virt_end_addr = addr.vaStart + 0x40000000, .phys_addr = addr.rpBase, .flags = mmu.MmuFlags.mmuFlags }) catch |e| {
-        kprint("populateTransLvl err: {s} \n", .{@errorName(e)});
+    ttbr1.populateTableWithPhys(.{ .trans_lvl = .first_lvl, .pop_type = .section, .mapping = kernel_mapping, .flags = mmu.MmuFlags.mmuFlags }) catch |e| {
+        kprint("populateTableWithPhys err: {s} \n", .{@errorName(e)});
         k_utils.panic();
     };
 
-    // ttbr1.populateTransLvl(.{ .trans_lvl = .third_lvl, .pop_type = .page, .virt_start_addr = addr.vaStart, .virt_end_addr = addr.vaStart + ttbr1.descriptors_per_table * ttbr1.page_size, .phys_addr = 0, .flags = mmu.MmuFlags.mmutPteFlags }) catch |e| {
-    //     kprint("populateTransLvl err: {s} \n", .{@errorName(e)});
+    var user_mapping = mmu.PageDir.Mapping{ .mem_size = 0x40000000, .virt_start_addr = 0, .phys_addr = 0x40000000 };
+    var ttbr0 = mmu.PageDir.init(.{ .base_addr = _u_ttbr0_dir, .page_shift = 12, .mapping = user_mapping, .table_shift = 9 }) catch |e| {
+        kprint("Page table init error: {s}\n", .{@errorName(e)});
+        k_utils.panic();
+    };
+    ttbr0.zeroPgDir();
+
+    kprint("{x} \n", .{_u_ttbr0_dir});
+    ttbr0.mapMem() catch |e| {
+        kprint("memory mapping error: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+
+    // // kprint("i: {d}, i_max: {d}, ss: {d}\n", .{ 0, 0, 0 });
+    // ttbr0.populateTableWithTables(.{ .trans_lvl = .first_lvl, .mapping = user_mapping, .flags = mmu.MmuFlags.mmTypePageTable }) catch |e| {
+    //     kprint("populateTableWithTables error:, {s}\n", .{@errorName(e)});
     //     k_utils.panic();
     // };
 
-    proc.invalidateDCache(_k_ttbr1_dir, ttbr1.pg_dir.len);
-    kprint("{x} \n", .{_k_ttbr1_dir});
+    // ttbr0.populateTableWithTables(.{ .trans_lvl = .second_lvl, .mapping = user_mapping, .flags = mmu.MmuFlags.mmTypePageTable }) catch |e| {
+    //     kprint("populateTableWithTables error: {s}\n", .{@errorName(e)});
+    //     k_utils.panic();
+    // };
 
+    // // mapping user space
+    // ttbr0.populateTableWithPhys(.{ .trans_lvl = .third_lvl, .pop_type = .page, .mapping = user_mapping, .flags = mmu.MmuFlags.mmTypePageTable }) catch |e| {
+    //     kprint("populateTableWithPhys err: {s} \n", .{@errorName(e)});
+    //     k_utils.panic();
+    // };
+
+    proc.resetMmuTlbEl1();
+
+    // updating page dirs for kernel and user space
     proc.setTTBR1(_k_ttbr1_dir);
-    proc.exceptionSvc();
+    proc.setTTBR0(_u_ttbr0_dir);
 
     kprint("kernel boot complete \n", .{});
+
+    kprint("wiritng to new userspace mem (test): \n", .{});
+    @intToPtr(*usize, 8).* = 100;
+    kprint("done writing: \n", .{});
     while (true) {}
 }

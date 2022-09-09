@@ -5,8 +5,6 @@ const utils = @import("utils");
 const kprint = periph.serial.kprint;
 const addr = periph.rbAddr;
 
-// (this is my first ever allocator; I've not read into any other code base; this implementation is probably slow and ineffective!.)
-// todo => alignment!!!
 pub fn KernelAllocator(comptime mem_size: usize, comptime page_size: usize, va_start: usize) type {
     const n_chunks = try std.math.divTrunc(usize, mem_size, page_size);
     _ = va_start;

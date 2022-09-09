@@ -22,6 +22,11 @@ pub inline fn disableMmu() void {
     );
 }
 
+pub fn resetMmuTlbEl1() void {
+    // https://developer.arm.com/documentation/ddi0488/c/system-control/aarch64-register-summary/aarch64-tlb-maintenance-operations
+    asm volatile ("TLBI VMALLE1IS");
+}
+
 pub fn setTTBR1(addr: usize) void {
     asm volatile ("msr ttbr1_el1, %[addr]"
         :
@@ -29,17 +34,15 @@ pub fn setTTBR1(addr: usize) void {
     );
 }
 
-pub fn invalidateDCache(pg_dir_addr: usize, pg_dir_size: usize) void {
-    asm volatile ("mov x0, %[addr]"
+pub fn setTTBR0(addr: usize) void {
+    asm volatile ("msr ttbr0_el1, %[addr]"
         :
-        : [addr] "rax" (pg_dir_addr),
+        : [addr] "rax" (addr),
     );
-    asm volatile ("mov x1, %[addr]"
-        :
-        : [addr] "rax" (pg_dir_addr + pg_dir_size),
-    );
+}
 
-    asm volatile ("bl _dcache_inval_poc");
+pub fn invalidateDCache() void {
+    asm volatile ("bl _flush_dcache_all");
 }
 
 pub inline fn isb() void {

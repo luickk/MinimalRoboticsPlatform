@@ -4,36 +4,6 @@ pub const peripheralBase: usize = vaStart + rpBase;
 
 pub const serialMmio = @intToPtr(*volatile u8, rpBase + 0x201000);
 
-// exported bc required in boot assembler
-pub const Vmem = struct {
-    // vm
-    pub const Values = struct {
-        pub const physMemorySize: usize = 0x40000000;
-
-        pub const pageMask: usize = 0xfffffffffffff000;
-        pub const pageShift: usize = 12;
-        pub const tableShift: usize = 9;
-        pub const sectionShift: usize = (pageShift + tableShift);
-
-        pub const pageSize: usize = (1 << pageShift);
-        pub const sectionSize: usize = (1 << sectionShift);
-
-        pub const lowMemory: usize = (2 * sectionSize);
-        pub const highMemory: usize = rpBase;
-
-        pub const pagingMemory: usize = (highMemory - lowMemory);
-        pub const pagingPages: usize = (pagingMemory / pageSize);
-
-        pub const ptrsPerTable: usize = (1 << tableShift);
-
-        pub const pgdShift: usize = pageShift + 3 * tableShift;
-        pub const pudShift: usize = pageShift + 2 * tableShift;
-        pub const pmdShift: usize = pageShift + tableShift;
-
-        pub const pgDirSize: usize = (3 * pageSize);
-    };
-};
-
 pub const Timer = struct {
     pub const timerClo: usize = rpBase + 0x00003004;
     pub const timerC1: usize = rpBase + 0x00003010;
