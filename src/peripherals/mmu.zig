@@ -100,42 +100,39 @@ pub const PageDir = struct {
         var table_entries = [_]usize{0} ** 3;
         var i: usize = 0;
         while (i <= @enumToInt(self.max_lvl)) : (i += 1) {
+            // todo => print required for table_entries[1] not to be 0???????????
+            kprint("s: {d} \n", .{try std.math.divCeil(usize, self.mapping.mem_size, self.calcTransLvlEntrySize(@intToEnum(TransLvl, i)))});
             table_entries[i] = try std.math.divCeil(usize, self.mapping.mem_size, self.calcTransLvlEntrySize(@intToEnum(TransLvl, i)));
         }
-        var base_dir_offset = toUnsecure(usize, @ptrToInt(self.map_pg_dir.ptr));
         i = 0;
         var phys_count = self.mapping.phys_addr | MmuFlags.mmTypePageTable;
         var pg_dir_offset: usize = 0;
-
         while (i <= @enumToInt(self.max_lvl)) : (i += 1) {
+            // starting at 1 not 0 so that  the curr_table division does not have to include by zero dic
             var j: usize = 1;
-            // kprint("i: {d} ({d})\n", .{ i, tables });
-
-            var req_tables = try std.math.divCeil(usize, table_entries[i], self.table_size);
-            var k: usize = 0;
-            var curr_table_entries = table_entries[i];
-            while (k < req_tables) : (k += 1) {
-                while (j <= curr_table_entries) : (j += 1) {
-                    // last lvl translation links to physical mem
-                    if (i == @enumToInt(self.max_lvl)) {
-                        self.map_pg_dir[pg_dir_offset][j] = phys_count;
-                        phys_count += self.page_size;
-                        // trans layer before link to next tables
-                    } else {
-                        self.map_pg_dir[k][j] = @ptrToInt(&self.map_pg_dir[pg_dir_offset + j]) | MmuFlags.mmTypePageTable;
-                    }
-                    pg_dir_offset += 1;
-                    if (k > self.table_size)
-                        break;
+            var curr_table: usize = 0;
+            while (j <= table_entries[i]) : (j += 1) {
+                // -1 so it starts at 0 not 1 (for indexing)
+                curr_table = (try std.math.divCeil(usize, j, self.table_size)) - 1;
+                // last lvl translation links to physical mem
+                if (i == @enumToInt(self.max_lvl)) {
+                    self.map_pg_dir[pg_dir_offset + curr_table][j - 1] = phys_count;
+                    phys_count += self.page_size;
+                    // trans layer before link to next tables
+                } else {
+                    self.map_pg_dir[pg_dir_offset + curr_table][j - 1] = @ptrToInt(&self.map_pg_dir[pg_dir_offset + curr_table + j]); // | MmuFlags.mmTypePageTable;
                 }
-                curr_table_entries -= self.table_size;
             }
+            pg_dir_offset += curr_table + 1;
         }
-
-        i = 0;
-        while (i <= 2000) : (i += 1) {
-            kprint("{d}: {d}\n", .{ i, @intToPtr(*u64, base_dir_offset + i * 8).* });
-        }
+        kprint("last loop done \n", .{});
+        // i = 0;
+        // while (i <= 2000000) : (i += 1) {
+        //     var addr_ = @ptrToInt(self.map_pg_dir.ptr) + i * 8;
+        //     var val = @intToPtr(*u64, addr_).*;
+        //     if (val != 0)
+        //         kprint("({d}) {x}: {x}\n", .{ i, addr_, val });
+        // }
     }
 
     // populates a Page Table with physical adresses aka. sections or pages

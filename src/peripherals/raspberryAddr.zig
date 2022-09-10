@@ -2,6 +2,8 @@ pub const rpBase: usize = 0x3f000000;
 pub const vaStart: usize = 0xffff000000000000;
 pub const peripheralBase: usize = vaStart + rpBase;
 
+pub const a53MemStart = 0x40000; // exact: 0x3FFFF, https://developer.arm.com/documentation/ddi0500/e/generic-interrupt-controller-cpu-interface/gic-programmers-model/memory-map
+
 pub const serialMmio = @intToPtr(*volatile u8, rpBase + 0x201000);
 
 pub const Timer = struct {
