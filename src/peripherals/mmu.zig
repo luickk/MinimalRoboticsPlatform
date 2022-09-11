@@ -4,8 +4,33 @@ const addrMmu = @import("raspberryAddr.zig").Mmu;
 const addrVmem = @import("raspberryAddr.zig").Vmem;
 const kprint = @import("serial.zig").kprint;
 
+pub const MemAttr = packed struct {
+    typeBlock: bool = false,
+    typePage: bool = false,
+    normalNc: bool = false,
+    // _padding: u1 = 0,
+
+    // security bit, only important for el3 and sel1
+    ns: bool = false,
+    accessPerm: u2 = 0,
+    sharableAttr: u2 = 0,
+    accessFlag: bool = false,
+
+    _padding1: u43 = 0,
+
+    // priviledeg execute-never bit. Determines whether the region is executable at EL1
+    pxn: bool = false,
+    // execute-never bit. Determines whether the region is executable
+    uxn: bool = false,
+
+    _padding2: u10 = 0,
+
+    pub fn asInt(self: MemAttr) usize {
+        return @bitCast(u64, self);
+    }
+};
+
 pub const MmuFlags = struct {
-    // mmu
     pub const mmTypePageTable: usize = 0x3;
     pub const mmTypePage: usize = 0x3;
     pub const mmTypeBlock: usize = 0x1;
@@ -98,41 +123,57 @@ pub const PageDir = struct {
     pub fn mapMem(self: *PageDir) !void {
         // calc amounts of tables required per lvl
         var table_entries = [_]usize{0} ** 3;
-        var i: usize = 0;
-        while (i <= @enumToInt(self.max_lvl)) : (i += 1) {
+        var curr_lvl: usize = 0;
+        // const attr = MemAttr{ .typeBlock = true, .typePage = false, .normalNc = true, .accessFlag = true };
+        const attr = MmuFlags.mmuFlags;
+        // kprint("attr: {b} \n", .{attr.asInt()});
+        // kprint("ssss: {b} \n", .{MmuFlags.mmuFlags});
+        while (curr_lvl <= @enumToInt(self.max_lvl)) : (curr_lvl += 1) {
             // todo => print required for table_entries[1] not to be 0???????????
-            kprint("s: {d} \n", .{try std.math.divCeil(usize, self.mapping.mem_size, self.calcTransLvlEntrySize(@intToEnum(TransLvl, i)))});
-            table_entries[i] = try std.math.divCeil(usize, self.mapping.mem_size, self.calcTransLvlEntrySize(@intToEnum(TransLvl, i)));
+            kprint("s: {d} \n", .{try std.math.divCeil(usize, self.mapping.mem_size, self.calcTransLvlEntrySize(@intToEnum(TransLvl, curr_lvl)))});
+            table_entries[curr_lvl] = try std.math.divCeil(usize, self.mapping.mem_size, self.calcTransLvlEntrySize(@intToEnum(TransLvl, curr_lvl)));
         }
-        i = 0;
-        var phys_count = self.mapping.phys_addr | MmuFlags.mmTypePageTable;
+
+        curr_lvl = 0;
+        var phys_count = self.mapping.phys_addr | attr;
         var pg_dir_offset: usize = 0;
-        while (i <= @enumToInt(self.max_lvl)) : (i += 1) {
-            // starting at 1 not 0 so that  the curr_table division does not have to include by zero dic
-            var j: usize = 1;
+        while (curr_lvl <= @enumToInt(self.max_lvl)) : (curr_lvl += 1) {
+            var req_table = (try std.math.divCeil(usize, table_entries[curr_lvl], self.table_size));
+            var req_entry: usize = table_entries[curr_lvl];
+            var curr_entry: usize = 0;
             var curr_table: usize = 0;
-            while (j <= table_entries[i]) : (j += 1) {
-                // -1 so it starts at 0 not 1 (for indexing)
-                curr_table = (try std.math.divCeil(usize, j, self.table_size)) - 1;
-                // last lvl translation links to physical mem
-                if (i == @enumToInt(self.max_lvl)) {
-                    self.map_pg_dir[pg_dir_offset + curr_table][j - 1] = phys_count;
-                    phys_count += self.page_size;
-                    // trans layer before link to next tables
-                } else {
-                    self.map_pg_dir[pg_dir_offset + curr_table][j - 1] = @ptrToInt(&self.map_pg_dir[pg_dir_offset + curr_table + j]); // | MmuFlags.mmTypePageTable;
+            while (curr_table < req_table) : (curr_table += 1) {
+                curr_entry = 0;
+                if (req_entry > self.table_size)
+                    req_entry -= self.table_size;
+                while (curr_entry <= self.table_size) : (curr_entry += 1) {
+                    // kprint("{d} {d} \n", .{ curr_lvl, curr_entry });
+                    // last lvl translation links to physical mem
+                    if (curr_lvl == @enumToInt(self.max_lvl)) {
+                        self.map_pg_dir[pg_dir_offset + curr_table][curr_entry] = phys_count;
+                        phys_count += self.page_size;
+                        // trans layer before link to next tables
+                    } else {
+                        self.map_pg_dir[pg_dir_offset + curr_table][curr_entry] = @ptrToInt(&self.map_pg_dir[pg_dir_offset + req_table + curr_entry]) | attr;
+                    }
+                    if (req_entry < self.table_size)
+                        break;
                 }
             }
-            pg_dir_offset += curr_table + 1;
+            pg_dir_offset += req_table;
         }
-        kprint("last loop done \n", .{});
-        // i = 0;
-        // while (i <= 2000000) : (i += 1) {
-        //     var addr_ = @ptrToInt(self.map_pg_dir.ptr) + i * 8;
-        //     var val = @intToPtr(*u64, addr_).*;
-        //     if (val != 0)
-        //         kprint("({d}) {x}: {x}\n", .{ i, addr_, val });
-        // }
+        // kprint("base address: {*} \n", .{self.map_pg_dir.ptr});
+        // kprint("1 lvl (1 table entry): {*} 0x{x} \n", .{ &self.map_pg_dir[0][0], self.map_pg_dir[0][0] });
+        // kprint("------- \n", .{});
+        // kprint("2 lvl (2 table entry): {*} 0x{x} \n", .{ &self.map_pg_dir[1][0], self.map_pg_dir[1][0] });
+        // kprint("2 lvl (2 table entry): {*} 0x{x} \n", .{ &self.map_pg_dir[1][1], self.map_pg_dir[1][1] });
+        // kprint("2 lvl (2 table entry): {*} 0x{x} \n", .{ &self.map_pg_dir[1][2], self.map_pg_dir[1][2] });
+        // kprint("------- \n", .{});
+        // kprint("3 lvl (3 table base address!): {*} 0x{x} \n", .{ &self.map_pg_dir[2][0], self.map_pg_dir[2][0] });
+        // kprint("3 lvl (4 table base address!): {*} 0x{x} \n", .{ &self.map_pg_dir[3][0], self.map_pg_dir[3][0] });
+        // kprint("3 lvl (5 table base address!): {*} 0x{x} \n", .{ &self.map_pg_dir[4][0], self.map_pg_dir[4][0] });
+
+        kprint("done loop \n", .{});
     }
 
     // populates a Page Table with physical adresses aka. sections or pages
