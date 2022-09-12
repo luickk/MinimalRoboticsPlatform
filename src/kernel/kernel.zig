@@ -14,7 +14,7 @@ const proc = periph.processor;
 const mmu = periph.mmu;
 
 export fn kernel_main() callconv(.Naked) noreturn {
-    kprint("kernel started! \n", .{});
+    kprint("[kernel] kernel started! \n", .{});
 
     const _k_ttbr1_dir: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernel_ttbr1_dir" }) orelse {
         kprint("error reading _kernel_ttbr1_dir label\n", .{});
@@ -31,43 +31,43 @@ export fn kernel_main() callconv(.Naked) noreturn {
     });
 
     if (mmu.toUnsecure(usize, _kernel_end) > 0x40000000) {
-        kprint("kernel exceeding memory (0x{x})\n", .{mmu.toUnsecure(usize, _kernel_end)});
+        kprint("[panic] kernel exceeding memory (0x{x})\n", .{mmu.toUnsecure(usize, _kernel_end)});
         k_utils.panic();
     }
 
     var current_el = proc.getCurrentEl();
     if (current_el != 1) {
-        kprint("el must be 1! (it is: {d})\n", .{current_el});
+        kprint("[panic] el must be 1! (it is: {d})\n", .{current_el});
         proc.panic();
     }
 
     timer.initTimer();
-    kprint("timer inited \n", .{});
+    kprint("[kernel] timer inited \n", .{});
     intController.initIc();
-    kprint("ic inited \n", .{});
+    kprint("[kernel] ic inited \n", .{});
 
     // creating virtual address space for kernel
     var kernel_mapping = mmu.PageDir.Mapping{ .mem_size = 0x40000000, .virt_start_addr = addr.vaStart, .phys_addr = 0 };
     var ttbr1 = mmu.PageDir.init(.{ .base_addr = _k_ttbr1_dir, .page_shift = 12, .mapping = kernel_mapping, .table_shift = 9 }) catch |e| {
-        kprint("Page table init error, {s}\n", .{@errorName(e)});
+        kprint("[panic] Page table init error, {s}\n", .{@errorName(e)});
         k_utils.panic();
     };
     ttbr1.zeroPgDir();
     // mapping general kernel mem
     ttbr1.createSection(.first_lvl, kernel_mapping, mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block }) catch |e| {
-        kprint("createSection err: {s} \n", .{@errorName(e)});
+        kprint("[panic] createSection err: {s} \n", .{@errorName(e)});
         k_utils.panic();
     };
 
     // creating virtual address space user space with 4096 granule
     var user_mapping = mmu.PageDir.Mapping{ .mem_size = 0x40000000, .virt_start_addr = 0, .phys_addr = 0x40000000 };
     var ttbr0 = mmu.PageDir.init(.{ .base_addr = _u_ttbr0_dir, .page_shift = 12, .mapping = user_mapping, .table_shift = 9 }) catch |e| {
-        kprint("Page table init error: {s}\n", .{@errorName(e)});
+        kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
         k_utils.panic();
     };
     ttbr0.zeroPgDir();
     ttbr0.mapMem() catch |e| {
-        kprint("memory mapping error: {s} \n", .{@errorName(e)});
+        kprint("[panic] memory mapping error: {s} \n", .{@errorName(e)});
         k_utils.panic();
     };
 
@@ -77,14 +77,10 @@ export fn kernel_main() callconv(.Naked) noreturn {
     proc.setTTBR1(_k_ttbr1_dir);
     proc.setTTBR0(_u_ttbr0_dir);
 
-    kprint("kernel boot complete \n", .{});
+    kprint("[kernel] kernel boot complete \n", .{});
 
-    // kprint("wiritng to new kernel mem (test): \n", .{});
-    // @intToPtr(*usize, _kernel_end + 8).* = 100;
-    // kprint("done writing to kernel mem \n", .{});
-
-    kprint("wiritng to new userspace mem (test): \n", .{});
     @intToPtr(*usize, 0x20000000).* = 100;
-    kprint("done writing: \n", .{});
+    if (@intToPtr(*usize, 0x20000000).* == 100)
+        kprint("[kTEST] write to userspace successfull \n", .{});
     while (true) {}
 }

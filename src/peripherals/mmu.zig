@@ -58,6 +58,54 @@ pub const TableEntryAttr = packed struct {
     }
 };
 
+pub const tcrReg = packed struct {
+    t0sz: u6 = 0,
+    reserved0: bool = false,
+    epd0: bool = false,
+    irgno0: u2 = 0,
+    orgn0: u2 = 0,
+    sh0: u2 = 0,
+    tg0: u2 = 0,
+    t1sz: u6 = 0,
+    a1: bool = false,
+    epd1: bool = false,
+    irgn1: u2 = 0,
+    orgn1: u2 = 0,
+    sh1: u2 = 0,
+    tg1: u2 = 0,
+    ips: u3 = 0,
+    reserved1: bool = false,
+    as: bool = false,
+    tbi0: bool = false,
+    tbi1: bool = false,
+    ha: bool = false,
+    hd: bool = false,
+    hpd0: bool = false,
+    hpd1: bool = false,
+    hwu059: bool = false,
+    hwu060: bool = false,
+    hwu061: bool = false,
+    hwu062: bool = false,
+    hwu159: bool = false,
+    hwu160: bool = false,
+    hwu161: bool = false,
+    hwu162: bool = false,
+    tbid0: bool = false,
+    tbid1: bool = false,
+    nfd0: bool = false,
+    nfd1: bool = false,
+    e0pd0: bool = false,
+    e0pd1: bool = false,
+    tcma0: bool = false,
+    tcma1: bool = false,
+    ds: bool = false,
+    reserved2: u4 = 0,
+
+    pub fn asInt(self: tcrReg) usize {
+        return @bitCast(u64, self);
+    }
+};
+
 pub const MmuFlags = struct {
     pub const mmTypePageTable: usize = 0x3;
     pub const mmTypePage: usize = 0x3;
@@ -82,7 +130,11 @@ pub const MmuFlags = struct {
     pub const tcrValue: usize = (tcrT0sz | tcrT1sz | tcrTg04k | tcrTg14k);
 };
 export const _mairVal = MmuFlags.mairValue;
-export const _tcrVal = MmuFlags.tcrValue;
+// t0sz: The size offset of the memory region addressed by TTBR0_EL1.
+// t1sz: The size offset of the memory region addressed by TTBR1_EL1.
+// tg0: Granule size for the TTBR0_EL1. 01(dec:2) = 4kb
+// tg1 not required since it's sections
+export const _tcrVal = (tcrReg{ .t0sz = 16, .t1sz = 16, .tg0 = 2 }).asInt();
 
 // only 4096 granule (yet)
 pub const PageDir = struct {
@@ -152,13 +204,9 @@ pub const PageDir = struct {
         // calc amounts of tables required per lvl
         var table_entries = [_]usize{0} ** 3;
         var curr_lvl: usize = 0;
-        const lvl_1_2_attr = (TableEntryAttr{ .accessPerm = .read_write, .descType = .block }).asInt();
-        kprint("lvl_1_2_attr: {b} \n", .{lvl_1_2_attr});
-        kprint("ssss: {b} \n", .{MmuFlags.mmuFlags});
+        const lvl_1 = (TableEntryAttr{ .accessPerm = .read_write, .descType = .block }).asInt();
 
         while (curr_lvl <= @enumToInt(self.max_lvl)) : (curr_lvl += 1) {
-            // todo => print required for table_entries[1] not to be 0???????????
-            kprint("s: {d} \n", .{try std.math.divCeil(usize, self.mapping.mem_size, self.calcTransLvlEntrySize(@intToEnum(TransLvl, curr_lvl)))});
             table_entries[curr_lvl] = try std.math.divCeil(usize, self.mapping.mem_size, self.calcTransLvlEntrySize(@intToEnum(TransLvl, curr_lvl)));
         }
 
@@ -175,14 +223,15 @@ pub const PageDir = struct {
                 if (req_entry > self.table_size)
                     req_entry -= self.table_size;
                 while (curr_entry <= self.table_size) : (curr_entry += 1) {
-                    // kprint("{d} {d} \n", .{ curr_lvl, curr_entry });
                     // last lvl translation links to physical mem
                     if (curr_lvl == @enumToInt(self.max_lvl)) {
                         self.map_pg_dir[pg_dir_offset + curr_table][curr_entry] = phys_count;
                         phys_count += self.page_size;
                         // trans layer before link to next tables
                     } else {
-                        self.map_pg_dir[pg_dir_offset + curr_table][curr_entry] = @ptrToInt(&self.map_pg_dir[pg_dir_offset + req_table + curr_entry]) | lvl_1_2_attr;
+                        self.map_pg_dir[pg_dir_offset + curr_table][curr_entry] = @ptrToInt(&self.map_pg_dir[pg_dir_offset + req_table + curr_entry]);
+                        if (curr_lvl == @enumToInt(TransLvl.first_lvl))
+                            self.map_pg_dir[pg_dir_offset + curr_table][curr_entry] |= lvl_1;
                     }
                     if (req_entry < self.table_size)
                         break;
@@ -200,8 +249,6 @@ pub const PageDir = struct {
         // kprint("3 lvl (3 table base address!): {*} 0x{x} \n", .{ &self.map_pg_dir[2][0], self.map_pg_dir[2][0] });
         // kprint("3 lvl (4 table base address!): {*} 0x{x} \n", .{ &self.map_pg_dir[3][0], self.map_pg_dir[3][0] });
         // kprint("3 lvl (5 table base address!): {*} 0x{x} \n", .{ &self.map_pg_dir[4][0], self.map_pg_dir[4][0] });
-
-        kprint("done loop \n", .{});
     }
 
     // populates a Page Table with physical adresses aka. sections or pages
