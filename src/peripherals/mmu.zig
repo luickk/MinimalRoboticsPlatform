@@ -58,6 +58,20 @@ pub const TableEntryAttr = packed struct {
     }
 };
 
+pub const mairReg = packed struct {
+    attr0: u8 = 0,
+    attr1: u8 = 0,
+    attr2: u8 = 0,
+    attr3: u8 = 0,
+    attr4: u8 = 0,
+    attr5: u8 = 0,
+    attr6: u8 = 0,
+    attr7: u8 = 0,
+
+    pub fn asInt(self: mairReg) usize {
+        return @bitCast(u64, self);
+    }
+};
 pub const tcrReg = packed struct {
     t0sz: u6 = 0,
     reserved0: bool = false,
@@ -106,34 +120,12 @@ pub const tcrReg = packed struct {
     }
 };
 
-pub const MmuFlags = struct {
-    pub const mmTypePageTable: usize = 0x3;
-    pub const mmTypePage: usize = 0x3;
-    pub const mmTypeBlock: usize = 0x1;
-    pub const mmAccess: usize = (0x1 << 10);
-    pub const mmAccessPermission: usize = (0x01 << 6);
+gexport const _mairVal = (mairReg{ .attr1 = 4, .attr2 = 4 }).asInt();
 
-    pub const mtDeviceNGnRnE: usize = 0x0;
-    pub const mtNormalNc: usize = 0x1;
-    pub const mtDeviceNGnRnEflags: usize = 0x00;
-    pub const mtNormalNcFlags: usize = 0x44;
-    pub const mairValue: usize = (mtDeviceNGnRnEflags << (8 * mtDeviceNGnRnE)) | (mtNormalNcFlags << (8 * mtNormalNc));
-
-    pub const mmuFlags: usize = (mmTypeBlock | (mtNormalNc << 2) | mmAccess);
-    pub const mmuDeviceFlags: usize = (mmTypeBlock | (mtDeviceNGnRnE << 2) | mmAccess);
-    pub const mmutPteFlags: usize = (mmTypePageTable | (mtNormalNc << 2) | mmAccess | mmAccessPermission);
-
-    pub const tcrT0sz: usize = (64 - 48);
-    pub const tcrT1sz: usize = ((64 - 48) << 16);
-    pub const tcrTg04k = (0 << 14);
-    pub const tcrTg14k: usize = (2 << 30);
-    pub const tcrValue: usize = (tcrT0sz | tcrT1sz | tcrTg04k | tcrTg14k);
-};
-export const _mairVal = MmuFlags.mairValue;
 // t0sz: The size offset of the memory region addressed by TTBR0_EL1.
 // t1sz: The size offset of the memory region addressed by TTBR1_EL1.
 // tg0: Granule size for the TTBR0_EL1. 01(dec:2) = 4kb
-// tg1 not required since it's sections
+// tg1 not required since it's sectionsgit
 export const _tcrVal = (tcrReg{ .t0sz = 16, .t1sz = 16, .tg0 = 2 }).asInt();
 
 // only 4096 granule (yet)
