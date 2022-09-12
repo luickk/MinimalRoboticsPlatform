@@ -47,25 +47,19 @@ export fn kernel_main() callconv(.Naked) noreturn {
     kprint("[kernel] ic inited \n", .{});
 
     // creating virtual address space for kernel
-    var kernel_mapping = mmu.PageDir.Mapping{ .mem_size = 0x40000000, .virt_start_addr = addr.vaStart, .phys_addr = 0 };
-    var ttbr1 = mmu.PageDir.init(.{ .base_addr = _k_ttbr1_dir, .page_shift = 12, .mapping = kernel_mapping, .table_shift = 9 }) catch |e| {
-        kprint("[panic] Page table init error, {s}\n", .{@errorName(e)});
-        k_utils.panic();
-    };
-    ttbr1.zeroPgDir();
+    var kernel_mapping = mmu.Mapping{ .mem_size = 0x40000000, .virt_start_addr = addr.vaStart, .phys_addr = 0 };
     // mapping general kernel mem
-    ttbr1.createSection(.first_lvl, kernel_mapping, mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block }) catch |e| {
+    mmu.createSection(_k_ttbr1_dir, kernel_mapping, mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block }) catch |e| {
         kprint("[panic] createSection err: {s} \n", .{@errorName(e)});
         k_utils.panic();
     };
 
     // creating virtual address space user space with 4096 granule
-    var user_mapping = mmu.PageDir.Mapping{ .mem_size = 0x40000000, .virt_start_addr = 0, .phys_addr = 0x40000000 };
-    var ttbr0 = mmu.PageDir.init(.{ .base_addr = _u_ttbr0_dir, .page_shift = 12, .mapping = user_mapping, .table_shift = 9 }) catch |e| {
+    const user_mapping = mmu.Mapping{ .mem_size = 0x40000000, .virt_start_addr = 0, .phys_addr = 0x40000000 };
+    var ttbr0 = mmu.PageDir(user_mapping, .fourk).init(_u_ttbr0_dir) catch |e| {
         kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
         k_utils.panic();
     };
-    ttbr0.zeroPgDir();
     ttbr0.mapMem() catch |e| {
         kprint("[panic] memory mapping error: {s} \n", .{@errorName(e)});
         k_utils.panic();

@@ -57,27 +57,17 @@ export fn bl_main() callconv(.Naked) noreturn {
 
     // writing to _id_mapped_dir(label) page table and creating new
     // identity mapped memory for bootloader to kernel transfer
-    var bootloader_mapping = mmu.PageDir.Mapping{ .mem_size = 0x40000000, .virt_start_addr = 0, .phys_addr = 0 };
-    var ttbr0 = mmu.PageDir.init(.{ .base_addr = _ttbr0_dir, .mapping = bootloader_mapping, .page_shift = 12, .table_shift = 9 }) catch |e| {
-        bprint("[panic] Page table init error, {s}\n", .{@errorName(e)});
-        bl_utils.panic();
-    };
-    ttbr0.zeroPgDir();
+    var bootloader_mapping = mmu.Mapping{ .mem_size = 0x40000000, .virt_start_addr = 0, .phys_addr = 0 };
     // identity mapped memory for bootloader and kernel contrtol handover!
-    ttbr0.createSection(.first_lvl, bootloader_mapping, mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block }) catch |e| {
+    mmu.createSection(_ttbr0_dir, bootloader_mapping, mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block }) catch |e| {
         bprint("[panic] createSection err: {s} \n", .{@errorName(e)});
         bl_utils.panic();
     };
 
     // creating virtual address space for kernel
-    var kernel_mapping = mmu.PageDir.Mapping{ .mem_size = 0x40000000, .virt_start_addr = addr.vaStart, .phys_addr = 0 };
-    var ttbr1 = mmu.PageDir.init(.{ .base_addr = _ttbr1_dir, .mapping = kernel_mapping, .page_shift = 12, .table_shift = 9 }) catch |e| {
-        bprint("[panic] Page table init error, {s}\n", .{@errorName(e)});
-        bl_utils.panic();
-    };
-    ttbr1.zeroPgDir();
+    var kernel_mapping = mmu.Mapping{ .mem_size = 0x40000000, .virt_start_addr = addr.vaStart, .phys_addr = 0 };
     // mapping general kernel mem (inlcuding device base)
-    ttbr1.createSection(.first_lvl, kernel_mapping, mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block }) catch |e| {
+    mmu.createSection(_ttbr1_dir, kernel_mapping, mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block }) catch |e| {
         bprint("[panic] createSection err: {s} \n", .{@errorName(e)});
         bl_utils.panic();
     };
