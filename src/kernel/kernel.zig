@@ -54,8 +54,8 @@ export fn kernel_main() callconv(.Naked) noreturn {
     };
     ttbr1.zeroPgDir();
     // mapping general kernel mem
-    ttbr1.populateTableWithPhys(.{ .trans_lvl = .first_lvl, .pop_type = .section, .mapping = kernel_mapping, .flags = mmu.MmuFlags.mmuFlags }) catch |e| {
-        kprint("populateTableWithPhys err: {s} \n", .{@errorName(e)});
+    ttbr1.createSection(.first_lvl, kernel_mapping, mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block }) catch |e| {
+        kprint("createSection err: {s} \n", .{@errorName(e)});
         k_utils.panic();
     };
 

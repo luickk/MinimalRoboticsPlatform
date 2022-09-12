@@ -4,20 +4,48 @@ const addrMmu = @import("raspberryAddr.zig").Mmu;
 const addrVmem = @import("raspberryAddr.zig").Vmem;
 const kprint = @import("serial.zig").kprint;
 
-pub const MemAttr = packed struct {
-    typeBlock: bool = false,
-    typePage: bool = false,
-    normalNc: bool = false,
-    // _padding: u1 = 0,
+// In addition to an output address, a translation table entry that refers to a page or region of memory
+// includes fields that define properties of the target memory region. These fields can be classified as
+// address map control, access control, and region attribute fields.
+pub const TableEntryAttr = packed struct {
+    // block indicates next trans lvl (or physical for sections) and page the last trans lvl (with physical addr)
+    pub const DescType = enum(u1) { block = 0, page = 1 };
+    // redirects read from mem tables to mairx reg
+    pub const AttrIndex = enum(u3) { mair0 = 0, mair1 = 1 };
+    pub const Sharability = enum(u2) { non_sharable = 0, unpredictable = 1, outer_sharable = 2, innner_sharable = 3 };
 
-    // security bit, only important for el3 and sel1
+    // for Non-secure stage 1 of the EL1&0 translation regime
+    pub const Stage1AccessPerm = enum(u2) { only_el1_read_write = 0, read_write = 1, only_el1_read_only = 2, read_only = 3 };
+    // for Non-secure EL1&0 stage 2 translation regime
+    pub const Stage2AccessPerm = enum(u2) { none = 0, read_only = 1, write_only = 2, read_write = 3 };
+    // for secure EL2&3 translation regime
+    pub const SecureAccessPerm = enum(u2) { read_write = 0, read_only = 3 };
+
+    // https://armv8-ref.codingbelief.com/en/chapter_d4/d43_1_vmsav8-64_translation_table_descriptor_formats.html
+    // https://armv8-ref.codingbelief.com/en/chapter_d4/d43_2_armv8_translation_table_level_3_descriptor_formats.html
+    // identifies whether the descriptor is valid, and is 1 for a valid descriptor.
+    valid: bool = true,
+    // identifies the descriptor type, and is encoded as:
+    descType: DescType = .block,
+
+    // https://armv8-ref.codingbelief.com/en/chapter_d4/d43_3_memory_attribute_fields_in_the_vmsav8-64_translation_table_formats_descriptors.html
+    attrIndex: AttrIndex = .mair1,
+    // For memory accesses from Secure state, specifies whether the output address is in the Secure or Non-secure address map
     ns: bool = false,
-    accessPerm: u2 = 0,
-    sharableAttr: u2 = 0,
-    accessFlag: bool = false,
+    // depends on translation level (Stage2AccessPerm, Stage1AccessPerm, SecureAccessPerm)
+    accessPerm: Stage1AccessPerm = .read_only,
+    sharableAttr: Sharability = .non_sharable,
 
-    _padding1: u43 = 0,
+    // The access flag indicates when a page or section of memory is accessed for the first time since the
+    // Access flag in the corresponding translation table descriptor was set to 0.
+    accessFlag: bool = true,
+    // the not global bit. Determines whether the TLB entry applies to all ASID values, or only to the current ASID value
+    notGlobal: bool = false,
 
+    _padding: u39 = 0,
+
+    // indicating that the translation table entry is one of a contiguous set or entries, that might be cached in a single TLB entry
+    contiguous: bool = false,
     // priviledeg execute-never bit. Determines whether the region is executable at EL1
     pxn: bool = false,
     // execute-never bit. Determines whether the region is executable
@@ -25,7 +53,7 @@ pub const MemAttr = packed struct {
 
     _padding2: u10 = 0,
 
-    pub fn asInt(self: MemAttr) usize {
+    pub fn asInt(self: TableEntryAttr) usize {
         return @bitCast(u64, self);
     }
 };
@@ -71,9 +99,9 @@ pub const PageDir = struct {
     max_lvl: TransLvl,
     table_size: usize,
     pg_dir: []volatile usize,
+    // todo => replace 512 with comptime table_size
     map_pg_dir: []volatile [512]usize,
 
-    pub const BlockPopulationType = enum { section, page };
     // third (or fourth...) not required for the (currently) only supported granule
     pub const TransLvl = enum(usize) { first_lvl = 0, second_lvl = 1, third_lvl = 2 };
 
@@ -124,10 +152,10 @@ pub const PageDir = struct {
         // calc amounts of tables required per lvl
         var table_entries = [_]usize{0} ** 3;
         var curr_lvl: usize = 0;
-        // const attr = MemAttr{ .typeBlock = true, .typePage = false, .normalNc = true, .accessFlag = true };
-        const attr = MmuFlags.mmuFlags;
-        // kprint("attr: {b} \n", .{attr.asInt()});
-        // kprint("ssss: {b} \n", .{MmuFlags.mmuFlags});
+        const lvl_1_2_attr = (TableEntryAttr{ .accessPerm = .read_write, .descType = .block }).asInt();
+        kprint("lvl_1_2_attr: {b} \n", .{lvl_1_2_attr});
+        kprint("ssss: {b} \n", .{MmuFlags.mmuFlags});
+
         while (curr_lvl <= @enumToInt(self.max_lvl)) : (curr_lvl += 1) {
             // todo => print required for table_entries[1] not to be 0???????????
             kprint("s: {d} \n", .{try std.math.divCeil(usize, self.mapping.mem_size, self.calcTransLvlEntrySize(@intToEnum(TransLvl, curr_lvl)))});
@@ -135,7 +163,7 @@ pub const PageDir = struct {
         }
 
         curr_lvl = 0;
-        var phys_count = self.mapping.phys_addr | attr;
+        var phys_count = self.mapping.phys_addr | (TableEntryAttr{ .accessPerm = .read_write, .descType = .page }).asInt();
         var pg_dir_offset: usize = 0;
         while (curr_lvl <= @enumToInt(self.max_lvl)) : (curr_lvl += 1) {
             var req_table = (try std.math.divCeil(usize, table_entries[curr_lvl], self.table_size));
@@ -154,7 +182,7 @@ pub const PageDir = struct {
                         phys_count += self.page_size;
                         // trans layer before link to next tables
                     } else {
-                        self.map_pg_dir[pg_dir_offset + curr_table][curr_entry] = @ptrToInt(&self.map_pg_dir[pg_dir_offset + req_table + curr_entry]) | attr;
+                        self.map_pg_dir[pg_dir_offset + curr_table][curr_entry] = @ptrToInt(&self.map_pg_dir[pg_dir_offset + req_table + curr_entry]) | lvl_1_2_attr;
                     }
                     if (req_entry < self.table_size)
                         break;
@@ -177,36 +205,22 @@ pub const PageDir = struct {
     }
 
     // populates a Page Table with physical adresses aka. sections or pages
-    pub fn populateTableWithPhys(self: *PageDir, args: struct { trans_lvl: TransLvl, pop_type: BlockPopulationType, mapping: Mapping, flags: usize }) !void {
-        var shift: u6 = undefined;
-        var step_size: usize = undefined;
-
-        switch (args.pop_type) {
-            .section => {
-                shift = self.section_shift;
-                step_size = self.section_size;
-            },
-            .page => {
-                shift = self.page_shift;
-                step_size = self.page_size;
-            },
-        }
-
-        var phys_count = args.mapping.phys_addr | args.flags;
+    pub fn createSection(self: *PageDir, trans_lvl: TransLvl, mapping: Mapping, flags: TableEntryAttr) !void {
+        var phys_count = mapping.phys_addr | flags.asInt();
         // phys_count >>= shift;
         // phys_count |= phys_shifted;
 
-        var i: usize = args.mapping.virt_start_addr;
+        var i: usize = mapping.virt_start_addr;
         i = toUnsecure(usize, i);
-        i = try std.math.divCeil(usize, i, step_size);
+        i = try std.math.divCeil(usize, i, self.section_size);
 
-        var i_max: usize = args.mapping.virt_start_addr + args.mapping.mem_size;
-        i_max = toUnsecure(usize, i_max) - toUnsecure(usize, args.mapping.virt_start_addr);
-        i_max = try std.math.divCeil(usize, i_max, step_size);
+        var i_max: usize = mapping.virt_start_addr + mapping.mem_size;
+        i_max = toUnsecure(usize, i_max) - toUnsecure(usize, mapping.virt_start_addr);
+        i_max = try std.math.divCeil(usize, i_max, self.section_size);
 
         while (i <= i_max) : (i += 1) {
-            self.pg_dir[@enumToInt(args.trans_lvl) * self.table_size + i] = phys_count;
-            phys_count += step_size;
+            self.pg_dir[@enumToInt(trans_lvl) * self.table_size + i] = phys_count;
+            phys_count += self.section_size;
         }
     }
 

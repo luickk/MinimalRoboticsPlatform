@@ -64,8 +64,8 @@ export fn bl_main() callconv(.Naked) noreturn {
     };
     ttbr0.zeroPgDir();
     // identity mapped memory for bootloader and kernel contrtol handover!
-    ttbr0.populateTableWithPhys(.{ .trans_lvl = .first_lvl, .pop_type = .section, .mapping = bootloader_mapping, .flags = mmu.MmuFlags.mmuFlags }) catch |e| {
-        bprint("populateTableWithPhys err: {s} \n", .{@errorName(e)});
+    ttbr0.createSection(.first_lvl, bootloader_mapping, mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block }) catch |e| {
+        bprint("createSection err: {s} \n", .{@errorName(e)});
         bl_utils.panic();
     };
 
@@ -75,12 +75,10 @@ export fn bl_main() callconv(.Naked) noreturn {
         bprint("Page table init error, {s}\n", .{@errorName(e)});
         bl_utils.panic();
     };
-
     ttbr1.zeroPgDir();
-
     // mapping general kernel mem (inlcuding device base)
-    ttbr1.populateTableWithPhys(.{ .trans_lvl = .first_lvl, .pop_type = .section, .mapping = kernel_mapping, .flags = mmu.MmuFlags.mmuFlags }) catch |e| {
-        bprint("populateTableWithPhys err: {s} \n", .{@errorName(e)});
+    ttbr1.createSection(.first_lvl, kernel_mapping, mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block }) catch |e| {
+        bprint("createSection err: {s} \n", .{@errorName(e)});
         bl_utils.panic();
     };
 

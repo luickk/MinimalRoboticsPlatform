@@ -12,8 +12,8 @@ pub fn build(b: *std.build.Builder) !void {
     var build_options = b.addOptions();
     build_options.addOption(bool, "is_qemu", true);
 
-    var peripherals = std.build.Pkg{ .name = "peripherals", .path = .{ .path = "src/peripherals/peripherals.zig" } };
-    var utils = std.build.Pkg{ .name = "utils", .path = .{ .path = "src/utils/utils.zig" } };
+    var peripherals = std.build.Pkg{ .name = "peripherals", .source = .{ .path = "src/peripherals/peripherals.zig" } };
+    var utils = std.build.Pkg{ .name = "utils", .source = .{ .path = "src/utils/utils.zig" } };
 
     // bootloader
     const bl_exe = b.addExecutable("bootloader", null);
