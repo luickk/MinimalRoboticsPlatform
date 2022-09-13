@@ -1,3 +1,16 @@
+pub inline fn setTcrEl1(val: usize) void {
+    asm volatile ("msr tcr_el1, %[val]"
+        :
+        : [val] "rax" (val),
+    );
+}
+pub inline fn setMairEl1(val: usize) void {
+    asm volatile ("msr mair_el1, %[val]"
+        :
+        : [val] "rax" (val),
+    );
+}
+
 pub inline fn enableMmu() void {
     const mmu_en: usize = 1 << 0;
     asm volatile ("msr sctlr_el1, %[mmu_en]"

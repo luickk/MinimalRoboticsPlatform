@@ -1,25 +1,20 @@
 const std = @import("std");
 const addr = @import("raspberryAddr.zig");
-const addrMmu = @import("raspberryAddr.zig").Mmu;
-const addrVmem = @import("raspberryAddr.zig").Vmem;
 const kprint = @import("serial.zig").kprint;
 
 pub const TransLvl = enum(usize) { first_lvl = 0, second_lvl = 1, third_lvl = 2 };
 
 pub const Mapping = struct { mem_size: usize, virt_start_addr: usize, phys_addr: usize };
 
-const granuleParams = struct {
-    // todo => is currently in gb, change to bytes
-    table_len: usize,
-    // in bytes!
+const GranuleParams = struct {
     page_size: usize,
     lvls_required: TransLvl,
 };
 
-pub const Granule = enum(usize) {
-    fourk = 4096,
-    sixteenk = 16384,
-    sixtyfourk = 65536,
+pub const Granule = struct {
+    pub const Fourk: GranuleParams = .{ .page_size = 4096, .lvls_required = .third_lvl };
+    pub const Sixteenk: GranuleParams = .{ .page_size = 16384, .lvls_required = .third_lvl };
+    pub const Sixtyfourk: GranuleParams = .{ .page_size = 65536, .lvls_required = .second_lvl };
 };
 
 // In addition to an output address, a translation table entry that refers to a page or region of memory
@@ -76,7 +71,7 @@ pub const TableEntryAttr = packed struct {
     }
 };
 
-pub const mairReg = packed struct {
+pub const MairReg = packed struct {
     attr0: u8 = 0,
     attr1: u8 = 0,
     attr2: u8 = 0,
@@ -86,11 +81,11 @@ pub const mairReg = packed struct {
     attr6: u8 = 0,
     attr7: u8 = 0,
 
-    pub fn asInt(self: mairReg) usize {
+    pub fn asInt(self: MairReg) usize {
         return @bitCast(u64, self);
     }
 };
-pub const tcrReg = packed struct {
+pub const TcrReg = packed struct {
     t0sz: u6 = 0,
     reserved0: bool = false,
     epd0: bool = false,
@@ -133,24 +128,15 @@ pub const tcrReg = packed struct {
     ds: bool = false,
     reserved2: u4 = 0,
 
-    pub fn asInt(self: tcrReg) usize {
+    pub fn asInt(self: TcrReg) usize {
         return @bitCast(u64, self);
     }
 };
 
-export const _mairVal = (mairReg{ .attr1 = 4, .attr2 = 4 }).asInt();
-
-// t0sz: The size offset of the memory region addressed by TTBR0_EL1.
-// t1sz: The size offset of the memory region addressed by TTBR1_EL1.
-// tg0: Granule size for the TTBR0_EL1. 01(dec:2) = 4kb
-// tg1 not required since it's sectionsgit
-export const _tcrVal = (tcrReg{ .t0sz = 16, .t1sz = 16, .tg0 = 2 }).asInt();
-
-// only 4096 granule (yet)
-pub fn PageDir(mapping: Mapping, granule: Granule) type {
-    const page_size = @enumToInt(granule);
-    const table_len = 512;
-    const max_lvl = .third_lvl;
+pub fn PageDir(mapping: Mapping, granule: GranuleParams) type {
+    const page_size = granule.page_size;
+    const table_len = page_size / @sizeOf(usize);
+    const max_lvl = granule.lvls_required;
     return struct {
         const Self = @This();
         page_size: usize,
@@ -201,6 +187,7 @@ pub fn PageDir(mapping: Mapping, granule: Granule) type {
                 var req_entry: usize = table_entries[curr_lvl];
                 var curr_entry: usize = 0;
                 var curr_table: usize = 0;
+                kprint("curr_lvl: {d}, req_table: {d}, req_entries: {d} \n", .{ curr_lvl, req_table, req_entry });
                 while (curr_table < req_table) : (curr_table += 1) {
                     curr_entry = 0;
                     if (req_entry > self.table_len)
@@ -222,16 +209,17 @@ pub fn PageDir(mapping: Mapping, granule: Granule) type {
                 }
                 pg_dir_offset += req_table;
             }
-            // kprint("base address: {*} \n", .{self.map_pg_dir.ptr});
-            // kprint("1 lvl (1 table entry): {*} 0x{x} \n", .{ &self.map_pg_dir[0][0], self.map_pg_dir[0][0] });
-            // kprint("------- \n", .{});
-            // kprint("2 lvl (2 table entry): {*} 0x{x} \n", .{ &self.map_pg_dir[1][0], self.map_pg_dir[1][0] });
-            // kprint("2 lvl (2 table entry): {*} 0x{x} \n", .{ &self.map_pg_dir[1][1], self.map_pg_dir[1][1] });
-            // kprint("2 lvl (2 table entry): {*} 0x{x} \n", .{ &self.map_pg_dir[1][2], self.map_pg_dir[1][2] });
-            // kprint("------- \n", .{});
-            // kprint("3 lvl (3 table base address!): {*} 0x{x} \n", .{ &self.map_pg_dir[2][0], self.map_pg_dir[2][0] });
-            // kprint("3 lvl (4 table base address!): {*} 0x{x} \n", .{ &self.map_pg_dir[3][0], self.map_pg_dir[3][0] });
-            // kprint("3 lvl (5 table base address!): {*} 0x{x} \n", .{ &self.map_pg_dir[4][0], self.map_pg_dir[4][0] });
+            kprint("base address: {*} \n", .{self.map_pg_dir.ptr});
+            kprint("1 lvl (1 table entry): {*} 0x{x} \n", .{ &self.map_pg_dir[0][0], self.map_pg_dir[0][0] });
+            kprint("------- \n", .{});
+            kprint("2 lvl (2 table entry): {*} 0x{x} \n", .{ &self.map_pg_dir[1][0], self.map_pg_dir[1][0] });
+            kprint("2 lvl (2 table entry): {*} 0x{x} \n", .{ &self.map_pg_dir[1][1], self.map_pg_dir[1][1] });
+            kprint("2 lvl (2 table entry): {*} 0x{x} \n", .{ &self.map_pg_dir[1][2], self.map_pg_dir[1][2] });
+            kprint("------- \n", .{});
+            kprint("3 lvl (3 table base address!): {*} 0x{x} \n", .{ &self.map_pg_dir[2][0], self.map_pg_dir[2][0] });
+            kprint("3 lvl (4 table base address!): {*} 0x{x} \n", .{ &self.map_pg_dir[3][0], self.map_pg_dir[3][0] });
+            kprint("3 lvl (5 table base address!): {*} 0x{x} \n", .{ &self.map_pg_dir[4][0], self.map_pg_dir[4][0] });
+            kprint("---------------------------- \n", .{});
         }
     };
 }

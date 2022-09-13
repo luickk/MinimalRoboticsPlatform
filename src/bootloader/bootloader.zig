@@ -9,7 +9,6 @@ const bprint = periph.serial.bprint;
 const mmu = periph.mmu;
 
 // todo => unify kernel, bootloader size & linking to 1 var in build.zig
-// todo => loader kernel at proper address (not 0x200...)
 export fn bl_main() callconv(.Naked) noreturn {
     intController.initIc();
 
@@ -90,6 +89,13 @@ export fn bl_main() callconv(.Naked) noreturn {
 
     while (true) {}
 }
+
+export const _mairVal = (mmu.MairReg{ .attr1 = 4, .attr2 = 4 }).asInt();
+// t0sz: The size offset of the memory region addressed by TTBR0_EL1
+// t1sz: The size offset of the memory region addressed by TTBR1_EL1
+// tg0: Granule size for the TTBR0_EL1. 01(dec:2) = 4kb
+// tg1 not required since it's sections
+export const _tcrVal = (mmu.TcrReg{ .t0sz = 16, .t1sz = 16, .tg0 = 0 }).asInt();
 
 comptime {
     @export(intHandle.irqHandler, .{ .name = "irqHandler", .linkage = .Strong });

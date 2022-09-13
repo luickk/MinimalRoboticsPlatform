@@ -56,7 +56,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
 
     // creating virtual address space user space with 4096 granule
     const user_mapping = mmu.Mapping{ .mem_size = 0x40000000, .virt_start_addr = 0, .phys_addr = 0x40000000 };
-    var ttbr0 = mmu.PageDir(user_mapping, .fourk).init(_u_ttbr0_dir) catch |e| {
+    var ttbr0 = mmu.PageDir(user_mapping, mmu.Granule.Fourk).init(_u_ttbr0_dir) catch |e| {
         kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
         k_utils.panic();
     };
@@ -65,8 +65,8 @@ export fn kernel_main() callconv(.Naked) noreturn {
         k_utils.panic();
     };
 
+    proc.setTcrEl1((mmu.TcrReg{ .t0sz = 16, .t1sz = 16, .tg0 = 2 }).asInt());
     proc.resetMmuTlbEl1();
-
     // updating page dirs for kernel and user space
     proc.setTTBR1(_k_ttbr1_dir);
     proc.setTTBR0(_u_ttbr0_dir);
