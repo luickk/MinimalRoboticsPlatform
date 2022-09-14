@@ -1,15 +1,14 @@
-pub const rpBase: usize = 0x3f000000;
+pub const deviceBase: usize = 0x09000000;
 pub const vaStart: usize = 0xffff000000000000;
-pub const peripheralBase: usize = vaStart + rpBase;
 
 pub const a53MemStart = 0x40000; // exact: 0x3FFFF, https://developer.arm.com/documentation/ddi0500/e/generic-interrupt-controller-cpu-interface/gic-programmers-model/memory-map
 
-pub const serialMmio = @intToPtr(*volatile u8, rpBase + 0x201000);
+pub const serialMmio = @intToPtr(*volatile u8, deviceBase + 0x201000);
 
 pub const Timer = struct {
-    pub const timerClo: usize = rpBase + 0x00003004;
-    pub const timerC1: usize = rpBase + 0x00003010;
-    pub const timerCs: usize = rpBase + 0x00003000;
+    pub const timerClo: usize = deviceBase + 0x00003004;
+    pub const timerC1: usize = deviceBase + 0x00003010;
+    pub const timerCs: usize = deviceBase + 0x00003000;
 
     // address values
     pub const Values = struct {
@@ -23,13 +22,13 @@ pub const Timer = struct {
 
 pub const InterruptController = struct {
     // addresses
-    pub const pendingBasic: usize = rpBase + 0x0000b200;
-    pub const pendingIrq1: usize = rpBase + 0x0000b204;
-    pub const pendingIrq2: usize = rpBase + 0x0000b208;
+    pub const pendingBasic: usize = deviceBase + 0x0000b200;
+    pub const pendingIrq1: usize = deviceBase + 0x0000b204;
+    pub const pendingIrq2: usize = deviceBase + 0x0000b208;
 
-    pub const enableIrq1: usize = rpBase + 0x0000b210;
-    pub const enableIrq2: usize = rpBase + 0x0000b214;
-    pub const enableIrqBasic: usize = rpBase + 0x0000b218;
+    pub const enableIrq1: usize = deviceBase + 0x0000b210;
+    pub const enableIrq2: usize = deviceBase + 0x0000b214;
+    pub const enableIrqBasic: usize = deviceBase + 0x0000b218;
 
     // address values
     pub const Values = struct {

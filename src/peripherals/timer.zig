@@ -1,4 +1,4 @@
-const addr = @import("raspberryAddr.zig").Timer;
+const addr = @import("deviceAdresses.zig").Timer;
 
 var timerVal: u32 = 0;
 

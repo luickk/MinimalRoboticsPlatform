@@ -1,5 +1,5 @@
 const std = @import("std");
-const addr = @import("raspberryAddr.zig");
+const addr = @import("deviceAdresses.zig");
 const mmu = @import("mmu.zig");
 
 pub const SerialKernelWriter = struct {

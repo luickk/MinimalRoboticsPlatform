@@ -55,8 +55,10 @@ export fn kernel_main() callconv(.Naked) noreturn {
     };
 
     // creating virtual address space user space with 4096 granule
-    const user_mapping = mmu.Mapping{ .mem_size = 0x40000000, .virt_start_addr = 0, .phys_addr = 0x40000000 };
-    var ttbr0 = mmu.PageDir(user_mapping, mmu.Granule.Fourk).init(_u_ttbr0_dir) catch |e| {
+    const user_mapping = mmu.Mapping{ .mem_size = 0x80000000, .virt_start_addr = 0, .phys_addr = 0x40000000 };
+    var ttbr0 = (mmu.PageDir(user_mapping, mmu.Granule.Fourk) catch |e| {
+        @compileError(@errorName(e));
+    }).init(_u_ttbr0_dir) catch |e| {
         kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
         k_utils.panic();
     };

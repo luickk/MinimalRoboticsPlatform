@@ -1,5 +1,5 @@
 const std = @import("std");
-const addr = @import("raspberryAddr.zig");
+const addr = @import("deviceAdresses.zig");
 const kprint = @import("serial.zig").kprint;
 
 pub const TransLvl = enum(usize) { first_lvl = 0, second_lvl = 1, third_lvl = 2 };
@@ -133,13 +133,17 @@ pub const TcrReg = packed struct {
     }
 };
 
-pub fn PageDir(mapping: Mapping, granule: GranuleParams) type {
+pub fn PageDir(mapping: Mapping, granule: GranuleParams) !type {
     const page_size = granule.page_size;
     const table_len = try std.math.divExact(usize, page_size, @sizeOf(usize));
     const max_lvl = granule.lvls_required;
     const req_pages = try std.math.divExact(usize, mapping.mem_size, page_size);
-    // todo => get it right, doesn't account for lvl1/2 tables!!
-    const req_table_total = try std.math.divExact(usize, req_pages, table_len);
+
+    comptime var req_table_total = 0;
+    var ccurr_lvl: usize = 1;
+    while (ccurr_lvl <= @enumToInt(granule.lvls_required) + 1) : (ccurr_lvl += 1) {
+        req_table_total += try std.math.divCeil(usize, req_pages, std.math.pow(usize, table_len, ccurr_lvl));
+    }
     return struct {
         const Self = @This();
         page_size: usize,
@@ -150,6 +154,7 @@ pub fn PageDir(mapping: Mapping, granule: GranuleParams) type {
         map_pg_dir: *volatile [req_table_total][table_len]usize,
 
         pub fn init(base_addr: usize) !Self {
+            kprint("lol: {d} \n", .{req_pages});
             kprint("lol: {d} \n", .{req_table_total});
             return Self{
                 // sizes
