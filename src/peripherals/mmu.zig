@@ -1,5 +1,5 @@
 const std = @import("std");
-const addr = @import("deviceAdresses.zig");
+const addr = @import("addresses");
 const kprint = @import("serial.zig").kprint;
 
 pub const TransLvl = enum(usize) { first_lvl = 0, second_lvl = 1, third_lvl = 2 };
@@ -154,8 +154,6 @@ pub fn PageDir(mapping: Mapping, granule: GranuleParams) !type {
         map_pg_dir: *volatile [req_table_total][table_len]usize,
 
         pub fn init(base_addr: usize) !Self {
-            kprint("lol: {d} \n", .{req_pages});
-            kprint("lol: {d} \n", .{req_table_total});
             return Self{
                 // sizes
                 .page_size = page_size,
@@ -181,7 +179,6 @@ pub fn PageDir(mapping: Mapping, granule: GranuleParams) !type {
                 var req_table = try std.math.divCeil(usize, req_entry, self.table_len);
                 var curr_entry: usize = 0;
                 var curr_table: usize = 0;
-                kprint("curr_lvl: {d}, req_table: {d}, req_entries: {d} \n", .{ curr_lvl, req_table, req_entry });
                 while (curr_table < req_table) : (curr_table += 1) {
                     curr_entry = 0;
                     while (curr_entry < req_entry and curr_entry <= self.table_len) : (curr_entry += 1) {
@@ -200,7 +197,6 @@ pub fn PageDir(mapping: Mapping, granule: GranuleParams) !type {
                         req_entry -= self.table_len;
                 }
                 pg_dir_offset += req_table;
-                kprint("off: {d} \n", .{pg_dir_offset});
             }
             // var i: usize = 0;
             // var j: usize = 0;

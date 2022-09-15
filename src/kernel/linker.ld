@@ -1,8 +1,7 @@
 ENTRY(kernel_main)
 
 SECTIONS {
-    # end of a53 mem mapped io 0x3FFFF
-    . = 0xffff000000040000;
+    . = 0xffff000000000000 + {@zig};
 
     .text : ALIGN(16) {
         *(.text.kernel_main);

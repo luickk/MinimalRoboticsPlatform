@@ -1,4 +1,4 @@
-const addr = @import("deviceAdresses.zig").Timer;
+const addr = @import("addresses").Timer;
 
 var timerVal: u32 = 0;
 

@@ -1,7 +1,7 @@
 const std = @import("std");
 const periph = @import("peripherals");
 const kprint = periph.serial.kprint;
-const addr = periph.rbAddr.InterruptController;
+const addr = @import("addresses").InterruptController;
 const iC = periph.intController;
 const timer = periph.timer;
 

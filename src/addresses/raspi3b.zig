@@ -1,7 +1,9 @@
-pub const deviceBase: usize = 0x09000000;
-pub const vaStart: usize = 0xffff000000000000;
+const bootloader_start_addr = @import("build_options").bootloader_start_addr;
 
-pub const a53MemStart = 0x40000; // exact: 0x3FFFF, https://developer.arm.com/documentation/ddi0500/e/generic-interrupt-controller-cpu-interface/gic-programmers-model/memory-map
+pub const bootLoaderStartAddr = bootloader_start_addr;
+
+pub const deviceBase: usize = 0x3f000000;
+pub const vaStart: usize = 0xffff000000000000;
 
 pub const serialMmio = @intToPtr(*volatile u8, deviceBase + 0x201000);
 

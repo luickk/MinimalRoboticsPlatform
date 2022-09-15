@@ -9,7 +9,7 @@ const KernelAllocator = @import("memory.zig").KernelAllocator;
 const intHandle = @import("intHandle.zig");
 const intController = periph.intController;
 const timer = periph.timer;
-const addr = periph.rbAddr;
+const addr = @import("addresses");
 const proc = periph.processor;
 const mmu = periph.mmu;
 

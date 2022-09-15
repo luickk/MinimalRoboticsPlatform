@@ -1,5 +1,5 @@
 const kprint = @import("serial.zig").kprint;
-const addr = @import("deviceAdresses.zig").InterruptController;
+const addr = @import("addresses").InterruptController;
 
 // identifiers for the vector table addr_handler call
 pub const ExceptionType = enum(u64) {

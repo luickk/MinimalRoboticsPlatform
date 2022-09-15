@@ -2,7 +2,7 @@ const std = @import("std");
 const bl_utils = @import("utils.zig");
 const intHandle = @import("intHandle.zig");
 const periph = @import("peripherals");
-const addr = periph.rbAddr;
+const addr = @import("addresses");
 const proc = periph.processor;
 const intController = periph.intController;
 const bprint = periph.serial.bprint;
@@ -43,7 +43,7 @@ export fn bl_main() callconv(.Naked) noreturn {
     kernel_bl.len = kernel_size;
 
     var kernel_target_loc: []u8 = undefined;
-    kernel_target_loc.ptr = @intToPtr([*]u8, mmu.toSecure(usize, addr.a53MemStart));
+    kernel_target_loc.ptr = @intToPtr([*]u8, mmu.toSecure(usize, addr.bootLoaderStartAddr));
     kernel_target_loc.len = kernel_size;
 
     var current_el = proc.getCurrentEl();
