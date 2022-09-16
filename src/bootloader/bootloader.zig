@@ -3,23 +3,25 @@ const bl_utils = @import("utils.zig");
 const intHandle = @import("intHandle.zig");
 const periph = @import("peripherals");
 const addr = @import("addresses");
+const b_options = @import("build_options");
+
 const proc = periph.processor;
 const intController = periph.intController;
 const bprint = periph.serial.bprint;
 const mmu = periph.mmu;
 
-// todo => unify kernel, bootloader size & linking to 1 var in build.zig
+const kernel_bin_size = b_options.kernel_bin_size;
+const ram_start_addr = b_options.ram_start_addr;
+const rom_start_addr = b_options.rom_start_addr;
+const ram_len = b_options.ram_len;
+const rom_len = b_options.rom_len;
+
 export fn bl_main() callconv(.Naked) noreturn {
     intController.initIc();
 
     // get address of external linker script variable which marks stack-top and kernel start
     const kernel_entry: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernelrom_start", .linkage = .Strong }) orelse {
         bprint("error reading _kernelrom_start label\n", .{});
-        bl_utils.panic();
-    });
-
-    const kernel_end: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernelrom_end", .linkage = .Strong }) orelse {
-        bprint("error reading _kernelrom_end label\n", .{});
         bl_utils.panic();
     });
 
@@ -32,19 +34,15 @@ export fn bl_main() callconv(.Naked) noreturn {
         bprint("error reading _ttbr1_dir label\n", .{});
         bl_utils.panic();
     });
-    const kernel_size: usize = std.math.sub(usize, kernel_end, kernel_entry) catch {
-        bprint("kernel size cacl error (probably a linker sizing issue) \n", .{});
-        bl_utils.panic();
-    };
 
     // @intToPtr(*u8, 0xd000).* = 0xFF;
     var kernel_bl: []u8 = undefined;
     kernel_bl.ptr = @intToPtr([*]u8, kernel_entry);
-    kernel_bl.len = kernel_size;
+    kernel_bl.len = kernel_bin_size;
 
     var kernel_target_loc: []u8 = undefined;
-    kernel_target_loc.ptr = @intToPtr([*]u8, mmu.toSecure(usize, addr.bootLoaderStartAddr));
-    kernel_target_loc.len = kernel_size;
+    kernel_target_loc.ptr = @intToPtr([*]u8, mmu.toSecure(usize, ram_start_addr));
+    kernel_target_loc.len = kernel_bin_size;
 
     var current_el = proc.getCurrentEl();
     if (current_el != 1) {
@@ -56,7 +54,7 @@ export fn bl_main() callconv(.Naked) noreturn {
 
     // writing to _id_mapped_dir(label) page table and creating new
     // identity mapped memory for bootloader to kernel transfer
-    var bootloader_mapping = mmu.Mapping{ .mem_size = 0x40000000, .virt_start_addr = 0, .phys_addr = 0 };
+    var bootloader_mapping = mmu.Mapping{ .mem_size = rom_len, .virt_start_addr = 0, .phys_addr = rom_start_addr };
     // identity mapped memory for bootloader and kernel contrtol handover!
     mmu.createSection(_ttbr0_dir, bootloader_mapping, mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block }) catch |e| {
         bprint("[panic] createSection err: {s} \n", .{@errorName(e)});
@@ -64,7 +62,7 @@ export fn bl_main() callconv(.Naked) noreturn {
     };
 
     // creating virtual address space for kernel
-    var kernel_mapping = mmu.Mapping{ .mem_size = 0x40000000, .virt_start_addr = addr.vaStart, .phys_addr = 0 };
+    var kernel_mapping = mmu.Mapping{ .mem_size = ram_len, .virt_start_addr = addr.vaStart, .phys_addr = ram_start_addr };
     // mapping general kernel mem (inlcuding device base)
     mmu.createSection(_ttbr1_dir, kernel_mapping, mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block }) catch |e| {
         bprint("[panic] createSection err: {s} \n", .{@errorName(e)});

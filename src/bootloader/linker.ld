@@ -1,16 +1,3 @@
-MEMORY {
-  BOOT_ROM : ORIGIN = 0x0, LENGTH = {@zig}
-  KERNEL_ROM : ORIGIN = LENGTH(BOOT_ROM), LENGTH = {@zig}
-  RAM : org = 1004808, l = 1M
-}
-
-_bootrom_start = ORIGIN(BOOT_ROM);
-_bootrom_end = ORIGIN(BOOT_ROM) + LENGTH(BOOT_ROM);
-_kernelrom_start = ORIGIN(KERNEL_ROM);
-_kernelrom_end = ORIGIN(KERNEL_ROM)+LENGTH(KERNEL_ROM);
-_ram_start = ORIGIN(RAM);
-_ram_end = ORIGIN(RAM)+LENGTH(RAM);
-
 ENTRY(_start)
 
 SECTIONS {
@@ -18,44 +5,45 @@ SECTIONS {
         *(.text.boot)
         *(.text.);
         *(.text.*);
-    } > BOOT_ROM
+    }
 
     .exceptions : ALIGN(0x8) {
         *(.text.exc_vec);
-    } > BOOT_ROM
+    }
 
     .got : { 
         *(.got.plt);
         *(.got);
-    } > BOOT_ROM
+    }
 
     .rodata : ALIGN(0x8) {
         *(.rodata);
         *(.rodata.*);
-    } > BOOT_ROM
+    }
 
     .bss : ALIGN(0x10) {
         _bss_start = .;
         *(.bss.*);
         *(COMMON);
         _bss_end = .;
-    } > BOOT_ROM
+    }
 
     .data : {
         *(.data);
         *(.data.*);
-    } > BOOT_ROM
+    }
      
     .stack : ALIGN(16) {
         _stack_bottom = .;
         . = . + 0x1000;
         _stack_top = .;   
-    } > BOOT_ROM
+    }
 
     .paging_tbl : ALIGN(0x1000) {
         _ttbr1_dir = .;
         . += (4 * (1 << 12));
         _ttbr0_dir = .;
         . += (4 * (1 << 12));
-    } > BOOT_ROM
+    }
+    _kernelrom_start = .;
 }

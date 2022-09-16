@@ -1,7 +1,3 @@
-const bootloader_start_addr = @import("build_options").bootloader_start_addr;
-
-pub const bootLoaderStartAddr = bootloader_start_addr;
-
 pub const deviceBase: usize = 0x3f000000;
 pub const vaStart: usize = 0xffff000000000000;
 

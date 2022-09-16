@@ -7,11 +7,18 @@ const kprint = periph.serial.kprint;
 // kernel services
 const KernelAllocator = @import("memory.zig").KernelAllocator;
 const intHandle = @import("intHandle.zig");
+const b_options = @import("build_options");
+const addr = @import("addresses");
+
 const intController = periph.intController;
 const timer = periph.timer;
-const addr = @import("addresses");
 const proc = periph.processor;
 const mmu = periph.mmu;
+
+const ram_start_addr = b_options.ram_start_addr;
+const rom_start_addr = b_options.rom_start_addr;
+const ram_len = b_options.ram_len;
+const rom_len = b_options.rom_len;
 
 export fn kernel_main() callconv(.Naked) noreturn {
     kprint("[kernel] kernel started! \n", .{});
@@ -30,8 +37,8 @@ export fn kernel_main() callconv(.Naked) noreturn {
         unreachable;
     });
 
-    if (mmu.toUnsecure(usize, _kernel_end) > 0x40000000) {
-        kprint("[panic] kernel exceeding memory (0x{x})\n", .{mmu.toUnsecure(usize, _kernel_end)});
+    if (mmu.toUnsecure(usize, _kernel_end) > ram_len) {
+        kprint("[panic] kernel exceeding ram mem (0x{x})\n", .{mmu.toUnsecure(usize, _kernel_end)});
         k_utils.panic();
     }
 
@@ -55,7 +62,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
     };
 
     // creating virtual address space user space with 4096 granule
-    const user_mapping = mmu.Mapping{ .mem_size = 0x80000000, .virt_start_addr = 0, .phys_addr = 0x40000000 };
+    const user_mapping = mmu.Mapping{ .mem_size = 0x40000000, .virt_start_addr = 0, .phys_addr = 0 };
     var ttbr0 = (mmu.PageDir(user_mapping, mmu.Granule.Fourk) catch |e| {
         @compileError(@errorName(e));
     }).init(_u_ttbr0_dir) catch |e| {

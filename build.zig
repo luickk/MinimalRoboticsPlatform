@@ -4,30 +4,35 @@ const warn = @import("std").debug.warn;
 const os = @import("std").os;
 
 const BoardParams = struct {
+    const BoardMemLayout = struct {
+        rom_start_addr: usize,
+        rom_len: usize,
+
+        ram_start_addr: usize,
+        ram_len: usize,
+
+        storage_start_addr: usize,
+        storage_len: usize,
+    };
     pub const BoardType = enum {
         raspi3b,
         virt,
     };
     board: BoardType,
+    mem: BoardMemLayout,
     path_name: []const u8,
     qemu_launch_command: []const []const u8,
-
-    linker_bootloader_bin_size: usize,
-    linker_kernel_bin_size: usize,
-
-    bootloader_start_addr: usize,
-
     // todo => pg_dir_size
 };
+
+const Error = error{BlExceedsRomSize};
+
 const Boards = struct {
     pub const raspi3b = BoardParams{
         .board = .raspi3b,
+        .mem = BoardParams.BoardMemLayout{ .rom_start_addr = 0, .rom_len = 0x500000, .ram_start_addr = 0x500000, .ram_len = 0x40000000, .storage_start_addr = 0, .storage_len = 0 },
         .path_name = "raspi3b",
         .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "raspi3b", "-device", "loader,file=zig-out/bin/mergedKernel,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
-        .linker_bootloader_bin_size = 502404,
-        .linker_kernel_bin_size = 502404,
-        // exact: 0x3FFFF, https://developer.arm.com/documentation/ddi0500/e/generic-interrupt-controller-cpu-interface/gic-programmers-model/memory-map
-        .bootloader_start_addr = 0x40000,
     };
 };
 
@@ -37,7 +42,10 @@ pub fn build(b: *std.build.Builder) !void {
     var build_options = b.addOptions();
     build_options.addOption(BoardParams.BoardType, "curr_board_type", curr_board.board);
     build_options.addOption([]const u8, "curr_board_path_name", curr_board.path_name);
-    build_options.addOption(usize, "bootloader_start_addr", curr_board.bootloader_start_addr);
+    build_options.addOption(usize, "ram_start_addr", curr_board.mem.ram_start_addr);
+    build_options.addOption(usize, "rom_start_addr", curr_board.mem.rom_start_addr);
+    build_options.addOption(usize, "ram_len", curr_board.mem.ram_len);
+    build_options.addOption(usize, "rom_len", curr_board.mem.rom_len);
 
     var peripherals = std.build.Pkg{ .name = "peripherals", .source = .{ .path = "src/peripherals/peripherals.zig" } };
     var addresses = std.build.Pkg{ .name = "addresses", .source = .{ .path = "src/addresses/" ++ curr_board.path_name ++ ".zig" } };
@@ -45,6 +53,21 @@ pub fn build(b: *std.build.Builder) !void {
     addresses.dependencies = &.{build_options.getPackage("build_options")};
     var utils = std.build.Pkg{ .name = "utils", .source = .{ .path = "src/utils/utils.zig" } };
     utils.dependencies = &.{addresses};
+
+    // kernel
+    const kernel_exe = b.addExecutable("kernel", null);
+    kernel_exe.addPackage(peripherals);
+    kernel_exe.addPackage(addresses);
+    kernel_exe.addPackage(utils);
+    kernel_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
+    kernel_exe.addOptions("build_options", build_options);
+    kernel_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
+    kernel_exe.setLinkerScriptPath(std.build.FileSource{ .path = "src/kernel/linker.ld" });
+    kernel_exe.addObjectFile("src/kernel/kernel.zig");
+    kernel_exe.install();
+    kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).artifact.install();
+    const kernel_bin_size = try getFileSize("zig-out/bin/kernel.bin");
+    build_options.addOption(usize, "kernel_bin_size", kernel_bin_size);
 
     // bootloader
     const bl_exe = b.addExecutable("bootloader", null);
@@ -55,29 +78,17 @@ pub fn build(b: *std.build.Builder) !void {
     bl_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
     bl_exe.addOptions("build_options", build_options);
     bl_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
-    const temp_bl_linker_dir = "zig-cache/tmp/tempBlLinker.ld";
-    try writeVarsToLinkerScript(b.allocator, "src/bootloader/linker.ld", temp_bl_linker_dir, .{ curr_board.linker_bootloader_bin_size, curr_board.linker_kernel_bin_size });
-    bl_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_bl_linker_dir });
+    bl_exe.setLinkerScriptPath(std.build.FileSource{ .path = "src/bootloader/linker.ld" });
     bl_exe.addObjectFile("src/bootloader/bootloader.zig");
     bl_exe.addCSourceFile("src/bootloader/board/" ++ curr_board.path_name ++ "/boot.S", &.{});
     bl_exe.addCSourceFile("src/bootloader/board/" ++ curr_board.path_name ++ "/exc_vec.S", &.{});
     bl_exe.install();
-    bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = curr_board.linker_bootloader_bin_size }).artifact.install();
+    bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).artifact.install();
+    const bl_bin_size = try getFileSize("zig-out/bin/bootloader.bin");
 
-    // kernel
-    const kernel_exe = b.addExecutable("kernel", null);
-    kernel_exe.addPackage(peripherals);
-    kernel_exe.addPackage(addresses);
-    kernel_exe.addPackage(utils);
-    kernel_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
-    kernel_exe.addOptions("build_options", build_options);
-    kernel_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
-    const temp_klinker_dir = "zig-cache/tmp/tempKLinker.ld";
-    try writeVarsToLinkerScript(b.allocator, "src/kernel/linker.ld", temp_klinker_dir, .{curr_board.bootloader_start_addr});
-    kernel_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_klinker_dir });
-    kernel_exe.addObjectFile("src/kernel/kernel.zig");
-    kernel_exe.install();
-    kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).artifact.install();
+    // todo => kernel bin file size way too big
+    if (bl_bin_size + kernel_bin_size > curr_board.mem.rom_len)
+        return Error.BlExceedsRomSize;
 
     var concatStep = ConcateBinsStep.create(b, "zig-out/bin/bootloader.bin", "zig-out/bin/kernel.bin", "zig-out/bin/mergedKernel");
 
@@ -99,6 +110,7 @@ pub fn build(b: *std.build.Builder) !void {
     test_step.dependOn(&test_obj_step.step);
 }
 
+/// concatenates two files to one. (f1+f2)
 const ConcateBinsStep = struct {
     step: std.build.Step,
     f1_path: []const u8,
@@ -148,43 +160,8 @@ const ConcateBinsStep = struct {
     }
 };
 
-/// inserts args variables (in order), defined in inp_linker_script_path in outp_linker_script_path
-pub fn writeVarsToLinkerScript(a: std.mem.Allocator, inp_linker_script_path: []const u8, outp_linker_script_path: []const u8, args: anytype) !void {
-    var in_file = try std.fs.cwd().openFile(inp_linker_script_path, .{});
-    defer in_file.close();
-    var buf_reader = std.io.bufferedReader(in_file.reader());
-    var in_stream = buf_reader.reader();
-
-    const out_file = try std.fs.cwd().createFile(outp_linker_script_path, .{});
-    defer out_file.close();
-
-    var buf: [1024]u8 = undefined;
-    var args_conv_buff: [1024]u8 = undefined;
-    comptime var args_i: usize = 0;
-    var outp_line = std.ArrayList(u8).init(a);
-    var j: usize = 0;
-    var to_insert: []u8 = undefined;
-    while (try in_stream.readUntilDelimiterOrEof(&buf, '\n')) |line| {
-        try outp_line.appendSlice(line);
-        for (line) |c, i| {
-            if (c == '{' and i + 4 <= line.len) {
-                if (std.mem.eql(u8, line[i .. i + 6], "{@zig}")) {
-                    while (j < 6) : (j += 1) {
-                        _ = outp_line.orderedRemove(i);
-                    }
-                    j = 0;
-                    if (@typeInfo(@TypeOf(args[args_i])) == .Int) {
-                        to_insert = std.fmt.bufPrintIntToSlice(&args_conv_buff, args[args_i], 10, .lower, .{});
-                    } else {
-                        to_insert = args[args_i];
-                    }
-                    try outp_line.insertSlice(i, to_insert);
-                    args_i += 1;
-                }
-            }
-        }
-        try out_file.writeAll(outp_line.items);
-        try out_file.writeAll("\n");
-        outp_line.clearAndFree();
-    }
+fn getFileSize(path: []const u8) !usize {
+    var file = try std.fs.cwd().openFile(path, .{});
+    defer file.close();
+    return (try file.stat()).size;
 }
