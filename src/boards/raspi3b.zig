@@ -1,5 +1,4 @@
-const layout = @import("memLayout.zig");
-const mmu = @import("peripherals").mmu;
+pub const layout = @import("memLayout.zig");
 
 pub const Info = layout.BoardParams{
     .board_name = "raspi3b",
@@ -9,9 +8,15 @@ pub const Info = layout.BoardParams{
         .ram_start_addr = 0x400000,
         .ram_len = 0x40000000,
         .ram_layout = .{
-            .kernel_space_mapping = mmu.Mapping{ .mem_size = 0x40000000, .virt_start_addr = Addresses.vaStart, .phys_addr = 0, .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block }, .granule = mmu.Granule.Section },
+            .kernel_space_size = 0x40000000,
+            .kernel_space_vs = Addresses.vaStart,
+            .kernel_space_phys = 0,
+            .kernel_space_gran = layout.Granule.Section,
 
-            .user_space_mapping = mmu.Mapping{ .mem_size = 0x40000000, .virt_start_addr = 0, .phys_addr = 0x20000000, .granule = mmu.Granule.Fourk, .flags = null },
+            .user_space_size = 0x40000000,
+            .user_space_vs = 0,
+            .user_space_phys = 0x20000000,
+            .user_space_gran = layout.Granule.Fourk,
         },
         .storage_start_addr = 0,
         .storage_len = 0,

@@ -1,19 +1,18 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const warn = @import("std").debug.warn;
-const mmu = @import("src/peripherals/mmu.zig");
 const os = @import("std").os;
 
 const Error = error{BlExceedsRomSize};
 
-const curr_board = "raspi3b";
+const currBoard = @import("src/boards/raspi3b.zig");
 
 pub fn build(b: *std.build.Builder) !void {
     var build_options = b.addOptions();
 
     var peripherals = std.build.Pkg{ .name = "peripherals", .source = .{ .path = "src/peripherals/peripherals.zig" } };
     var utils = std.build.Pkg{ .name = "utils", .source = .{ .path = "src/utils/utils.zig" } };
-    var board = std.build.Pkg{ .name = "board", .source = .{ .path = "src/boards/" ++ curr_board ++ ".zig" } };
+    var board = std.build.Pkg{ .name = "board", .source = .{ .path = "src/boards/" ++ currBoard.Info.board_name ++ ".zig" } };
 
     board.dependencies = &.{peripherals};
     peripherals.dependencies = &.{board};
@@ -27,9 +26,9 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.addOptions("build_options", build_options);
     kernel_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
     const temp_kernel_ld = "zig-cache/tmp/tempKernelLinker.ld";
-    // const ram_k_space_size = (try mmu.calctotalTablesReq(curr_board.Info.mem.ram_layout.kernel_space_granule, curr_board.Info.mem.ram_layout.kernel_space_size)) * (curr_board.Info.mem.ram_layout.kernel_space_granule.page_size / 8);
-    // const ram_u_space_size = (try mmu.calctotalTablesReq(curr_board.Info.mem.ram_layout.user_space_granule, curr_board.Info.mem.ram_layout.user_space_size)) * (curr_board.Info.mem.ram_layout.user_space_granule.page_size / 8);
-    try writeVarsToLinkerScript(b.allocator, "src/kernel/linker.ld", temp_kernel_ld, .{ @as(usize, 600 * (1 << 12)), @as(usize, 100 * (1 << 12)) });
+    const ram_k_space_size = (try currBoard.layout.calctotalTablesReq(currBoard.Info.mem.ram_layout.kernel_space_gran, currBoard.Info.mem.ram_layout.kernel_space_size)) * (currBoard.Info.mem.ram_layout.kernel_space_gran.page_size / 8);
+    const ram_u_space_size = (try currBoard.layout.calctotalTablesReq(currBoard.Info.mem.ram_layout.user_space_gran, currBoard.Info.mem.ram_layout.user_space_size)) * (currBoard.Info.mem.ram_layout.user_space_gran.page_size / 8);
+    try writeVarsToLinkerScript(b.allocator, "src/kernel/linker.ld", temp_kernel_ld, .{ ram_k_space_size, ram_u_space_size });
 
     kernel_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_kernel_ld });
     kernel_exe.addObjectFile("src/kernel/kernel.zig");
@@ -49,25 +48,24 @@ pub fn build(b: *std.build.Builder) !void {
     bl_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
     bl_exe.setLinkerScriptPath(std.build.FileSource{ .path = "src/bootloader/linker.ld" });
     bl_exe.addObjectFile("src/bootloader/bootloader.zig");
-    bl_exe.addCSourceFile("src/bootloader/board/" ++ curr_board ++ "/boot.S", &.{});
-    bl_exe.addCSourceFile("src/bootloader/board/" ++ curr_board ++ "/exc_vec.S", &.{});
+    bl_exe.addCSourceFile("src/bootloader/board/" ++ currBoard.Info.board_name ++ "/boot.S", &.{});
+    bl_exe.addCSourceFile("src/bootloader/board/" ++ currBoard.Info.board_name ++ "/exc_vec.S", &.{});
     bl_exe.install();
     bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).artifact.install();
     const bl_bin_size = try getFileSize("zig-out/bin/bootloader.bin");
     _ = bl_bin_size;
     // todo => kernel bin file size way too big
-    // if (bl_bin_size + kernel_bin_size > curr_board.mem.rom_len)
+    // if (bl_bin_size + kernel_bin_size > currBoard.mem.rom_len)
     //     return Error.BlExceedsRomSize;
 
     var concatStep = ConcateBinsStep.create(b, "zig-out/bin/bootloader.bin", "zig-out/bin/kernel.bin", "zig-out/bin/mergedKernel");
-    const qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "raspi3b", "-device", "loader,file=zig-out/bin/mergedKernel,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" };
     const run_step_serial = b.step("qemu", "emulate the kernel with no graphics and output uart to console");
     run_step_serial.dependOn(b.getInstallStep());
     run_step_serial.dependOn(&concatStep.step);
-    run_step_serial.dependOn(&b.addSystemCommand(qemu_launch_command).step);
+    run_step_serial.dependOn(&b.addSystemCommand(currBoard.Info.qemu_launch_command).step);
 
     const run_step_serial_gdb = b.step("qemu-gdb", "emulate the kernel with no graphics and output uart to console");
-    var gdb_qemu = b.addSystemCommand(qemu_launch_command);
+    var gdb_qemu = b.addSystemCommand(currBoard.Info.qemu_launch_command);
     gdb_qemu.addArg("-s");
     gdb_qemu.addArg("-S");
     run_step_serial_gdb.dependOn(b.getInstallStep());

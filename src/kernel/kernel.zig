@@ -47,9 +47,16 @@ export fn kernel_main() callconv(.Naked) noreturn {
     kprint("[kernel] timer inited \n", .{});
     intController.initIc();
     kprint("[kernel] ic inited \n", .{});
+    const kernel_space_mapping = mmu.Mapping{
+        .mem_size = board.Info.mem.ram_layout.kernel_space_size,
+        .virt_start_addr = board.Info.mem.ram_layout.kernel_space_vs,
+        .phys_addr = board.Info.mem.ram_layout.kernel_space_phys,
+        .granule = board.Info.mem.ram_layout.kernel_space_gran,
+        .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block },
+    };
 
     // creating virtual address space for kernel
-    var ttbr1 = (mmu.PageDir(board.Info.mem.ram_layout.kernel_space_mapping) catch |e| {
+    var ttbr1 = (mmu.PageDir(kernel_space_mapping) catch |e| {
         @compileError(@errorName(e));
     }).init(_k_ttbr1_dir) catch |e| {
         kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
@@ -60,8 +67,16 @@ export fn kernel_main() callconv(.Naked) noreturn {
         k_utils.panic();
     };
 
+    const user_space_mapping = mmu.Mapping{
+        .mem_size = board.Info.mem.ram_layout.user_space_size,
+        .virt_start_addr = board.Info.mem.ram_layout.user_space_vs,
+        .phys_addr = board.Info.mem.ram_layout.user_space_phys,
+        .granule = board.Info.mem.ram_layout.user_space_gran,
+        .flags = null,
+    };
+
     // creating virtual address space user space with 4096 granule
-    var ttbr0 = (mmu.PageDir(board.Info.mem.ram_layout.user_space_mapping) catch |e| {
+    var ttbr0 = (mmu.PageDir(user_space_mapping) catch |e| {
         @compileError(@errorName(e));
     }).init(_u_ttbr0_dir) catch |e| {
         kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});

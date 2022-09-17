@@ -2,19 +2,9 @@ const std = @import("std");
 const board = @import("board");
 const kprint = @import("serial.zig").kprint;
 
-pub const TransLvl = enum(usize) { first_lvl = 0, second_lvl = 1, third_lvl = 2 };
-
-pub const GranuleParams = struct {
-    page_size: usize,
-    lvls_required: TransLvl,
-};
-
-pub const Granule = struct {
-    pub const Fourk: GranuleParams = .{ .page_size = 4096, .lvls_required = .third_lvl };
-    pub const Sixteenk: GranuleParams = .{ .page_size = 16384, .lvls_required = .third_lvl };
-    pub const Sixtyfourk: GranuleParams = .{ .page_size = 65536, .lvls_required = .second_lvl };
-    pub const Section: GranuleParams = .{ .page_size = 2097152, .lvls_required = .first_lvl };
-};
+const Granule = board.layout.Granule;
+const GranuleParams = board.layout.GranuleParams;
+const TransLvl = board.layout.TransLvl;
 
 pub const Mapping = struct {
     mem_size: usize,

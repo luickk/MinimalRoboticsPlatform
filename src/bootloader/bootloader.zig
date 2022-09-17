@@ -10,6 +10,10 @@ const intController = periph.intController;
 const bprint = periph.serial.bprint;
 const mmu = periph.mmu;
 
+const Granule = board.layout.Granule;
+const GranuleParams = board.layout.GranuleParams;
+const TransLvl = board.layout.TransLvl;
+
 const kernel_bin_size = b_options.kernel_bin_size;
 
 export fn bl_main() callconv(.Naked) noreturn {
@@ -50,7 +54,7 @@ export fn bl_main() callconv(.Naked) noreturn {
 
     // writing to _id_mapped_dir(label) page table and creating new
     // identity mapped memory for bootloader to kernel transfer
-    const bootloader_mapping = mmu.Mapping{ .mem_size = board.Info.mem.rom_len, .virt_start_addr = 0, .phys_addr = board.Info.mem.rom_start_addr, .granule = mmu.Granule.Section, .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
+    const bootloader_mapping = mmu.Mapping{ .mem_size = board.Info.mem.rom_len, .virt_start_addr = 0, .phys_addr = board.Info.mem.rom_start_addr, .granule = Granule.Section, .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
     // identity mapped memory for bootloader and kernel contrtol handover!
     var ttbr0 = (mmu.PageDir(bootloader_mapping) catch |e| {
         @compileError(@errorName(e));
@@ -64,7 +68,7 @@ export fn bl_main() callconv(.Naked) noreturn {
     };
 
     // creating virtual address space for kernel
-    const kernel_mapping = mmu.Mapping{ .mem_size = board.Info.mem.ram_len, .virt_start_addr = board.Addresses.vaStart, .phys_addr = board.Info.mem.ram_start_addr, .granule = mmu.Granule.Section, .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
+    const kernel_mapping = mmu.Mapping{ .mem_size = board.Info.mem.ram_len, .virt_start_addr = board.Addresses.vaStart, .phys_addr = board.Info.mem.ram_start_addr, .granule = Granule.Section, .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
     // mapping general kernel mem (inlcuding device base)
     var ttbr1 = (mmu.PageDir(kernel_mapping) catch |e| {
         @compileError(@errorName(e));
