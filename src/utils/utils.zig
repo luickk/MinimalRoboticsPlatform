@@ -1,5 +1,4 @@
 const periph = @import("peripherals");
-
 const kprint = periph.serial.kprint;
 
 pub fn printErrNoReturn(err: anytype) noreturn {

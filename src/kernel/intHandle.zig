@@ -1,13 +1,13 @@
 const std = @import("std");
 const periph = @import("peripherals");
 const kprint = periph.serial.kprint;
-const addr = @import("addresses").InterruptController;
+const icAddr = @import("board").Addresses.InterruptController;
 const iC = periph.intController;
 const timer = periph.timer;
 
-const Bank0 = addr.Values.Bank0;
-const Bank1 = addr.Values.Bank1;
-const Bank2 = addr.Values.Bank2;
+const Bank0 = icAddr.Values.Bank0;
+const Bank1 = icAddr.Values.Bank1;
+const Bank2 = icAddr.Values.Bank2;
 
 pub fn irqHandler(exc: *iC.ExceptionFrame) callconv(.C) void {
 
@@ -42,15 +42,15 @@ pub fn irqHandler(exc: *iC.ExceptionFrame) callconv(.C) void {
             kprint(".........sync int............\n", .{});
         },
         iC.ExceptionType.el1Irq, iC.ExceptionType.el1Fiq => {
-            var irq_bank_0 = std.meta.intToEnum(Bank0, @intToPtr(*u32, addr.pendingBasic).*) catch {
+            var irq_bank_0 = std.meta.intToEnum(Bank0, @intToPtr(*u32, icAddr.pendingBasic).*) catch {
                 kprint("bank0 int type not found. \n", .{});
                 return;
             };
-            var irq_bank_1 = std.meta.intToEnum(Bank1, @intToPtr(*u32, addr.pendingIrq1).*) catch {
+            var irq_bank_1 = std.meta.intToEnum(Bank1, @intToPtr(*u32, icAddr.pendingIrq1).*) catch {
                 kprint("bank1 int type not found. \n", .{});
                 return;
             };
-            var irq_bank_2 = std.meta.intToEnum(Bank2, @intToPtr(*u32, addr.pendingIrq2).*) catch {
+            var irq_bank_2 = std.meta.intToEnum(Bank2, @intToPtr(*u32, icAddr.pendingIrq2).*) catch {
                 kprint("bank2 int type not found. \n", .{});
                 return;
             };

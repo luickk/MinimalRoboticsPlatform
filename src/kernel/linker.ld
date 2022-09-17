@@ -36,10 +36,10 @@ SECTIONS {
         _stack_top = .;
     }
 
-    .paging_tbl : ALIGN(0x00001000) {
+    .paging_tbl : ALIGN(0x00001000)  {
         _kernel_ttbr1_dir = .;
-        . += (600 * (1 << 12));
+        . += {@zig};
         _user_ttbr0_dir = .;
-        . += (600 * (1 << 12));
+        . += {@zig};
     }
 }

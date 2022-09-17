@@ -1,5 +1,5 @@
 const std = @import("std");
-const addr = @import("addresses");
+const board = @import("board");
 const mmu = @import("mmu.zig");
 
 pub const SerialKernelWriter = struct {
@@ -14,9 +14,9 @@ pub const SerialKernelWriter = struct {
     fn appendWrite(self: *SerialKernelWriter, data: []const u8) error{}!usize {
         _ = self;
         for (data) |ch| {
-            var sec_addr = mmu.toSecure(*volatile u8, addr.serialMmio);
+            var sec_addr = mmu.toSecure(*volatile u8, board.Addresses.serialMmio);
             sec_addr.* = ch;
-            // addr.serialMmio.* = ch;
+            // board.serialMmio.* = ch;
         }
         return data.len;
     }
@@ -41,7 +41,7 @@ pub const SerialBlWriter = struct {
     fn appendWrite(self: *SerialBlWriter, data: []const u8) error{}!usize {
         _ = self;
         for (data) |ch| {
-            addr.serialMmio.* = ch;
+            board.Addresses.serialMmio.* = ch;
         }
         return data.len;
     }

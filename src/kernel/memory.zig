@@ -3,7 +3,7 @@ const periph = @import("peripherals");
 const utils = @import("utils");
 
 const kprint = periph.serial.kprint;
-const addr = @import("addresses");
+const board = @import("board");
 
 pub fn KernelAllocator(comptime mem_size: usize, comptime page_size: usize, va_start: usize) type {
     const n_chunks = try std.math.divTrunc(usize, mem_size, page_size);

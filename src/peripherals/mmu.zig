@@ -1,12 +1,10 @@
 const std = @import("std");
-const addr = @import("addresses");
+const board = @import("board");
 const kprint = @import("serial.zig").kprint;
 
 pub const TransLvl = enum(usize) { first_lvl = 0, second_lvl = 1, third_lvl = 2 };
 
-pub const Mapping = struct { mem_size: usize, virt_start_addr: usize, phys_addr: usize };
-
-const GranuleParams = struct {
+pub const GranuleParams = struct {
     page_size: usize,
     lvls_required: TransLvl,
 };
@@ -15,6 +13,16 @@ pub const Granule = struct {
     pub const Fourk: GranuleParams = .{ .page_size = 4096, .lvls_required = .third_lvl };
     pub const Sixteenk: GranuleParams = .{ .page_size = 16384, .lvls_required = .third_lvl };
     pub const Sixtyfourk: GranuleParams = .{ .page_size = 65536, .lvls_required = .second_lvl };
+    pub const Section: GranuleParams = .{ .page_size = 2097152, .lvls_required = .first_lvl };
+};
+
+pub const Mapping = struct {
+    mem_size: usize,
+    virt_start_addr: usize,
+    phys_addr: usize,
+    granule: GranuleParams,
+    // currently only supported for sections
+    flags: ?TableEntryAttr,
 };
 
 // In addition to an output address, a translation table entry that refers to a page or region of memory
@@ -133,17 +141,13 @@ pub const TcrReg = packed struct {
     }
 };
 
-pub fn PageDir(mapping: Mapping, granule: GranuleParams) !type {
-    const page_size = granule.page_size;
+pub fn PageDir(mapping: Mapping) !type {
+    const page_size = mapping.granule.page_size;
     const table_len = try std.math.divExact(usize, page_size, @sizeOf(usize));
-    const max_lvl = granule.lvls_required;
-    const req_pages = try std.math.divExact(usize, mapping.mem_size, page_size);
+    const max_lvl = mapping.granule.lvls_required;
 
-    comptime var req_table_total = 0;
-    var ccurr_lvl: usize = 1;
-    while (ccurr_lvl <= @enumToInt(granule.lvls_required) + 1) : (ccurr_lvl += 1) {
-        req_table_total += try std.math.divCeil(usize, req_pages, std.math.pow(usize, table_len, ccurr_lvl));
-    }
+    comptime var req_table_total = try calctotalTablesReq(mapping.granule, mapping.mem_size);
+
     return struct {
         const Self = @This();
         page_size: usize,
@@ -170,6 +174,10 @@ pub fn PageDir(mapping: Mapping, granule: GranuleParams) !type {
         }
 
         pub fn mapMem(self: *Self) !void {
+            if (mapping.granule.page_size == Granule.Section.page_size) {
+                try createSection(@ptrToInt(&self.map_pg_dir[0]), self.mapping);
+                return;
+            }
             const lvl_1_attr = (TableEntryAttr{ .accessPerm = .read_write, .descType = .block }).asInt();
             var phys_count = self.mapping.phys_addr | (TableEntryAttr{ .accessPerm = .read_write, .descType = .page }).asInt();
             var pg_dir_offset: usize = 0;
@@ -219,31 +227,43 @@ pub fn PageDir(mapping: Mapping, granule: GranuleParams) !type {
             // kprint("3 lvl (5 table base address!): {*} 0x{x} \n", .{ &self.map_pg_dir[4][0], self.map_pg_dir[4][0] });
             // kprint("---------------------------- \n", .{});
         }
+
+        // populates a Page Table with physical adresses aka. sections or pages
+        pub fn createSection(pg_dir_addr: usize, sect_mapping: Mapping) !void {
+            const section_size = sect_mapping.granule.page_size;
+
+            var pg_dir = @intToPtr([*]volatile usize, pg_dir_addr);
+
+            var phys_count = sect_mapping.phys_addr | sect_mapping.flags.?.asInt();
+            // phys_count >>= shift;
+            // phys_count |= phys_shifted;
+
+            var i: usize = sect_mapping.virt_start_addr;
+            i = toUnsecure(usize, i);
+            i = try std.math.divCeil(usize, i, section_size);
+
+            var i_max: usize = sect_mapping.virt_start_addr + sect_mapping.mem_size;
+            i_max = toUnsecure(usize, i_max) - toUnsecure(usize, sect_mapping.virt_start_addr);
+            i_max = try std.math.divCeil(usize, i_max, section_size);
+
+            while (i <= i_max) : (i += 1) {
+                pg_dir[i] = phys_count;
+                phys_count += section_size;
+            }
+        }
     };
 }
 
-// populates a Page Table with physical adresses aka. sections or pages
-pub fn createSection(pg_dir_addr: usize, mapping: Mapping, flags: TableEntryAttr) !void {
-    const section_size = 2097152;
+pub fn calctotalTablesReq(granule: GranuleParams, mem_size: usize) !usize {
+    var table_len = granule.page_size / 8;
+    const req_pages = try std.math.divExact(usize, mem_size, granule.page_size);
 
-    var pg_dir = @intToPtr([*]volatile usize, pg_dir_addr);
-
-    var phys_count = mapping.phys_addr | flags.asInt();
-    // phys_count >>= shift;
-    // phys_count |= phys_shifted;
-
-    var i: usize = mapping.virt_start_addr;
-    i = toUnsecure(usize, i);
-    i = try std.math.divCeil(usize, i, section_size);
-
-    var i_max: usize = mapping.virt_start_addr + mapping.mem_size;
-    i_max = toUnsecure(usize, i_max) - toUnsecure(usize, mapping.virt_start_addr);
-    i_max = try std.math.divCeil(usize, i_max, section_size);
-
-    while (i <= i_max) : (i += 1) {
-        pg_dir[i] = phys_count;
-        phys_count += section_size;
+    var req_table_total: usize = 0;
+    var ccurr_lvl: usize = 1;
+    while (ccurr_lvl <= @enumToInt(granule.lvls_required) + 1) : (ccurr_lvl += 1) {
+        req_table_total += try std.math.divCeil(usize, req_pages, std.math.pow(usize, table_len, ccurr_lvl));
     }
+    return req_table_total;
 }
 
 pub fn zeroPgDir(pg_dir: []volatile usize) void {
@@ -255,10 +275,10 @@ pub fn zeroPgDir(pg_dir: []volatile usize) void {
 pub inline fn toSecure(comptime T: type, inp: T) T {
     switch (@typeInfo(T)) {
         .Pointer => {
-            return @intToPtr(T, @ptrToInt(inp) | addr.vaStart);
+            return @intToPtr(T, @ptrToInt(inp) | board.Addresses.vaStart);
         },
         .Int => {
-            return inp | addr.vaStart;
+            return inp | board.Addresses.vaStart;
         },
         else => @compileError("mmu address translation: not supported type"),
     }
@@ -267,10 +287,10 @@ pub inline fn toSecure(comptime T: type, inp: T) T {
 pub inline fn toUnsecure(comptime T: type, inp: T) T {
     switch (@typeInfo(T)) {
         .Pointer => {
-            return @intToPtr(T, @ptrToInt(inp) & ~(addr.vaStart));
+            return @intToPtr(T, @ptrToInt(inp) & ~(board.Addresses.vaStart));
         },
         .Int => {
-            return inp & ~(addr.vaStart);
+            return inp & ~(board.Addresses.vaStart);
         },
         else => @compileError("mmu address translation: not supported type"),
     }

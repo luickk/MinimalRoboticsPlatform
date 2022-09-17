@@ -2,7 +2,7 @@ const std = @import("std");
 const bl_utils = @import("utils.zig");
 const intHandle = @import("intHandle.zig");
 const periph = @import("peripherals");
-const addr = @import("addresses");
+const board = @import("board");
 const b_options = @import("build_options");
 
 const proc = periph.processor;
@@ -11,10 +11,6 @@ const bprint = periph.serial.bprint;
 const mmu = periph.mmu;
 
 const kernel_bin_size = b_options.kernel_bin_size;
-const ram_start_addr = b_options.ram_start_addr;
-const rom_start_addr = b_options.rom_start_addr;
-const ram_len = b_options.ram_len;
-const rom_len = b_options.rom_len;
 
 export fn bl_main() callconv(.Naked) noreturn {
     intController.initIc();
@@ -41,7 +37,7 @@ export fn bl_main() callconv(.Naked) noreturn {
     kernel_bl.len = kernel_bin_size;
 
     var kernel_target_loc: []u8 = undefined;
-    kernel_target_loc.ptr = @intToPtr([*]u8, mmu.toSecure(usize, ram_start_addr));
+    kernel_target_loc.ptr = @intToPtr([*]u8, mmu.toSecure(usize, board.Info.mem.ram_start_addr));
     kernel_target_loc.len = kernel_bin_size;
 
     var current_el = proc.getCurrentEl();
@@ -54,18 +50,30 @@ export fn bl_main() callconv(.Naked) noreturn {
 
     // writing to _id_mapped_dir(label) page table and creating new
     // identity mapped memory for bootloader to kernel transfer
-    var bootloader_mapping = mmu.Mapping{ .mem_size = rom_len, .virt_start_addr = 0, .phys_addr = rom_start_addr };
+    const bootloader_mapping = mmu.Mapping{ .mem_size = board.Info.mem.rom_len, .virt_start_addr = 0, .phys_addr = board.Info.mem.rom_start_addr, .granule = mmu.Granule.Section, .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
     // identity mapped memory for bootloader and kernel contrtol handover!
-    mmu.createSection(_ttbr0_dir, bootloader_mapping, mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block }) catch |e| {
-        bprint("[panic] createSection err: {s} \n", .{@errorName(e)});
+    var ttbr0 = (mmu.PageDir(bootloader_mapping) catch |e| {
+        @compileError(@errorName(e));
+    }).init(_ttbr0_dir) catch |e| {
+        bprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+        bl_utils.panic();
+    };
+    ttbr0.mapMem() catch |e| {
+        bprint("[panic] memory mapping error: {s} \n", .{@errorName(e)});
         bl_utils.panic();
     };
 
     // creating virtual address space for kernel
-    var kernel_mapping = mmu.Mapping{ .mem_size = ram_len, .virt_start_addr = addr.vaStart, .phys_addr = ram_start_addr };
+    const kernel_mapping = mmu.Mapping{ .mem_size = board.Info.mem.ram_len, .virt_start_addr = board.Addresses.vaStart, .phys_addr = board.Info.mem.ram_start_addr, .granule = mmu.Granule.Section, .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
     // mapping general kernel mem (inlcuding device base)
-    mmu.createSection(_ttbr1_dir, kernel_mapping, mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block }) catch |e| {
-        bprint("[panic] createSection err: {s} \n", .{@errorName(e)});
+    var ttbr1 = (mmu.PageDir(kernel_mapping) catch |e| {
+        @compileError(@errorName(e));
+    }).init(_ttbr1_dir) catch |e| {
+        bprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+        bl_utils.panic();
+    };
+    ttbr1.mapMem() catch |e| {
+        bprint("[panic] memory mapping error: {s} \n", .{@errorName(e)});
         bl_utils.panic();
     };
 
