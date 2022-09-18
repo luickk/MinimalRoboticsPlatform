@@ -1,14 +1,15 @@
 const std = @import("std");
 const bl_utils = @import("utils.zig");
-const intHandle = @import("intHandle.zig");
+const intHandle = @import("gicHandle.zig");
 const periph = @import("peripherals");
 const board = @import("board");
 const b_options = @import("build_options");
-
 const proc = periph.processor;
-const intController = periph.intController;
 const bprint = periph.serial.bprint;
 const mmu = periph.mmu;
+
+// raspberry
+const bcm2835IntController = periph.bcm2835IntController;
 
 const Granule = board.layout.Granule;
 const GranuleParams = board.layout.GranuleParams;
@@ -17,7 +18,9 @@ const TransLvl = board.layout.TransLvl;
 const kernel_bin_size = b_options.kernel_bin_size;
 
 export fn bl_main() callconv(.Naked) noreturn {
-    intController.initIc();
+    bprint("text \n", .{});
+    if (board.Info.board == .raspi3b)
+        bcm2835IntController.initIc();
 
     // get address of external linker script variable which marks stack-top and kernel start
     const kernel_entry: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernelrom_start", .linkage = .Strong }) orelse {
@@ -103,9 +106,9 @@ export fn bl_main() callconv(.Naked) noreturn {
 export const _mairVal = (mmu.MairReg{ .attr1 = 4, .attr2 = 4 }).asInt();
 // t0sz: The size offset of the memory region addressed by TTBR0_EL1
 // t1sz: The size offset of the memory region addressed by TTBR1_EL1
-// tg0: Granule size for the TTBR0_EL1. 01(dec:2) = 4kb
+// tg0: Granule size for the TTBR0_EL1.
 // tg1 not required since it's sections
-export const _tcrVal = (mmu.TcrReg{ .t0sz = 16, .t1sz = 16, .tg0 = 0 }).asInt();
+export const _tcrVal = (mmu.TcrReg{ .t0sz = 16, .t1sz = 16 }).asInt();
 
 comptime {
     @export(intHandle.irqHandler, .{ .name = "irqHandler", .linkage = .Strong });

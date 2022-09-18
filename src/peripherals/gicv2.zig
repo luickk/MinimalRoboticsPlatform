@@ -1,5 +1,4 @@
-const kprint = @import("serial.zig").kprint;
-const board = @import("board").Addresses.InterruptController;
+// todo implement complete gicv2 (has not been required for raspberry)
 
 // identifiers for the vector table addr_handler call
 pub const ExceptionType = enum(u64) {
@@ -57,13 +56,3 @@ pub const ExceptionFrame = struct {
     esr_el1: u64,
     lr: u64,
 };
-
-pub fn initIc() void {
-    // enabling all irq types
-    // enalbles system timer
-    // @intToPtr(*u32, board.Addresses.enableIrq1).* = 1 << 1;
-    // @intToPtr(*u32, board.Addresses.enableIrq2).* = 1 << 1;
-    // @intToPtr(*u32, board.Addresses.enableIrqBasic).* = 1 << 1;
-
-    asm volatile ("msr daifclr, #3");
-}

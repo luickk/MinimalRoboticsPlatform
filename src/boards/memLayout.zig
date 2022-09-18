@@ -1,6 +1,11 @@
 /// due to recrusive imports in build.zig, some code here is duplicate, most of it belogns to mmu.zig though!
 const std = @import("std");
 
+pub const supportedBoards = enum {
+    raspi3b,
+    virt,
+};
+
 pub fn calctotalTablesReq(granule: GranuleParams, mem_size: usize) !usize {
     var table_len = granule.page_size / 8;
     const req_pages = try std.math.divExact(usize, mem_size, granule.page_size);
@@ -52,7 +57,7 @@ pub const BoardMemLayout = struct {
 };
 
 pub const BoardParams = struct {
-    board_name: []const u8,
+    board: supportedBoards,
     mem: BoardMemLayout,
     qemu_launch_command: []const []const u8,
 };

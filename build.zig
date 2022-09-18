@@ -12,7 +12,7 @@ pub fn build(b: *std.build.Builder) !void {
 
     var peripherals = std.build.Pkg{ .name = "peripherals", .source = .{ .path = "src/peripherals/peripherals.zig" } };
     var utils = std.build.Pkg{ .name = "utils", .source = .{ .path = "src/utils/utils.zig" } };
-    var board = std.build.Pkg{ .name = "board", .source = .{ .path = "src/boards/" ++ currBoard.Info.board_name ++ ".zig" } };
+    var board = std.build.Pkg{ .name = "board", .source = .{ .path = "src/boards/" ++ @tagName(currBoard.Info.board) ++ ".zig" } };
 
     board.dependencies = &.{peripherals};
     peripherals.dependencies = &.{board};
@@ -48,8 +48,8 @@ pub fn build(b: *std.build.Builder) !void {
     bl_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
     bl_exe.setLinkerScriptPath(std.build.FileSource{ .path = "src/bootloader/linker.ld" });
     bl_exe.addObjectFile("src/bootloader/bootloader.zig");
-    bl_exe.addCSourceFile("src/bootloader/board/" ++ currBoard.Info.board_name ++ "/boot.S", &.{});
-    bl_exe.addCSourceFile("src/bootloader/board/" ++ currBoard.Info.board_name ++ "/exc_vec.S", &.{});
+    bl_exe.addCSourceFile("src/bootloader/board/" ++ @tagName(currBoard.Info.board) ++ "/boot.S", &.{});
+    bl_exe.addCSourceFile("src/bootloader/board/" ++ @tagName(currBoard.Info.board) ++ "/exc_vec.S", &.{});
     bl_exe.install();
     bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).artifact.install();
     const bl_bin_size = try getFileSize("zig-out/bin/bootloader.bin");

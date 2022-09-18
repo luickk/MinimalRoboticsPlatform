@@ -3,6 +3,9 @@
 ## Goal
 
 The goal is to build a minimalistic robotic platform for embedded projects. The idea is to enable applications to run on this kernel with std support as well as a kernel-provided, robotics-specific toolset. Such a toolset includes communication, control, state handling, and other critical robotic domains. This would enable an ultra-light, simplistic and highly integrated robotic platform.
+The whole project is designed to support multiple boards, as for example a Raspberry Pi or a NVIDIA Jetson Nano. To begin with, basic kernel features are implemented on a virtual machine (qemu virt armv7).
+
+The end product is meant to be a compromise between a Real Time Operating system and a Microcontroller, to offer the best of both worlds on a modern Soc.
 
 ## Why not Rust?
 

@@ -6,14 +6,16 @@ const k_utils = @import("utils.zig");
 const kprint = periph.serial.kprint;
 // kernel services
 const KernelAllocator = @import("memory.zig").KernelAllocator;
-const intHandle = @import("intHandle.zig");
+const intHandle = @import("gicHandle.zig");
 const b_options = @import("build_options");
 const board = @import("board");
 
-const intController = periph.intController;
-const timer = periph.timer;
 const proc = periph.processor;
 const mmu = periph.mmu;
+
+// raspberry
+const bcm2835IntController = periph.bcm2835IntController;
+const timer = periph.timer;
 
 export fn kernel_main() callconv(.Naked) noreturn {
     kprint("[kernel] kernel started! \n", .{});
@@ -43,10 +45,13 @@ export fn kernel_main() callconv(.Naked) noreturn {
         proc.panic();
     }
 
-    timer.initTimer();
-    kprint("[kernel] timer inited \n", .{});
-    intController.initIc();
-    kprint("[kernel] ic inited \n", .{});
+    if (board.Info.board == .raspi3b) {
+        timer.initTimer();
+        kprint("[kernel] timer inited \n", .{});
+
+        bcm2835IntController.initIc();
+        kprint("[kernel] ic inited \n", .{});
+    }
     const kernel_space_mapping = mmu.Mapping{
         .mem_size = board.Info.mem.ram_layout.kernel_space_size,
         .virt_start_addr = board.Info.mem.ram_layout.kernel_space_vs,
@@ -100,4 +105,9 @@ export fn kernel_main() callconv(.Naked) noreturn {
     if (@intToPtr(*usize, 0x10000000).* == 100)
         kprint("[kTEST] write to userspace successfull \n", .{});
     while (true) {}
+}
+
+comptime {
+    @export(intHandle.irqHandler, .{ .name = "irqHandler", .linkage = .Strong });
+    @export(intHandle.irqElxSpx, .{ .name = "irqElxSpx", .linkage = .Strong });
 }
