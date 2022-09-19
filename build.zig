@@ -5,7 +5,7 @@ const os = @import("std").os;
 
 const Error = error{BlExceedsRomSize};
 
-const currBoard = @import("src/boards/virt.zig");
+const currBoard = @import("src/boards/raspi3b.zig");
 
 pub fn build(b: *std.build.Builder) !void {
     var build_options = b.addOptions();

@@ -5,7 +5,7 @@ const k_utils = @import("utils.zig");
 
 const kprint = periph.serial.kprint;
 // kernel services
-const KernelAllocator = @import("memory.zig").KernelAllocator;
+const UserSpaceAllocator = @import("memory.zig").UserSpaceAllocator;
 const intHandle = @import("gicHandle.zig");
 const b_options = @import("build_options");
 const board = @import("board");
@@ -52,6 +52,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
         bcm2835IntController.initIc();
         kprint("[kernel] ic inited \n", .{});
     }
+
     const kernel_space_mapping = mmu.Mapping{
         .mem_size = board.Info.mem.ram_layout.kernel_space_size,
         .virt_start_addr = board.Info.mem.ram_layout.kernel_space_vs,
@@ -99,11 +100,65 @@ export fn kernel_main() callconv(.Naked) noreturn {
     proc.setTTBR1(_k_ttbr1_dir);
     proc.setTTBR0(_u_ttbr0_dir);
 
+    var user_page_alloc = (UserSpaceAllocator(board.Info.mem.ram_layout.user_space_size, board.Info.mem.ram_layout.user_space_gran) catch |e| {
+        kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    }).init(board.Info.mem.ram_layout.user_space_phys);
+
+    var p1 = user_page_alloc.allocNPage(10) catch |e| {
+        kprint("[panic] page alloc err: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+    var p2 = user_page_alloc.allocNPage(10) catch |e| {
+        kprint("[panic] page alloc err: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+    var p3 = user_page_alloc.allocNPage(10) catch |e| {
+        kprint("[panic] page alloc err: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+    var p4 = user_page_alloc.allocNPage(10) catch |e| {
+        kprint("[panic] page alloc err: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+    var p5 = user_page_alloc.allocNPage(10) catch |e| {
+        kprint("[panic] page alloc err: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+
+    kprint("Pages alloced: {d}, {d}, {d}, {d}, {d},  \n", .{ @ptrToInt(p1), @ptrToInt(p2), @ptrToInt(p3), @ptrToInt(p4), @ptrToInt(p5) });
+
+    user_page_alloc.freeNPage(p1, 10) catch |e| {
+        kprint("[panic]1 page free err: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+
+    user_page_alloc.freeNPage(p2, 10) catch |e| {
+        kprint("[panic]2 page free err: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+
+    user_page_alloc.freeNPage(p3, 10) catch |e| {
+        kprint("[panic]3 page free err: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+
+    user_page_alloc.freeNPage(p4, 10) catch |e| {
+        kprint("[panic]4 page free err: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+
+    user_page_alloc.freeNPage(p5, 10) catch |e| {
+        kprint("[panic]5 page free err: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+
     kprint("[kernel] kernel boot complete \n", .{});
 
     @intToPtr(*usize, 0x10000000).* = 100;
     if (@intToPtr(*usize, 0x10000000).* == 100)
         kprint("[kTEST] write to userspace successfull \n", .{});
+
     while (true) {}
 }
 

@@ -36,7 +36,6 @@ export fn bl_main() callconv(.Naked) noreturn {
         bprint("error reading _ttbr1_dir label\n", .{});
         bl_utils.panic();
     });
-    bprint("text: {d} \n", .{_ttbr0_dir});
 
     // @intToPtr(*u8, 0xd000).* = 0xFF;
     var kernel_bl: []u8 = undefined;
@@ -55,20 +54,20 @@ export fn bl_main() callconv(.Naked) noreturn {
 
     // MMU page dir config
 
-    // // writing to _id_mapped_dir(label) page table and creating new
-    // // identity mapped memory for bootloader to kernel transfer
-    // const bootloader_mapping = mmu.Mapping{ .mem_size = board.Info.mem.rom_len, .virt_start_addr = 0, .phys_addr = board.Info.mem.rom_start_addr, .granule = Granule.Section, .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
-    // // identity mapped memory for bootloader and kernel contrtol handover!
-    // var ttbr0 = (mmu.PageDir(bootloader_mapping) catch |e| {
-    //     @compileError(@errorName(e));
-    // }).init(_ttbr0_dir) catch |e| {
-    //     bprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
-    //     bl_utils.panic();
-    // };
-    // ttbr0.mapMem() catch |e| {
-    //     bprint("[panic] memory mapping error: {s} \n", .{@errorName(e)});
-    //     bl_utils.panic();
-    // };
+    // writing to _id_mapped_dir(label) page table and creating new
+    // identity mapped memory for bootloader to kernel transfer
+    const bootloader_mapping = mmu.Mapping{ .mem_size = board.Info.mem.rom_len, .virt_start_addr = 0, .phys_addr = board.Info.mem.rom_start_addr, .granule = Granule.Section, .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
+    // identity mapped memory for bootloader and kernel contrtol handover!
+    var ttbr0 = (mmu.PageDir(bootloader_mapping) catch |e| {
+        @compileError(@errorName(e));
+    }).init(_ttbr0_dir) catch |e| {
+        bprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+        bl_utils.panic();
+    };
+    ttbr0.mapMem() catch |e| {
+        bprint("[panic] memory mapping error: {s} \n", .{@errorName(e)});
+        bl_utils.panic();
+    };
 
     // creating virtual address space for kernel
     const kernel_mapping = mmu.Mapping{ .mem_size = board.Info.mem.ram_len, .virt_start_addr = board.Addresses.vaStart, .phys_addr = board.Info.mem.ram_start_addr, .granule = Granule.Section, .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };

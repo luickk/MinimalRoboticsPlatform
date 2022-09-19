@@ -1,111 +1,67 @@
 const std = @import("std");
 const periph = @import("peripherals");
+const board = @import("board");
 const utils = @import("utils");
 
 const kprint = periph.serial.kprint;
-const board = @import("board");
 
-pub fn KernelAllocator(comptime mem_size: usize, comptime page_size: usize, va_start: usize) type {
-    const n_chunks = try std.math.divTrunc(usize, mem_size, page_size);
-    _ = va_start;
-
+pub fn UserSpaceAllocator(comptime mem_size: usize, comptime granule: board.layout.GranuleParams) !type {
+    const n_pages = try std.math.divExact(usize, mem_size, granule.page_size);
+    const gran = granule;
     return struct {
         const Self = @This();
         const Error = error{
             OutOfMem,
+            PageAddrDoesNotAlign,
             AddrNotInMem,
             AddrNotValid,
         };
 
-        const Chunk = struct {
-            // bitmask
-            free: bool,
-        };
+        kernel_mem: *[n_pages]bool,
+        curr_page_pointer: usize,
+        granule: board.layout.GranuleParams,
 
-        kernel_mem: *[mem_size]u8,
-        kernel_mem_used: usize,
-
-        chunks: [n_chunks]Chunk,
-        used_chunks: usize,
-
-        pub fn init(mem_start: usize) !Self {
-            var ka = Self{
-                .kernel_mem = @intToPtr(*[mem_size]u8, mem_start),
-                .kernel_mem_used = 0,
-
-                .chunks = [_]Chunk{.{ .free = true }} ** n_chunks,
-                .used_chunks = 0,
+        pub fn init(mem_start: usize) Self {
+            return Self{
+                .kernel_mem = @intToPtr(*[n_pages]bool, mem_start),
+                .curr_page_pointer = 0,
+                .granule = gran,
             };
-            return ka;
         }
 
-        pub fn alloc(self: *Self, comptime T: type, n: usize) ![]T {
-            var size = @sizeOf(T) * n;
-            var req_chunks = try std.math.divCeil(usize, size, page_size);
-            if (try self.findFree(self.used_chunks, size)) |free_mem| {
-                return @as([]T, free_mem);
+        pub fn allocNPage(self: *Self, n: usize) !*anyopaque {
+            var ret_addr: *anyopaque = undefined;
+            if (self.curr_page_pointer + n > self.kernel_mem.len)
+                return try self.searchFreePages(n);
+            for (self.kernel_mem[self.curr_page_pointer .. self.curr_page_pointer + n]) |*page| {
+                page.* = true;
             }
-            if (self.used_chunks + req_chunks > n_chunks)
-                return Error.OutOfMem;
-
-            var first_chunk = self.used_chunks;
-            var last_chunk = self.used_chunks + req_chunks;
-            self.used_chunks += req_chunks;
-            self.kernel_mem_used += req_chunks * page_size;
-
-            var i: usize = 0;
-            while (i < req_chunks) : (i += 1) {
-                self.chunks[first_chunk + i].free = false;
-            }
-            return @as([]T, self.kernel_mem[first_chunk * page_size .. last_chunk * page_size]);
+            ret_addr = @ptrCast(*anyopaque, &self.kernel_mem[self.curr_page_pointer]);
+            self.curr_page_pointer += n;
+            return @intToPtr(*anyopaque, @ptrToInt(ret_addr) * self.granule.page_size);
         }
 
-        pub fn free(self: *Self, comptime T: type, to_free: []T) !void {
-            if (@ptrToInt(to_free.ptr) > (@ptrToInt(&self.kernel_mem[0]) + mem_size))
-                return Error.AddrNotInMem;
+        fn searchFreePages(self: *Self, req_pages: usize) !*anyopaque {
+            var free_pages_in_row: usize = 0;
+            for (self.kernel_mem) |*page, i| {
+                if (page.*)
+                    free_pages_in_row += 1;
+                if (free_pages_in_row >= req_pages)
+                    return @ptrCast(*anyopaque, &self.kernel_mem[i - req_pages]);
+            }
+            return Error.OutOfMem;
+        }
 
-            var offset: usize = std.math.sub(usize, @ptrToInt(to_free.ptr), @ptrToInt(&self.kernel_mem[0])) catch {
+        pub fn freeNPage(self: *Self, page_addr: *anyopaque, n: usize) !void {
+            if ((try std.math.mod(usize, @ptrToInt(page_addr), granule.page_size)) != 0)
+                return Error.PageAddrDoesNotAlign;
+            var offset: usize = std.math.sub(usize, @ptrToInt(page_addr), @ptrToInt(&self.kernel_mem[0])) catch {
                 return Error.AddrNotInMem;
             };
-
-            var req_chunks = try std.math.divCeil(usize, to_free.len, page_size);
-
-            // indexed chunk must be freed as well
-            var first_chunk_index = try std.math.divFloor(usize, offset, page_size);
-
-            var i: usize = 0;
-            while (i < req_chunks) : (i += 1) {
-                self.chunks[first_chunk_index + i].free = true;
+            for (self.kernel_mem[offset .. offset + n]) |*page| {
+                page.* = false;
             }
-        }
-
-        /// finds continous free memory in fragmented kernel memory; marks returned memory as not free!
-        pub fn findFree(self: *Self, to_chunk: usize, min_size: usize) !?[]u8 {
-            var continous_chunks: usize = 0;
-            var req_chunks = try std.math.divCeil(usize, min_size, page_size);
-            for (self.chunks) |*chunk, i| {
-                if (i >= to_chunk) {
-                    return null;
-                }
-
-                if (chunk.free) {
-                    continous_chunks += 1;
-                } else {
-                    continous_chunks = 0;
-                }
-                if (continous_chunks >= req_chunks) {
-                    var first_chunk: usize = (i + 1) - req_chunks;
-
-                    var j: usize = 0;
-                    while (j < req_chunks) : (j += 1) {
-                        self.chunks[first_chunk + j].free = false;
-                    }
-                    kprint("free used at chunk: {d} \n", .{first_chunk});
-                    var kernel_mem_offset = first_chunk * page_size;
-                    return self.kernel_mem[kernel_mem_offset .. kernel_mem_offset + min_size];
-                }
-            }
-            return null;
+            self.curr_page_pointer -= n;
         }
     };
 }
