@@ -11,6 +11,8 @@ const mmu = periph.mmu;
 // raspberry
 const bcm2835IntController = periph.bcm2835IntController;
 
+const gic = periph.gicv2;
+
 const Granule = board.layout.Granule;
 const GranuleParams = board.layout.GranuleParams;
 const TransLvl = board.layout.TransLvl;
@@ -20,6 +22,10 @@ const kernel_bin_size = b_options.kernel_bin_size;
 export fn bl_main() callconv(.Naked) noreturn {
     if (board.Info.board == .raspi3b)
         bcm2835IntController.initIc();
+
+    // GIC Init
+    if (board.Info.board == .virt)
+        gic.gicv2Initialize();
 
     // get address of external linker script variable which marks stack-top and kernel start
     const kernel_entry: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernelrom_start", .linkage = .Strong }) orelse {
