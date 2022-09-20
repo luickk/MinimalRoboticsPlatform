@@ -100,7 +100,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
     proc.setTTBR1(_k_ttbr1_dir);
     proc.setTTBR0(_u_ttbr0_dir);
 
-    var user_page_alloc = (UserSpaceAllocator(board.Info.mem.ram_layout.user_space_size, board.Info.mem.ram_layout.user_space_gran) catch |e| {
+    var user_page_alloc = (UserSpaceAllocator(204800, board.Info.mem.ram_layout.user_space_gran) catch |e| {
         kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
         k_utils.panic();
     }).init(board.Info.mem.ram_layout.user_space_phys);
@@ -126,7 +126,16 @@ export fn kernel_main() callconv(.Naked) noreturn {
         k_utils.panic();
     };
 
-    kprint("Pages alloced: {d}, {d}, {d}, {d}, {d},  \n", .{ @ptrToInt(p1), @ptrToInt(p2), @ptrToInt(p3), @ptrToInt(p4), @ptrToInt(p5) });
+    user_page_alloc.freeNPage(p2, 10) catch |e| {
+        kprint("[panic]2 page free err: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+    var p6 = user_page_alloc.allocNPage(10) catch |e| {
+        kprint("[panic]6 page alloc err: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+
+    kprint("Pages alloced: {d}, {d}, {d}, {d}, {d}, {d} \n", .{ @ptrToInt(p1), @ptrToInt(p2), @ptrToInt(p3), @ptrToInt(p4), @ptrToInt(p5), @ptrToInt(p6) });
 
     user_page_alloc.freeNPage(p1, 10) catch |e| {
         kprint("[panic]1 page free err: {s} \n", .{@errorName(e)});
@@ -145,11 +154,6 @@ export fn kernel_main() callconv(.Naked) noreturn {
 
     user_page_alloc.freeNPage(p4, 10) catch |e| {
         kprint("[panic]4 page free err: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
-
-    user_page_alloc.freeNPage(p5, 10) catch |e| {
-        kprint("[panic]5 page free err: {s} \n", .{@errorName(e)});
         k_utils.panic();
     };
 

@@ -1,14 +1,24 @@
+// todo => write generic functions
+
 pub inline fn setTcrEl1(val: usize) void {
     asm volatile ("msr tcr_el1, %[val]"
         :
         : [val] "rax" (val),
     );
 }
+
 pub inline fn setMairEl1(val: usize) void {
     asm volatile ("msr mair_el1, %[val]"
         :
         : [val] "rax" (val),
     );
+}
+
+pub fn readTCRel1() usize {
+    var x: usize = asm ("mrs %[curr], tcr_el1"
+        : [curr] "=r" (-> usize),
+    );
+    return x;
 }
 
 pub inline fn enableMmu() void {
@@ -20,7 +30,7 @@ pub inline fn enableMmu() void {
     asm volatile ("isb");
 }
 
-pub inline fn branchToAddr(addr: u64) void {
+pub inline fn branchToAddr(addr: usize) void {
     asm volatile ("br %[pc_addr]"
         :
         : [pc_addr] "rax" (addr),
@@ -67,9 +77,9 @@ pub inline fn exceptionSvc() void {
     asm volatile ("svc #0xdead");
 }
 
-pub fn getCurrentEl() u64 {
-    var x: u64 = asm ("mrs %[curr], CurrentEL"
-        : [curr] "=r" (-> u64),
+pub fn getCurrentEl() usize {
+    var x: usize = asm ("mrs %[curr], CurrentEL"
+        : [curr] "=r" (-> usize),
     );
     return x >> 2;
 }

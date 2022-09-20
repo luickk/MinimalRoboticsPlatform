@@ -91,6 +91,17 @@ export fn bl_main() callconv(.Naked) noreturn {
 
     // MMU page dir config
 
+    // updating page dirs for kernel and user space
+    proc.setTTBR1(_ttbr1_dir);
+    proc.setTTBR0(_ttbr0_dir);
+
+    // t0sz: The size offset of the memory region addressed by TTBR0_EL1
+    // t1sz: The size offset of the memory region addressed by TTBR1_EL1
+    // tg0: Granule size for the TTBR0_EL1.
+    // tg1 not required since it's sections
+    proc.setTcrEl1((mmu.TcrReg{ .t0sz = 16, .t1sz = 16 }).asInt());
+    proc.setMairEl1((mmu.MairReg{ .attr1 = 4, .attr2 = 4 }).asInt());
+
     proc.isb();
 
     bprint("[bootloader] enabling mmu... \n", .{});
@@ -107,13 +118,6 @@ export fn bl_main() callconv(.Naked) noreturn {
 
     while (true) {}
 }
-
-export const _mairVal = (mmu.MairReg{ .attr1 = 4, .attr2 = 4 }).asInt();
-// t0sz: The size offset of the memory region addressed by TTBR0_EL1
-// t1sz: The size offset of the memory region addressed by TTBR1_EL1
-// tg0: Granule size for the TTBR0_EL1.
-// tg1 not required since it's sections
-export const _tcrVal = (mmu.TcrReg{ .t0sz = 16, .t1sz = 16 }).asInt();
 
 comptime {
     @export(intHandle.irqHandler, .{ .name = "irqHandler", .linkage = .Strong });

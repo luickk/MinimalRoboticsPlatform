@@ -17,13 +17,15 @@ pub fn UserSpaceAllocator(comptime mem_size: usize, comptime granule: board.layo
             AddrNotValid,
         };
 
-        kernel_mem: *[n_pages]bool,
+        kernel_mem: [n_pages]bool,
+        mem_start: usize,
         curr_page_pointer: usize,
         granule: board.layout.GranuleParams,
 
         pub fn init(mem_start: usize) Self {
             return Self{
-                .kernel_mem = @intToPtr(*[n_pages]bool, mem_start),
+                .kernel_mem = [_]bool{false} ** n_pages,
+                .mem_start = mem_start,
                 .curr_page_pointer = 0,
                 .granule = gran,
             };
@@ -38,14 +40,17 @@ pub fn UserSpaceAllocator(comptime mem_size: usize, comptime granule: board.layo
             }
             ret_addr = @ptrCast(*anyopaque, &self.kernel_mem[self.curr_page_pointer]);
             self.curr_page_pointer += n;
-            return @intToPtr(*anyopaque, @ptrToInt(ret_addr) * self.granule.page_size);
+            return @intToPtr(*anyopaque, self.mem_start + @ptrToInt(ret_addr) * self.granule.page_size);
         }
 
         fn searchFreePages(self: *Self, req_pages: usize) !*anyopaque {
             var free_pages_in_row: usize = 0;
             for (self.kernel_mem) |*page, i| {
-                if (page.*)
+                if (!page.*) {
                     free_pages_in_row += 1;
+                } else {
+                    free_pages_in_row = 0;
+                }
                 if (free_pages_in_row >= req_pages)
                     return @ptrCast(*anyopaque, &self.kernel_mem[i - req_pages]);
             }
@@ -55,10 +60,12 @@ pub fn UserSpaceAllocator(comptime mem_size: usize, comptime granule: board.layo
         pub fn freeNPage(self: *Self, page_addr: *anyopaque, n: usize) !void {
             if ((try std.math.mod(usize, @ptrToInt(page_addr), granule.page_size)) != 0)
                 return Error.PageAddrDoesNotAlign;
-            var offset: usize = std.math.sub(usize, @ptrToInt(page_addr), @ptrToInt(&self.kernel_mem[0])) catch {
+            var offset: usize = std.math.sub(usize, @ptrToInt(page_addr), self.mem_start) catch {
                 return Error.AddrNotInMem;
             };
-            for (self.kernel_mem[offset .. offset + n]) |*page| {
+            // safe bc page_address is multiple of page_size
+            var n_page = offset / self.granule.page_size;
+            for (self.kernel_mem[n_page .. n_page + n]) |*page| {
                 page.* = false;
             }
             self.curr_page_pointer -= n;

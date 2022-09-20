@@ -31,19 +31,6 @@ el1_entry_aarch64:
     ldr x1, = _stack_top
     mov sp, x1
 
-	adrp	x0, _ttbr0_dir				
-	msr	ttbr0_el1, x0
-
-	adrp	x0, _ttbr1_dir
-	msr	ttbr1_el1, x0
-
-	ldr	x0, _tcrVal
-	msr	tcr_el1, x0
-
-	ldr	x0, _mairVal
-	msr	mair_el1, x0
-	isb
-
 	bl  bl_main
 
 master:
