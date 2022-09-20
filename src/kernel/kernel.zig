@@ -45,7 +45,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
         proc.panic();
     }
 
-    if (board.Info.board == .raspi3b) {
+    if (board.Info.board == .qemuRaspi3b) {
         timer.initTimer();
         kprint("[kernel] timer inited \n", .{});
 

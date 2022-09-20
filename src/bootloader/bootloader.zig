@@ -20,11 +20,11 @@ const TransLvl = board.layout.TransLvl;
 const kernel_bin_size = b_options.kernel_bin_size;
 
 export fn bl_main() callconv(.Naked) noreturn {
-    if (board.Info.board == .raspi3b)
+    if (board.Info.board == .qemuRaspi3b)
         bcm2835IntController.initIc();
 
     // GIC Init
-    if (board.Info.board == .virt)
+    if (board.Info.board == .qemuVirt)
         gic.gicv2Initialize();
 
     // get address of external linker script variable which marks stack-top and kernel start
@@ -43,7 +43,6 @@ export fn bl_main() callconv(.Naked) noreturn {
         bl_utils.panic();
     });
 
-    // @intToPtr(*u8, 0xd000).* = 0xFF;
     var kernel_bl: []u8 = undefined;
     kernel_bl.ptr = @intToPtr([*]u8, kernel_entry);
     kernel_bl.len = kernel_bin_size;
@@ -58,11 +57,23 @@ export fn bl_main() callconv(.Naked) noreturn {
         bl_utils.panic();
     }
 
+    // in case there is no rom(rom_len is equal to zero) and the kernel(and bl) are directly loaded to memory by some rom bootloader
+    // the ttbr0 memory is also identity mapped to the ram
+    comptime var rom_len: usize = undefined;
+    comptime var rom_start_addr: usize = undefined;
+    if (board.Info.mem.rom_len == 0) {
+        rom_len = board.Info.mem.ram_len;
+        rom_start_addr = board.Info.mem.rom_start_addr;
+    } else {
+        rom_len = board.Info.mem.rom_len;
+        rom_start_addr = board.Info.mem.rom_start_addr;
+    }
+
     // MMU page dir config
 
     // writing to _id_mapped_dir(label) page table and creating new
     // identity mapped memory for bootloader to kernel transfer
-    const bootloader_mapping = mmu.Mapping{ .mem_size = board.Info.mem.rom_len, .virt_start_addr = 0, .phys_addr = board.Info.mem.rom_start_addr, .granule = Granule.Section, .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
+    const bootloader_mapping = mmu.Mapping{ .mem_size = rom_len, .virt_start_addr = 0, .phys_addr = rom_start_addr, .granule = Granule.Section, .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
     // identity mapped memory for bootloader and kernel contrtol handover!
     var ttbr0 = (mmu.PageDir(bootloader_mapping) catch |e| {
         @compileError(@errorName(e));
@@ -107,9 +118,11 @@ export fn bl_main() callconv(.Naked) noreturn {
     bprint("[bootloader] enabling mmu... \n", .{});
     proc.enableMmu();
 
-    bprint("[bootloader] setup mmu, el1, exc table. \n", .{});
-    bprint("[bootloader] Copying kernel to secure: 0x{x}, with size: {d} \n", .{ @ptrToInt(kernel_target_loc.ptr), kernel_target_loc.len });
-    std.mem.copy(u8, kernel_target_loc, kernel_bl);
+    if (board.Info.mem.rom_len != 0) {
+        bprint("[bootloader] setup mmu, el1, exc table. \n", .{});
+        bprint("[bootloader] Copying kernel to secure: 0x{x}, with size: {d} \n", .{ @ptrToInt(kernel_target_loc.ptr), kernel_target_loc.len });
+        std.mem.copy(u8, kernel_target_loc, kernel_bl);
+    }
 
     bprint("[bootloader] kernel copied \n", .{});
 

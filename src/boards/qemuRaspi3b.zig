@@ -1,13 +1,14 @@
 pub const layout = @import("memLayout.zig");
 
 pub const Info = layout.BoardParams{
-    .board = .raspi3b,
+    .board = .qemuRaspi3b,
     .mem = layout.BoardMemLayout{
-        // the kernel is loaded by into 0x8000 ram by the gpu, so no relocation (or rom) required
+        // qemu raspi is weird since there is no (at least none I could find) layout for the guest memory and only a total of 1gb (which cannot be increased)
+        // so I'm just assuming a rom in which the bootloader is loaded of 0x400000b
         .rom_start_addr = 0,
-        .rom_len = 0,
+        .rom_len = 0x400000,
 
-        .ram_start_addr = 0x8000,
+        .ram_start_addr = 0x400000,
         .ram_len = 0x40000000,
 
         .ram_layout = .{
@@ -24,7 +25,7 @@ pub const Info = layout.BoardParams{
         .storage_start_addr = 0,
         .storage_len = 0,
     },
-    .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "raspi3b", "-device", "loader,addr=0x8000,file=zig-out/bin/mergedKernel,addr=0x8000,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
+    .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "raspi3b", "-device", "loader,file=zig-out/bin/mergedKernel,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
 };
 
 pub const Addresses = struct {

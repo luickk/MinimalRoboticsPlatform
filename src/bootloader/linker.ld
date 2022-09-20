@@ -1,6 +1,7 @@
 ENTRY(_start)
 
 SECTIONS {
+    . = {@zig};
     .boot : ALIGN(16) {
         *(.text.boot)
         *(.text.);

@@ -5,7 +5,7 @@ const os = @import("std").os;
 
 const Error = error{BlExceedsRomSize};
 
-const currBoard = @import("src/boards/virt.zig");
+const currBoard = @import("src/boards/raspi3b.zig");
 
 pub fn build(b: *std.build.Builder) !void {
     var build_options = b.addOptions();
@@ -46,7 +46,13 @@ pub fn build(b: *std.build.Builder) !void {
     bl_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
     bl_exe.addOptions("build_options", build_options);
     bl_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
-    bl_exe.setLinkerScriptPath(std.build.FileSource{ .path = "src/bootloader/linker.ld" });
+    const temp_bl_ld = "zig-cache/tmp/tempBlLinker.ld";
+    var bl_start_address: usize = currBoard.Info.mem.rom_start_addr;
+    if (currBoard.Info.mem.rom_len == 0)
+        bl_start_address = currBoard.Info.mem.ram_start_addr;
+
+    try writeVarsToLinkerScript(b.allocator, "src/bootloader/linker.ld", temp_bl_ld, .{ bl_start_address, null });
+    bl_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_bl_ld });
     bl_exe.addObjectFile("src/bootloader/bootloader.zig");
     bl_exe.addCSourceFile("src/bootloader/board/" ++ @tagName(currBoard.Info.board) ++ "/boot.S", &.{});
     bl_exe.addCSourceFile("src/bootloader/board/" ++ @tagName(currBoard.Info.board) ++ "/exc_vec.S", &.{});

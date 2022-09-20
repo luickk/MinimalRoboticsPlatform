@@ -1,7 +1,7 @@
 pub const layout = @import("memLayout.zig");
 
 pub const Info = layout.BoardParams{
-    .board = .virt,
+    .board = .qemuVirt,
     .mem = layout.BoardMemLayout{
         // qemu raspi is weird since there is no (at least none I could find) layout for the guest memory and only a total of 1gb (which cannot be increased)
         // so I'm just assuming a rom in which the bootloader is loaded of 0x400000b

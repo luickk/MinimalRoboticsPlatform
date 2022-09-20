@@ -3,7 +3,8 @@ const std = @import("std");
 
 pub const supportedBoards = enum {
     raspi3b,
-    virt,
+    qemuRaspi3b,
+    qemuVirt,
 };
 
 pub fn calctotalTablesReq(granule: GranuleParams, mem_size: usize) !usize {
