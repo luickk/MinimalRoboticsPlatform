@@ -2,6 +2,7 @@ const std = @import("std");
 const periph = @import("peripherals");
 const utils = @import("utils");
 const k_utils = @import("utils.zig");
+const tests = @import("tests.zig");
 
 const kprint = periph.serial.kprint;
 // kernel services
@@ -45,7 +46,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
         proc.panic();
     }
 
-    if (board.Info.board == .qemuRaspi3b) {
+    if (board.Info.board == .qemuRaspi3b or board.Info.board == .raspi3b) {
         timer.initTimer();
         kprint("[kernel] timer inited \n", .{});
 
@@ -94,8 +95,12 @@ export fn kernel_main() callconv(.Naked) noreturn {
         k_utils.panic();
     };
 
+    // t0sz: The size offset of the memory region addressed by TTBR0_EL1 (64-48=16)
+    // t1sz: The size offset of the memory region addressed by TTBR1_EL1
+    // tg0: Granule size for the TTBR0_EL1.
     proc.setTcrEl1((mmu.TcrReg{ .t0sz = 16, .t1sz = 16, .tg0 = 2 }).asInt());
-    proc.resetMmuTlbEl1();
+    proc.invalidateMmuTlbEl1();
+    proc.invalidateCache();
     // updating page dirs for kernel and user space
     proc.setTTBR1(_k_ttbr1_dir);
     proc.setTTBR0(_u_ttbr0_dir);
@@ -105,63 +110,13 @@ export fn kernel_main() callconv(.Naked) noreturn {
         k_utils.panic();
     }).init(board.Info.mem.ram_layout.user_space_phys);
 
-    var p1 = user_page_alloc.allocNPage(10) catch |e| {
-        kprint("[panic] page alloc err: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
-    var p2 = user_page_alloc.allocNPage(10) catch |e| {
-        kprint("[panic] page alloc err: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
-    var p3 = user_page_alloc.allocNPage(10) catch |e| {
-        kprint("[panic] page alloc err: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
-    var p4 = user_page_alloc.allocNPage(10) catch |e| {
-        kprint("[panic] page alloc err: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
-    var p5 = user_page_alloc.allocNPage(10) catch |e| {
-        kprint("[panic] page alloc err: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
-
-    user_page_alloc.freeNPage(p2, 10) catch |e| {
-        kprint("[panic]2 page free err: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
-    var p6 = user_page_alloc.allocNPage(10) catch |e| {
-        kprint("[panic]6 page alloc err: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
-
-    kprint("Pages alloced: {d}, {d}, {d}, {d}, {d}, {d} \n", .{ @ptrToInt(p1), @ptrToInt(p2), @ptrToInt(p3), @ptrToInt(p4), @ptrToInt(p5), @ptrToInt(p6) });
-
-    user_page_alloc.freeNPage(p1, 10) catch |e| {
-        kprint("[panic]1 page free err: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
-
-    user_page_alloc.freeNPage(p2, 10) catch |e| {
-        kprint("[panic]2 page free err: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
-
-    user_page_alloc.freeNPage(p3, 10) catch |e| {
-        kprint("[panic]3 page free err: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
-
-    user_page_alloc.freeNPage(p4, 10) catch |e| {
-        kprint("[panic]4 page free err: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
-
     kprint("[kernel] kernel boot complete \n", .{});
 
-    @intToPtr(*usize, 0x10000000).* = 100;
-    if (@intToPtr(*usize, 0x10000000).* == 100)
-        kprint("[kTEST] write to userspace successfull \n", .{});
+    tests.testKMalloc(&user_page_alloc) catch |e| {
+        kprint("[panic] UserSpaceAllocator test error: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+    tests.testUserSpaceMem();
 
     while (true) {}
 }

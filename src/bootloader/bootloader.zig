@@ -19,8 +19,9 @@ const TransLvl = board.layout.TransLvl;
 
 const kernel_bin_size = b_options.kernel_bin_size;
 
+// note: when bl_main gets too bit(instruction mem wise), the exception vector table could be pushed too far up and potentially not be read!
 export fn bl_main() callconv(.Naked) noreturn {
-    if (board.Info.board == .qemuRaspi3b)
+    if (board.Info.board == .qemuRaspi3b or board.Info.board == .raspi3b)
         bcm2835IntController.initIc();
 
     // GIC Init
@@ -51,6 +52,8 @@ export fn bl_main() callconv(.Naked) noreturn {
     kernel_target_loc.ptr = @intToPtr([*]u8, mmu.toSecure(usize, board.Info.mem.ram_start_addr));
     kernel_target_loc.len = kernel_bin_size;
 
+    // todo => check for security state!
+
     var current_el = proc.getCurrentEl();
     if (current_el != 1) {
         bprint("[panic] el must be 1! (it is: {d})\n", .{current_el});
@@ -63,12 +66,13 @@ export fn bl_main() callconv(.Naked) noreturn {
     comptime var rom_start_addr: usize = undefined;
     if (board.Info.mem.rom_len == 0) {
         rom_len = board.Info.mem.ram_len;
-        rom_start_addr = board.Info.mem.rom_start_addr;
+        rom_start_addr = board.Info.mem.ram_start_addr;
     } else {
         rom_len = board.Info.mem.rom_len;
         rom_start_addr = board.Info.mem.rom_start_addr;
     }
 
+    bprint("rlen: {d} \n", .{rom_len});
     // MMU page dir config
 
     // writing to _id_mapped_dir(label) page table and creating new
@@ -106,13 +110,15 @@ export fn bl_main() callconv(.Naked) noreturn {
     proc.setTTBR1(_ttbr1_dir);
     proc.setTTBR0(_ttbr0_dir);
 
-    // t0sz: The size offset of the memory region addressed by TTBR0_EL1
+    // t0sz: The size offset of the memory region addressed by TTBR0_EL1 (64-48=16)
     // t1sz: The size offset of the memory region addressed by TTBR1_EL1
     // tg0: Granule size for the TTBR0_EL1.
     // tg1 not required since it's sections
     proc.setTcrEl1((mmu.TcrReg{ .t0sz = 16, .t1sz = 16 }).asInt());
     proc.setMairEl1((mmu.MairReg{ .attr1 = 4, .attr2 = 4 }).asInt());
 
+    proc.invalidateMmuTlbEl1();
+    proc.invalidateCache();
     proc.isb();
 
     bprint("[bootloader] enabling mmu... \n", .{});
@@ -122,12 +128,15 @@ export fn bl_main() callconv(.Naked) noreturn {
         bprint("[bootloader] setup mmu, el1, exc table. \n", .{});
         bprint("[bootloader] Copying kernel to secure: 0x{x}, with size: {d} \n", .{ @ptrToInt(kernel_target_loc.ptr), kernel_target_loc.len });
         std.mem.copy(u8, kernel_target_loc, kernel_bl);
+        bprint("[bootloader] kernel copied \n", .{});
     }
 
-    bprint("[bootloader] kernel copied \n", .{});
-
-    bprint("[bootloader] jumping to secure kernel copy \n", .{});
-    proc.branchToAddr(@ptrToInt(kernel_target_loc.ptr));
+    bprint("[bootloader] jumping to secure kernel \n", .{});
+    if (board.Info.mem.rom_len == 0) {
+        proc.branchToAddr(mmu.toSecure(usize, kernel_entry));
+    } else {
+        proc.branchToAddr(@ptrToInt(kernel_target_loc.ptr));
+    }
 
     while (true) {}
 }

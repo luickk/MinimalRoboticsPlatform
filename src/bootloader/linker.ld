@@ -2,15 +2,18 @@ ENTRY(_start)
 
 SECTIONS {
     . = {@zig};
-    .boot : ALIGN(16) {
+
+    .text : ALIGN(16) {
         *(.text.boot)
+    }
+    .exceptions : ALIGN(0x8) {
+        *(.text.exc_vec);
+    }
+    .bootloader : ALIGN(16) {
         *(.text.);
         *(.text.*);
     }
 
-    .exceptions : ALIGN(0x8) {
-        *(.text.exc_vec);
-    }
 
     .got : { 
         *(.got.plt);

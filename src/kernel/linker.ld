@@ -5,12 +5,15 @@ SECTIONS {
 
     .text : ALIGN(16) {
         *(.text.kernel_main);
-        *(.text.);
-        *(.text.*);
     }
 
     .exceptions : ALIGN(0x8) {
         *(.text.exc_vec);
+    }
+
+    .kernel : ALIGN(16) {
+        *(.text.);
+        *(.text.*);
     }
 
     .rodata : ALIGN(0x8) {

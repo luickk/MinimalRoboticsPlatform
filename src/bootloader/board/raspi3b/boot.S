@@ -12,8 +12,7 @@ _start:
 	b	proc_hang
 
 el1_entry_aarch64:
-	// setting up vector table (https://github.com/Xilinx/embeddedsw/blob/master/lib/bsp/standalone/src/arm/ARMv8/64bit/armclang/boot.S)
-	ldr x0, =_exception_vector_table
+	ldr x0, = _exception_vector_table
 	msr vbar_el1, x0
 	isb
 

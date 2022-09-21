@@ -45,7 +45,7 @@ pub inline fn disableMmu() void {
     );
 }
 
-pub fn resetMmuTlbEl1() void {
+pub fn invalidateMmuTlbEl1() void {
     // https://developer.arm.com/documentation/ddi0488/c/system-control/aarch64-register-summary/aarch64-tlb-maintenance-operations
     asm volatile ("TLBI VMALLE1IS");
 }
@@ -64,8 +64,8 @@ pub fn setTTBR0(addr: usize) void {
     );
 }
 
-pub fn invalidateDCache() void {
-    asm volatile ("bl _flush_dcache_all");
+pub fn invalidateCache() void {
+    asm volatile ("IC IALLUIS");
 }
 
 pub inline fn isb() void {
