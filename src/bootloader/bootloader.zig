@@ -19,6 +19,12 @@ const TransLvl = board.layout.TransLvl;
 
 const kernel_bin_size = b_options.kernel_bin_size;
 
+// const static_ttbr: [
+//     board.Info.mem.calcPageTableSizeRom() catch |e| {
+//         @compileError(@errorName(e));
+//     }
+// ]usize = undefined;
+
 // note: when bl_main gets too bit(instruction mem wise), the exception vector table could be pushed too far up and potentially not be read!
 export fn bl_main() callconv(.Naked) noreturn {
     if (board.Info.board == .qemuRaspi3b or board.Info.board == .raspi3b)
@@ -33,16 +39,15 @@ export fn bl_main() callconv(.Naked) noreturn {
         bprint("error reading _kernelrom_start label\n", .{});
         bl_utils.panic();
     });
+    // const _ttbr0_dir: usize = @ptrToInt(@extern(?*u8, .{ .name = "_ttbr0_dir", .linkage = .Strong }) orelse {
+    //     bprint("error reading _ttbr0_dir label\n", .{});
+    //     bl_utils.panic();
+    // });
 
-    const _ttbr0_dir: usize = @ptrToInt(@extern(?*u8, .{ .name = "_ttbr0_dir", .linkage = .Strong }) orelse {
-        bprint("error reading _ttbr0_dir label\n", .{});
-        bl_utils.panic();
-    });
-
-    const _ttbr1_dir: usize = @ptrToInt(@extern(?*u8, .{ .name = "_ttbr1_dir", .linkage = .Strong }) orelse {
-        bprint("error reading _ttbr1_dir label\n", .{});
-        bl_utils.panic();
-    });
+    // const _ttbr1_dir: usize = @ptrToInt(@extern(?*u8, .{ .name = "_ttbr1_dir", .linkage = .Strong }) orelse {
+    //     bprint("error reading _ttbr1_dir label\n", .{});
+    //     bl_utils.panic();
+    // });
 
     var kernel_bl: []u8 = undefined;
     kernel_bl.ptr = @intToPtr([*]u8, kernel_entry);
@@ -60,6 +65,16 @@ export fn bl_main() callconv(.Naked) noreturn {
         bl_utils.panic();
     }
 
+    // writing page dirs to ram, in case we boot from rom!
+    // todo => make page dir generation comptime and static! (currently prevented by max array size)
+
+    const _ttbr1_dir = board.Info.mem.ram_start_addr + kernel_bin_size;
+    const _ttbr0_dir = _ttbr1_dir + (board.Info.mem.calcPageTableSizeRam() catch |e| {
+        bprint("[panic] Page table ram address calc error: {s}\n", .{@errorName(e)});
+        bl_utils.panic();
+    });
+    bprint("ttbr0: {x}, ttbr1: {x} \n", .{ _ttbr0_dir, _ttbr1_dir });
+
     // in case there is no rom(rom_len is equal to zero) and the kernel(and bl) are directly loaded to memory by some rom bootloader
     // the ttbr0 memory is also identity mapped to the ram
     comptime var rom_len: usize = undefined;
@@ -68,13 +83,13 @@ export fn bl_main() callconv(.Naked) noreturn {
         rom_len = board.Info.mem.ram_len;
         rom_start_addr = board.Info.mem.ram_start_addr;
     } else {
-        rom_len = board.Info.mem.rom_len;
+        rom_len = board.Info.mem.rom_len + board.Info.mem.ram_len;
         rom_start_addr = board.Info.mem.rom_start_addr;
     }
 
-    bprint("rlen: {d} \n", .{rom_len});
     // MMU page dir config
 
+    bprint("romlen: {d} \n", .{rom_len});
     // writing to _id_mapped_dir(label) page table and creating new
     // identity mapped memory for bootloader to kernel transfer
     const bootloader_mapping = mmu.Mapping{ .mem_size = rom_len, .virt_start_addr = 0, .phys_addr = rom_start_addr, .granule = Granule.Section, .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
@@ -106,7 +121,7 @@ export fn bl_main() callconv(.Naked) noreturn {
 
     // MMU page dir config
 
-    // updating page dirs for kernel and user space
+    // updating page dirs
     proc.setTTBR1(_ttbr1_dir);
     proc.setTTBR0(_ttbr0_dir);
 
@@ -120,7 +135,6 @@ export fn bl_main() callconv(.Naked) noreturn {
     proc.invalidateMmuTlbEl1();
     proc.invalidateCache();
     proc.isb();
-
     bprint("[bootloader] enabling mmu... \n", .{});
     proc.enableMmu();
 
@@ -133,7 +147,7 @@ export fn bl_main() callconv(.Naked) noreturn {
 
     bprint("[bootloader] jumping to secure kernel \n", .{});
     if (board.Info.mem.rom_len == 0) {
-        proc.branchToAddr(mmu.toSecure(usize, kernel_entry));
+        proc.branchToAddr(kernel_entry);
     } else {
         proc.branchToAddr(@ptrToInt(kernel_target_loc.ptr));
     }

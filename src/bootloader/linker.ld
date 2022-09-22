@@ -14,7 +14,6 @@ SECTIONS {
         *(.text.*);
     }
 
-
     .got : { 
         *(.got.plt);
         *(.got);
@@ -45,9 +44,9 @@ SECTIONS {
 
     .paging_tbl : ALIGN(0x1000) {
         _ttbr1_dir = .;
-        . += (4 * (1 << 12));
+        . += {@zig};
         _ttbr0_dir = .;
-        . += (4 * (1 << 12));
+        . += {@zig};
     }
     _kernelrom_start = .;
 }

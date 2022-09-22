@@ -5,7 +5,7 @@ const os = @import("std").os;
 
 const Error = error{BlExceedsRomSize};
 
-const currBoard = @import("src/boards/qemuVirt.zig");
+const currBoard = @import("src/boards/qemuRaspi3b.zig");
 
 pub fn build(b: *std.build.Builder) !void {
     var build_options = b.addOptions();
@@ -26,9 +26,7 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.addOptions("build_options", build_options);
     kernel_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
     const temp_kernel_ld = "zig-cache/tmp/tempKernelLinker.ld";
-    const ram_k_space_size = (try currBoard.layout.calctotalTablesReq(currBoard.Info.mem.ram_layout.kernel_space_gran, currBoard.Info.mem.ram_layout.kernel_space_size)) * (currBoard.Info.mem.ram_layout.kernel_space_gran.page_size / 8);
-    const ram_u_space_size = (try currBoard.layout.calctotalTablesReq(currBoard.Info.mem.ram_layout.user_space_gran, currBoard.Info.mem.ram_layout.user_space_size)) * (currBoard.Info.mem.ram_layout.user_space_gran.page_size / 8);
-    try writeVarsToLinkerScript(b.allocator, "src/kernel/linker.ld", temp_kernel_ld, .{ ram_k_space_size, ram_u_space_size });
+    try writeVarsToLinkerScript(b.allocator, "src/kernel/linker.ld", temp_kernel_ld, .{ try currBoard.Info.mem.ram_layout.calcPageTableSizeKernel(), try currBoard.Info.mem.ram_layout.calcPageTableSizeUser(), null });
     kernel_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_kernel_ld });
     kernel_exe.addObjectFile("src/kernel/kernel.zig");
     kernel_exe.install();
@@ -49,7 +47,7 @@ pub fn build(b: *std.build.Builder) !void {
     if (currBoard.Info.mem.rom_len == 0) {
         bl_start_address = currBoard.Info.mem.ram_start_addr;
     }
-    try writeVarsToLinkerScript(b.allocator, "src/bootloader/linker.ld", temp_bl_ld, .{ bl_start_address, null });
+    try writeVarsToLinkerScript(b.allocator, "src/bootloader/linker.ld", temp_bl_ld, .{ bl_start_address, try currBoard.Info.mem.calcPageTableSizeRam(), (try currBoard.Info.mem.calcPageTableSizeRom()) + (try currBoard.Info.mem.calcPageTableSizeRam()) });
     bl_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_bl_ld });
     bl_exe.addObjectFile("src/bootloader/bootloader.zig");
     bl_exe.addCSourceFile("src/bootloader/board/" ++ @tagName(currBoard.Info.board) ++ "/boot.S", &.{});
@@ -140,7 +138,7 @@ fn getFileSize(path: []const u8) !usize {
 /// inserts args variables (in order), defined in inp_linker_script_path in outp_linker_script_path
 // bc file reads cannot be comptime (and the loop not be unrolled), arr size is static and elements optional
 // if more args are required just increase arr size (will have to pad all fn calls with fewer args in list!.)
-pub fn writeVarsToLinkerScript(a: std.mem.Allocator, inp_linker_script_path: []const u8, outp_linker_script_path: []const u8, args: [2]?usize) !void {
+pub fn writeVarsToLinkerScript(a: std.mem.Allocator, inp_linker_script_path: []const u8, outp_linker_script_path: []const u8, args: [3]?usize) !void {
     var in_file = try std.fs.cwd().openFile(inp_linker_script_path, .{});
     defer in_file.close();
     var buf_reader = std.io.bufferedReader(in_file.reader());
