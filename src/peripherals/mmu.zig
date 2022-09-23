@@ -178,6 +178,7 @@ pub fn PageDir(mapping: Mapping) !type {
                 var curr_entry: usize = 0;
                 var curr_table: usize = 0;
                 while (curr_table < req_table) : (curr_table += 1) {
+                    kprint("ct: {d} - {d} \n", .{ curr_table, req_table });
                     curr_entry = 0;
                     while (curr_entry < req_entry and curr_entry <= self.table_len) : (curr_entry += 1) {
                         // last lvl translation links to physical mem

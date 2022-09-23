@@ -5,7 +5,7 @@ const os = @import("std").os;
 
 const Error = error{BlExceedsRomSize};
 
-const currBoard = @import("src/boards/qemuRaspi3b.zig");
+const currBoard = @import("src/boards/raspi3b.zig");
 
 pub fn build(b: *std.build.Builder) !void {
     var build_options = b.addOptions();
@@ -55,7 +55,7 @@ pub fn build(b: *std.build.Builder) !void {
     bl_exe.install();
     bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).artifact.install();
     const bl_bin_size = try getFileSize("zig-out/bin/bootloader.bin");
-    _ = bl_bin_size;
+    build_options.addOption(usize, "bl_bin_size", bl_bin_size);
     // todo => kernel bin file size way too big
     // if (bl_bin_size + kernel_bin_size > currBoard.mem.rom_len)
     //     return Error.BlExceedsRomSize;

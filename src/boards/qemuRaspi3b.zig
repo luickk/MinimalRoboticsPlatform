@@ -6,20 +6,20 @@ pub const Info = layout.BoardParams{
         // qemu raspi is weird since there is no (at least none I could find) layout for the guest memory and only a total of 1gb (which cannot be increased)
         // so I'm just assuming a rom in which the bootloader is loaded of 0x400000b
         .rom_start_addr = 0,
-        .rom_len = 0x400000,
+        .rom_len = 0x20000000,
 
-        .ram_start_addr = 0x400000,
-        .ram_len = 0x40000000,
+        .ram_start_addr = 0x20000000,
+        .ram_len = 0x20000000,
 
         .ram_layout = .{
-            .kernel_space_size = 0x20000000,
+            .kernel_space_size = 0x10000000,
             .kernel_space_vs = Addresses.vaStart,
             .kernel_space_phys = 0,
             .kernel_space_gran = layout.Granule.Section,
 
-            .user_space_size = 0x20000000,
+            .user_space_size = 0x10000000,
             .user_space_vs = 0,
-            .user_space_phys = 0x20000000,
+            .user_space_phys = 0x10000000,
             .user_space_gran = layout.Granule.Fourk,
         },
         .storage_start_addr = 0,

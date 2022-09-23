@@ -18,7 +18,7 @@ pub const Info = layout.BoardParams{
 
             .user_space_size = 0x20000000,
             .user_space_vs = 0,
-            .user_space_phys = 0x20000000,
+            .user_space_phys = 0,
             .user_space_gran = layout.Granule.Fourk,
         },
         .storage_start_addr = 0,

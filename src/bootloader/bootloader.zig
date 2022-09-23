@@ -19,6 +19,7 @@ const GranuleParams = board.layout.GranuleParams;
 const TransLvl = board.layout.TransLvl;
 
 const kernel_bin_size = b_options.kernel_bin_size;
+const bl_bin_size = b_options.bl_bin_size;
 
 // const static_ttbr: [
 //     board.Info.mem.calcPageTableSizeRom() catch |e| {
@@ -84,7 +85,7 @@ const bl_page_tables = blk: {
 
 // note: when bl_main gets too bit(instruction mem wise), the exception vector table could be pushed too far up and potentially not be read!
 export fn bl_main() callconv(.Naked) noreturn {
-    bprint("{s} \n", .{bl_page_tables});
+    // bprint("{s} \n", .{bl_page_tables});
 
     if (board.Info.board == .qemuRaspi3b or board.Info.board == .raspi3b)
         bcm2835IntController.initIc();
@@ -98,15 +99,15 @@ export fn bl_main() callconv(.Naked) noreturn {
         bprint("error reading _kernelrom_start label\n", .{});
         bl_utils.panic();
     });
-    const _ttbr0_dir: usize = @ptrToInt(@extern(?*u8, .{ .name = "_ttbr0_dir", .linkage = .Strong }) orelse {
-        bprint("error reading _ttbr0_dir label\n", .{});
-        bl_utils.panic();
-    });
+    // const _ttbr0_dir: usize = @ptrToInt(@extern(?*u8, .{ .name = "_ttbr0_dir", .linkage = .Strong }) orelse {
+    //     bprint("error reading _ttbr0_dir label\n", .{});
+    //     bl_utils.panic();
+    // });
 
-    const _ttbr1_dir: usize = @ptrToInt(@extern(?*u8, .{ .name = "_ttbr1_dir", .linkage = .Strong }) orelse {
-        bprint("error reading _ttbr1_dir label\n", .{});
-        bl_utils.panic();
-    });
+    // const _ttbr1_dir: usize = @ptrToInt(@extern(?*u8, .{ .name = "_ttbr1_dir", .linkage = .Strong }) orelse {
+    //     bprint("error reading _ttbr1_dir label\n", .{});
+    //     bl_utils.panic();
+    // });
 
     var kernel_bl: []u8 = undefined;
     kernel_bl.ptr = @intToPtr([*]u8, kernel_entry);
@@ -124,15 +125,15 @@ export fn bl_main() callconv(.Naked) noreturn {
         bl_utils.panic();
     }
 
-    // writing page dirs to ram, in case we boot from rom!
-    // todo => make page dir generation comptime and static! (currently prevented by max array size)
-
-    // const _ttbr1_dir = board.Info.mem.ram_start_addr + kernel_bin_size;
-    // const _ttbr0_dir = _ttbr1_dir + (board.Info.mem.calcPageTableSizeRam() catch |e| {
-    //     bprint("[panic] Page table ram address calc error: {s}\n", .{@errorName(e)});
-    //     bl_utils.panic();
-    // });
-    bprint("ttbr0: {x}, ttbr1: {x} \n", .{ _ttbr0_dir, _ttbr1_dir });
+    // writing page dirs to userspace in ram. Writing to userspace because it would be overwritten in kernel space, when copying
+    // the kernel. Additionally, on mmu turn on, the mmu would try to read from the page tables without mmu kernel space identifier bits on
+    // todo => make page dir generation comptime generated and static memory! (currently prevented by max array-size)
+    const user_space_start = board.Info.mem.ram_start_addr + board.Info.mem.ram_layout.kernel_space_size;
+    const _ttbr1_dir = user_space_start;
+    const _ttbr0_dir = user_space_start + (board.Info.mem.calcPageTableSizeRam() catch |e| {
+        bprint("[panic] Page table ram address calc error: {s}\n", .{@errorName(e)});
+        bl_utils.panic();
+    });
 
     // in case there is no rom(rom_len is equal to zero) and the kernel(and bl) are directly loaded to memory by some rom bootloader
     // the ttbr0 memory is also identity mapped to the ram
@@ -148,7 +149,6 @@ export fn bl_main() callconv(.Naked) noreturn {
 
     // MMU page dir config
 
-    bprint("romlen: {d} \n", .{rom_len});
     // writing to _id_mapped_dir(label) page table and creating new
     // identity mapped memory for bootloader to kernel transfer
     const bootloader_mapping = mmu.Mapping{ .mem_size = rom_len, .virt_start_addr = 0, .phys_addr = rom_start_addr, .granule = Granule.Section, .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };

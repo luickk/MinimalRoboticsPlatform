@@ -57,7 +57,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
     const kernel_space_mapping = mmu.Mapping{
         .mem_size = board.Info.mem.ram_layout.kernel_space_size,
         .virt_start_addr = board.Info.mem.ram_layout.kernel_space_vs,
-        .phys_addr = board.Info.mem.ram_layout.kernel_space_phys,
+        .phys_addr = board.Info.mem.rom_len + board.Info.mem.ram_layout.kernel_space_phys,
         .granule = board.Info.mem.ram_layout.kernel_space_gran,
         .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block },
     };
@@ -77,7 +77,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
     const user_space_mapping = mmu.Mapping{
         .mem_size = board.Info.mem.ram_layout.user_space_size,
         .virt_start_addr = board.Info.mem.ram_layout.user_space_vs,
-        .phys_addr = board.Info.mem.ram_layout.user_space_phys,
+        .phys_addr = board.Info.mem.rom_len + board.Info.mem.ram_layout.kernel_space_size + board.Info.mem.ram_layout.user_space_phys,
         .granule = board.Info.mem.ram_layout.user_space_gran,
         .flags = null,
     };
@@ -90,11 +90,12 @@ export fn kernel_main() callconv(.Naked) noreturn {
         k_utils.panic();
     };
 
+    kprint("changing mmu 1 \n", .{});
     ttbr0.mapMem() catch |e| {
         kprint("[panic] memory mapping error: {s} \n", .{@errorName(e)});
         k_utils.panic();
     };
-
+    kprint("changing mmu 2 \n", .{});
     // t0sz: The size offset of the memory region addressed by TTBR0_EL1 (64-48=16)
     // t1sz: The size offset of the memory region addressed by TTBR1_EL1
     // tg0: Granule size for the TTBR0_EL1.
@@ -105,12 +106,12 @@ export fn kernel_main() callconv(.Naked) noreturn {
     proc.setTTBR1(_k_ttbr1_dir);
     proc.setTTBR0(_u_ttbr0_dir);
 
+    kprint("[kernel] kernel boot complete \n", .{});
+
     var user_page_alloc = (UserSpaceAllocator(204800, board.Info.mem.ram_layout.user_space_gran) catch |e| {
         kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
         k_utils.panic();
     }).init(board.Info.mem.ram_layout.user_space_phys);
-
-    kprint("[kernel] kernel boot complete \n", .{});
 
     tests.testKMalloc(&user_page_alloc) catch |e| {
         kprint("[panic] UserSpaceAllocator test error: {s} \n", .{@errorName(e)});
