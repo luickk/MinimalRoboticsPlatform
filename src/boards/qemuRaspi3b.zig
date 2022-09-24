@@ -11,6 +11,8 @@ pub const Info = layout.BoardParams{
         .ram_start_addr = 0x20000000,
         .ram_len = 0x20000000,
 
+        .bl_load_addr = 0,
+
         .ram_layout = .{
             .kernel_space_size = 0x10000000,
             .kernel_space_vs = Addresses.vaStart,

@@ -45,9 +45,9 @@ pub fn build(b: *std.build.Builder) !void {
     const temp_bl_ld = "zig-cache/tmp/tempBlLinker.ld";
     var bl_start_address: usize = currBoard.Info.mem.rom_start_addr;
     if (currBoard.Info.mem.rom_len == 0) {
-        bl_start_address = currBoard.Info.mem.ram_start_addr;
+        bl_start_address = currBoard.Info.mem.bl_load_addr;
     }
-    try writeVarsToLinkerScript(b.allocator, "src/bootloader/linker.ld", temp_bl_ld, .{ bl_start_address, try currBoard.Info.mem.calcPageTableSizeRam(), (try currBoard.Info.mem.calcPageTableSizeRom()) + (try currBoard.Info.mem.calcPageTableSizeRam()) });
+    try writeVarsToLinkerScript(b.allocator, "src/bootloader/linker.ld", temp_bl_ld, .{ bl_start_address, try currBoard.Info.mem.calcPageTableSizeRam(currBoard.layout.Granule.Fourk), (try currBoard.Info.mem.calcPageTableSizeRom(currBoard.layout.Granule.Section)) + (try currBoard.Info.mem.calcPageTableSizeRam(currBoard.layout.Granule.Section)) });
     bl_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_bl_ld });
     bl_exe.addObjectFile("src/bootloader/bootloader.zig");
     bl_exe.addCSourceFile("src/bootloader/board/" ++ @tagName(currBoard.Info.board) ++ "/boot.S", &.{});

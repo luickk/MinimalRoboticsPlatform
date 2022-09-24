@@ -6,6 +6,63 @@ const Granule = board.layout.Granule;
 const GranuleParams = board.layout.GranuleParams;
 const TransLvl = board.layout.TransLvl;
 
+// for bootloder.zig...
+// const bl_page_tables = blk: {
+//     @setEvalBranchQuota(1000000);
+//     const ttbr1_size = board.Info.mem.calcPageTableSizeRam() catch |e| {
+//         @compileError(@errorName(e));
+//     };
+
+//     // ttbr0 (rom) mapps both rom and ram
+//     const ttbr0_size = (board.Info.mem.calcPageTableSizeRom() catch |e| {
+//         @compileError(@errorName(e));
+//     });
+
+//     var ttbr0_arr: [ttbr0_size]usize = [_]usize{0} ** ttbr0_size;
+//     var ttbr1_arr: [ttbr1_size]usize = [_]usize{0} ** ttbr1_size;
+
+//     // in case there is no rom(rom_len is equal to zero) and the kernel(and bl) are directly loaded to memory by some rom bootloader
+//     // the ttbr0 memory is also identity mapped to the ram
+//     var rom_len: usize = undefined;
+//     var rom_start_addr: usize = undefined;
+//     if (board.Info.mem.rom_len == 0) {
+//         rom_len = board.Info.mem.ram_len;
+//         rom_start_addr = board.Info.mem.ram_start_addr;
+//     } else {
+//         rom_len = board.Info.mem.rom_len + board.Info.mem.ram_len;
+//         rom_start_addr = board.Info.mem.rom_start_addr;
+//     }
+
+//     // MMU page dir config
+
+//     // writing to _id_mapped_dir(label) page table and creating new
+//     // identity mapped memory for bootloader to kernel transfer
+//     const bootloader_mapping = mmuComp.Mapping{ .mem_size = rom_len, .virt_start_addr = 0, .phys_addr = rom_start_addr, .granule = Granule.Section, .flags = mmuComp.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
+//     // identity mapped memory for bootloader and kernel contrtol handover!
+//     var ttbr0 = (mmuComp.PageDir(bootloader_mapping) catch |e| {
+//         @compileError(@errorName(e));
+//     }).init(&ttbr0_arr) catch |e| {
+//         @compileError(@errorName(e));
+//     };
+//     ttbr0.mapMem() catch |e| {
+//         @compileError(@errorName(e));
+//     };
+
+//     // creating virtual address space for kernel
+//     const kernel_mapping = mmuComp.Mapping{ .mem_size = board.Info.mem.ram_len, .virt_start_addr = board.Addresses.vaStart, .phys_addr = board.Info.mem.ram_start_addr, .granule = Granule.Section, .flags = mmuComp.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
+//     // mapping general kernel mem (inlcuding device base)
+//     var ttbr1 = (mmuComp.PageDir(kernel_mapping) catch |e| {
+//         @compileError(@errorName(e));
+//     }).init(&ttbr1_arr) catch |e| {
+//         @compileError(@errorName(e));
+//     };
+//     ttbr1.mapMem() catch |e| {
+//         @compileError(@errorName(e));
+//     };
+
+//     break :blk .{ ttbr0_arr, ttbr1_arr };
+// };
+
 pub const Mapping = struct {
     mem_size: usize,
     virt_start_addr: usize,

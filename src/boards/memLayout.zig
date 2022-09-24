@@ -61,16 +61,17 @@ pub const BoardMemLayout = struct {
     ram_len: usize,
     ram_layout: RamMemLayout,
 
+    bl_load_addr: usize,
+
     storage_start_addr: usize,
     storage_len: usize,
 
-    pub fn calcPageTableSizeRom(self: BoardMemLayout) !usize {
-        // only required for bootloader so it's always sectioned
-        return (try calctotalTablesReq(Granule.Section, self.rom_len)) * (Granule.Section.page_size / 8);
+    pub fn calcPageTableSizeRom(self: BoardMemLayout, gran: GranuleParams) !usize {
+        return (try calctotalTablesReq(gran, self.rom_len)) * (gran.page_size / 8);
     }
 
-    pub fn calcPageTableSizeRam(self: BoardMemLayout) !usize {
-        return (try calctotalTablesReq(Granule.Section, self.ram_len)) * (Granule.Section.page_size / 8);
+    pub fn calcPageTableSizeRam(self: BoardMemLayout, gran: GranuleParams) !usize {
+        return (try calctotalTablesReq(gran, self.ram_len)) * (gran.page_size / 8);
     }
 };
 

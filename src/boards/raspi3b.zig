@@ -7,8 +7,12 @@ pub const Info = layout.BoardParams{
         .rom_start_addr = 0,
         .rom_len = 0,
 
-        .ram_start_addr = 0x8000,
+        .ram_start_addr = 0,
         .ram_len = 0x40000000,
+
+        // address to which the bl is loaded if there is NO rom!
+        // if there is rom, the bootloader must be loaded to 0x0 (and bl_load_addr = 0!)
+        .bl_load_addr = 0x80000,
 
         .ram_layout = .{
             .kernel_space_size = 0x20000000,
@@ -24,7 +28,7 @@ pub const Info = layout.BoardParams{
         .storage_start_addr = 0,
         .storage_len = 0,
     },
-    .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "raspi3b", "-device", "loader,addr=0x8000,file=zig-out/bin/mergedKernel,addr=0x8000,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
+    .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "raspi3b", "-device", "loader,addr=0x80000,file=zig-out/bin/mergedKernel,addr=0x80000,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
 };
 
 pub const Addresses = struct {

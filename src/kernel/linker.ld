@@ -38,7 +38,7 @@ SECTIONS {
         . = . + 0x1000;
         _stack_top = .;
     }
-
+    # aligned by page size
     .paging_tbl : ALIGN(0x00001000)  {
         _kernel_ttbr1_dir = .;
         . += {@zig};
