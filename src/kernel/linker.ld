@@ -1,7 +1,7 @@
 ENTRY(kernel_main)
 
 SECTIONS {
-    . = 0xffff000000000000;
+    . = 0xffff000000000000 + {@zig};
 
     .text : ALIGN(16) {
         *(.text.kernel_main);

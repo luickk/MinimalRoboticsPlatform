@@ -5,7 +5,7 @@ const os = @import("std").os;
 
 const Error = error{BlExceedsRomSize};
 
-const currBoard = @import("src/boards/raspi3b.zig");
+const currBoard = @import("src/boards/qemuVirt.zig");
 
 pub fn build(b: *std.build.Builder) !void {
     var build_options = b.addOptions();
@@ -16,23 +16,6 @@ pub fn build(b: *std.build.Builder) !void {
 
     board.dependencies = &.{peripherals};
     peripherals.dependencies = &.{board};
-
-    // kernel
-    const kernel_exe = b.addExecutable("kernel", null);
-    kernel_exe.addPackage(peripherals);
-    kernel_exe.addPackage(utils);
-    kernel_exe.addPackage(board);
-    kernel_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
-    kernel_exe.addOptions("build_options", build_options);
-    kernel_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
-    const temp_kernel_ld = "zig-cache/tmp/tempKernelLinker.ld";
-    try writeVarsToLinkerScript(b.allocator, "src/kernel/linker.ld", temp_kernel_ld, .{ try currBoard.Info.mem.ram_layout.calcPageTableSizeKernel(), try currBoard.Info.mem.ram_layout.calcPageTableSizeUser(), null });
-    kernel_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_kernel_ld });
-    kernel_exe.addObjectFile("src/kernel/kernel.zig");
-    kernel_exe.install();
-    kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).artifact.install();
-    const kernel_bin_size = try getFileSize("zig-out/bin/kernel.bin");
-    build_options.addOption(usize, "kernel_bin_size", kernel_bin_size);
 
     // bootloader
     const bl_exe = b.addExecutable("bootloader", null);
@@ -59,6 +42,23 @@ pub fn build(b: *std.build.Builder) !void {
     // todo => kernel bin file size way too big
     // if (bl_bin_size + kernel_bin_size > currBoard.mem.rom_len)
     //     return Error.BlExceedsRomSize;
+
+    // kernel
+    const kernel_exe = b.addExecutable("kernel", null);
+    kernel_exe.addPackage(peripherals);
+    kernel_exe.addPackage(utils);
+    kernel_exe.addPackage(board);
+    kernel_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
+    kernel_exe.addOptions("build_options", build_options);
+    kernel_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
+    const temp_kernel_ld = "zig-cache/tmp/tempKernelLinker.ld";
+    try writeVarsToLinkerScript(b.allocator, "src/kernel/linker.ld", temp_kernel_ld, .{ bl_bin_size + currBoard.Info.mem.bl_load_addr, try currBoard.Info.mem.ram_layout.calcPageTableSizeKernel(), try currBoard.Info.mem.ram_layout.calcPageTableSizeUser() });
+    kernel_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_kernel_ld });
+    kernel_exe.addObjectFile("src/kernel/kernel.zig");
+    kernel_exe.install();
+    kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).artifact.install();
+    const kernel_bin_size = try getFileSize("zig-out/bin/kernel.bin");
+    build_options.addOption(usize, "kernel_bin_size", kernel_bin_size);
 
     var concatStep = ConcateBinsStep.create(b, "zig-out/bin/bootloader.bin", "zig-out/bin/kernel.bin", "zig-out/bin/mergedKernel");
     const run_step_serial = b.step("qemu", "emulate the kernel with no graphics and output uart to console");

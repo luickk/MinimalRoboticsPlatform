@@ -74,37 +74,27 @@ export fn kernel_main() callconv(.Naked) noreturn {
         k_utils.panic();
     };
 
-    // const user_space_mapping = mmu.Mapping{
-    //     .mem_size = board.Info.mem.ram_layout.user_space_size,
-    //     .virt_start_addr = board.Info.mem.ram_layout.user_space_vs,
-    //     .phys_addr = board.Info.mem.rom_len + board.Info.mem.ram_layout.kernel_space_size + board.Info.mem.ram_layout.user_space_phys,
-    //     .granule = board.Info.mem.ram_layout.user_space_gran,
-    //     .flags = null,
-    // };
+    const user_space_mapping = mmu.Mapping{
+        .mem_size = board.Info.mem.ram_layout.user_space_size,
+        .virt_start_addr = board.Info.mem.ram_layout.user_space_vs,
+        .phys_addr = board.Info.mem.rom_len + board.Info.mem.ram_layout.kernel_space_size + board.Info.mem.ram_layout.user_space_phys,
+        .granule = board.Info.mem.ram_layout.user_space_gran,
+        .flags = null,
+    };
 
-    // // creating virtual address space user space with 4096 granule
-    // var ttbr0 = (mmu.PageDir(user_space_mapping) catch |e| {
-    //     @compileError(@errorName(e));
-    // }).init(_u_ttbr0_dir) catch |e| {
-    //     kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
-    //     k_utils.panic();
-    // };
+    // creating virtual address space user space with 4096 granule
+    var ttbr0 = (mmu.PageDir(user_space_mapping) catch |e| {
+        @compileError(@errorName(e));
+    }).init(_u_ttbr0_dir) catch |e| {
+        kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+        k_utils.panic();
+    };
 
-    // kprint("changing mmu 1 \n", .{});
-    // ttbr0.mapMem() catch |e| {
-    //     kprint("[panic] memory mapping error: {s} \n", .{@errorName(e)});
-    //     k_utils.panic();
-    // };
-    // kprint("changing mmu 2 \n", .{});
-    kprint("{x} \n", .{_u_ttbr0_dir});
-    var j: usize = 0;
-    var ptr: *volatile usize = undefined;
-    while (j <= 500000) : (j += 1) {
-        ptr = @intToPtr(*volatile usize, _u_ttbr0_dir + j * 8);
-        // kprint("addr: {*} val: {x} \n", .{ ptr, ptr.* });
-        ptr.* = 1;
-        // kprint("{*} \n", .{ptr});
-    }
+    ttbr0.mapMem() catch |e| {
+        kprint("[panic] memory mapping error: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+
     // t0sz: The size offset of the memory region addressed by TTBR0_EL1 (64-48=16)
     // t1sz: The size offset of the memory region addressed by TTBR1_EL1
     // tg0: Granule size for the TTBR0_EL1.

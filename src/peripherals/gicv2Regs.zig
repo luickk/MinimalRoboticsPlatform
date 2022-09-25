@@ -1,3 +1,4 @@
+// todo => put into boards/xxx.zig
 // gic
 pub const qemu_virt_gic_base = 0x08000000;
 pub const qemu_virt_gic_int_max = 64;
