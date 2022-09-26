@@ -107,22 +107,22 @@ export fn kernel_main() callconv(.Naked) noreturn {
     proc.setTTBR0(_u_ttbr0_dir);
 
     kprint("[kernel] kernel boot complete \n", .{});
-    var page_alloc_start = utils.ceilRoundToMultiple(_kernel_end, board.Info.mem.ram_layout.user_space_gran.page_size) catch |e| {
-        kprint("[panic] UserSpaceAllocator start addr calc err: {s}\n", .{@errorName(e)});
-        k_utils.panic();
-    };
-    var user_page_alloc = (UserSpaceAllocator(204800, board.Info.mem.ram_layout.user_space_gran) catch |e| {
-        kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    }).init(page_alloc_start) catch |e| {
-        kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
+    // var page_alloc_start = utils.ceilRoundToMultiple(_kernel_end, board.Info.mem.ram_layout.user_space_gran.page_size) catch |e| {
+    //     kprint("[panic] UserSpaceAllocator start addr calc err: {s}\n", .{@errorName(e)});
+    //     k_utils.panic();
+    // };
+    // var user_page_alloc = (UserSpaceAllocator(204800, board.Info.mem.ram_layout.user_space_gran) catch |e| {
+    //     kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
+    //     k_utils.panic();
+    // }).init(page_alloc_start) catch |e| {
+    //     kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
+    //     k_utils.panic();
+    // };
 
-    tests.testKMalloc(&user_page_alloc) catch |e| {
-        kprint("[panic] UserSpaceAllocator test error: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
+    // tests.testKMalloc(&user_page_alloc) catch |e| {
+    //     kprint("[panic] UserSpaceAllocator test error: {s} \n", .{@errorName(e)});
+    //     k_utils.panic();
+    // };
     tests.testUserSpaceMem();
 
     while (true) {}

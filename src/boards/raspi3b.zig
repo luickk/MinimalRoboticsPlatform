@@ -38,6 +38,15 @@ pub const Addresses = struct {
 
     pub const serialMmio = @intToPtr(*volatile u8, deviceBase + 0x201000);
 
+    pub const Pl011 = struct {
+        pub const base_address: u64 = 0x9000000;
+        pub const base_clock: u64 = 0x16e3600;
+        // 9600 slower baud
+        pub const baudrate: u32 = 115200;
+        pub const data_bits: u32 = 8;
+        pub const stop_bits: u32 = 1;
+    };
+
     pub const Timer = struct {
         pub const timerClo: usize = deviceBase + 0x00003004;
         pub const timerC1: usize = deviceBase + 0x00003010;

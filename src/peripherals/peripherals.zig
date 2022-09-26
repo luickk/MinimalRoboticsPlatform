@@ -6,4 +6,5 @@ pub const mmu = @import("mmu.zig");
 pub const mmuComptime = @import("mmuComptime.zig");
 pub const processor = @import("processor.zig");
 pub const serial = @import("serial.zig");
+pub const pl011 = @import("pl011.zig");
 pub const timer = @import("timer.zig");

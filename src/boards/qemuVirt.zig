@@ -27,6 +27,7 @@ pub const Info = layout.BoardParams{
         .storage_start_addr = 0,
         .storage_len = 0,
     },
+    // todo => add compiltime selectable serial output interface
     .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "virt", "-m", "10G", "-cpu", "cortex-a53", "-device", "loader,file=zig-out/bin/mergedKernel,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
 };
 
@@ -35,5 +36,13 @@ pub const Addresses = struct {
 
     pub const deviceBase: usize = 0;
 
-    pub const serialMmio = @intToPtr(*volatile u8, deviceBase + 0x09000000);
+    pub const serialMmio = @intToPtr(*volatile u8, deviceBase + 0x9000000);
+    pub const Pl011 = struct {
+        pub const base_address: u64 = 0x9000000;
+        pub const base_clock: u64 = 0x16e3600;
+        // 9600 slower baud
+        pub const baudrate: u32 = 115200;
+        pub const data_bits: u32 = 8;
+        pub const stop_bits: u32 = 1;
+    };
 };

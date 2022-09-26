@@ -9,6 +9,7 @@ const proc = periph.processor;
 const bprint = periph.serial.bprint;
 const mmuComp = periph.mmuComptime;
 const mmu = periph.mmu;
+const pl011 = periph.pl011;
 
 // raspberry
 const bcm2835IntController = periph.bcm2835IntController;
@@ -30,8 +31,10 @@ export fn bl_main() callconv(.Naked) noreturn {
         bcm2835IntController.initIc();
 
     // GIC Init
-    if (board.Info.board == .qemuVirt)
+    if (board.Info.board == .qemuVirt) {
         gic.gicv2Initialize();
+        pl011.Pl011.init();
+    }
 
     // get address of external linker script variable which marks stack-top and kernel start
     const kernel_entry: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernelrom_start", .linkage = .Strong }) orelse {

@@ -1,6 +1,7 @@
 const std = @import("std");
 const board = @import("board");
 const mmu = @import("mmu.zig");
+const Pl011 = @import("pl011.zig").Pl011;
 
 pub const SerialKernelWriter = struct {
     pub const Writer = std.io.Writer(*SerialKernelWriter, error{}, appendWrite);
@@ -40,9 +41,7 @@ pub const SerialBlWriter = struct {
     /// as `m.len`. The purpose of this function existing is to match `std.io.Writer` API.
     fn appendWrite(self: *SerialBlWriter, data: []const u8) error{}!usize {
         _ = self;
-        for (data) |ch| {
-            board.Addresses.serialMmio.* = ch;
-        }
+        Pl011.write(data);
         return data.len;
     }
 };
