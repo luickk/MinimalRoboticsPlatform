@@ -3,7 +3,6 @@ const std = @import("std");
 
 pub const supportedBoards = enum {
     raspi3b,
-    qemuRaspi3b, // deprecated! // todo => remove
     qemuVirt,
 };
 

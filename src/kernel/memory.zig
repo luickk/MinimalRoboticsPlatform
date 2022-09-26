@@ -22,7 +22,10 @@ pub fn UserSpaceAllocator(comptime mem_size: usize, comptime granule: board.layo
         curr_page_pointer: usize,
         granule: board.layout.GranuleParams,
 
-        pub fn init(mem_start: usize) Self {
+        pub fn init(mem_start: usize) !Self {
+            if ((try std.math.mod(usize, mem_start, granule.page_size)) != 0)
+                return Error.PageAddrDoesNotAlign;
+
             return Self{
                 .kernel_mem = [_]bool{false} ** n_pages,
                 .mem_start = mem_start,
@@ -33,8 +36,9 @@ pub fn UserSpaceAllocator(comptime mem_size: usize, comptime granule: board.layo
 
         pub fn allocNPage(self: *Self, n: usize) !*anyopaque {
             var ret_addr: *anyopaque = undefined;
-            if (self.curr_page_pointer + n > self.kernel_mem.len)
+            if (self.curr_page_pointer + n > self.kernel_mem.len) {
                 return try self.searchFreePages(n);
+            }
             for (self.kernel_mem[self.curr_page_pointer .. self.curr_page_pointer + n]) |*page| {
                 page.* = true;
             }
@@ -51,15 +55,17 @@ pub fn UserSpaceAllocator(comptime mem_size: usize, comptime granule: board.layo
                 } else {
                     free_pages_in_row = 0;
                 }
-                if (free_pages_in_row >= req_pages)
+                if (free_pages_in_row >= req_pages) {
                     return @ptrCast(*anyopaque, &self.kernel_mem[i - req_pages]);
+                }
             }
             return Error.OutOfMem;
         }
 
         pub fn freeNPage(self: *Self, page_addr: *anyopaque, n: usize) !void {
-            if ((try std.math.mod(usize, @ptrToInt(page_addr), granule.page_size)) != 0)
+            if ((try std.math.mod(usize, @ptrToInt(page_addr), granule.page_size)) != 0) {
                 return Error.PageAddrDoesNotAlign;
+            }
             var offset: usize = std.math.sub(usize, @ptrToInt(page_addr), self.mem_start) catch {
                 return Error.AddrNotInMem;
             };

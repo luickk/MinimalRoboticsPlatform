@@ -2,7 +2,7 @@ const std = @import("std");
 const periph = @import("peripherals");
 const kprint = periph.serial.kprint;
 const board = @import("board");
-const bcm2835IntHandle = @import("board/qemuRaspi3b/bcm2835IntHandle.zig");
+const bcm2835IntHandle = @import("board/raspi3b/bcm2835IntHandle.zig");
 const gic = periph.gicv2;
 const timer = periph.timer;
 
@@ -74,7 +74,7 @@ pub fn irqHandler(exc: *gic.ExceptionFrame) callconv(.C) void {
             kprint(".........sync int............\n", .{});
         },
         gic.ExceptionType.el1Irq, gic.ExceptionType.el1Fiq => {
-            if (board.Info.board == .qemuRaspi3b)
+            if (board.Info.board == .raspi3b)
                 bcm2835IntHandle.irqHandler(exc);
         },
         else => {

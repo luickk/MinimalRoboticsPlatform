@@ -11,8 +11,6 @@ pub fn testKMalloc(alloc: anytype) !void {
     try alloc.freeNPage(p2, 10);
     var p6 = try alloc.allocNPage(10);
 
-    // kprint("Pages alloced: {d}, {d}, {d}, {d}, {d}, {d} \n", .{ @ptrToInt(p1), @ptrToInt(p2), @ptrToInt(p3), @ptrToInt(p4), @ptrToInt(p5), @ptrToInt(p6) });
-
     try alloc.freeNPage(p1, 10);
     try alloc.freeNPage(p3, 10);
     try alloc.freeNPage(p4, 10);
@@ -22,7 +20,7 @@ pub fn testKMalloc(alloc: anytype) !void {
 }
 
 pub fn testUserSpaceMem() void {
-    @intToPtr(*usize, 0x10000000).* = 100;
-    if (@intToPtr(*usize, 0x10000000).* == 100)
+    @intToPtr(*usize, 0x30000000).* = 100;
+    if (@intToPtr(*usize, 0x30000000).* == 100)
         kprint("[kTEST] write to userspace successfull \n", .{});
 }

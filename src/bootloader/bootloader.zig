@@ -1,5 +1,6 @@
 const std = @import("std");
 const bl_utils = @import("utils.zig");
+const utils = @import("utils");
 const intHandle = @import("gicHandle.zig");
 const periph = @import("peripherals");
 const board = @import("board");
@@ -25,7 +26,7 @@ const bl_bin_size = b_options.bl_bin_size;
 
 // note: when bl_main gets too bit(instruction mem wise), the exception vector table could be pushed too far up and potentially not be read!
 export fn bl_main() callconv(.Naked) noreturn {
-    if (board.Info.board == .qemuRaspi3b or board.Info.board == .raspi3b)
+    if (board.Info.board == .raspi3b)
         bcm2835IntController.initIc();
 
     // GIC Init
@@ -58,17 +59,20 @@ export fn bl_main() callconv(.Naked) noreturn {
     // the kernel. Additionally, on mmu turn on, the mmu would try to read from the page tables without mmu kernel space identifier bits on
     // todo => make page dir generation comptime generated and static memory! (currently prevented by max array-size)
     const user_space_start = board.Info.mem.ram_start_addr + board.Info.mem.bl_load_addr + board.Info.mem.ram_layout.kernel_space_size;
-    const _ttbr1_dir = user_space_start;
+    var _ttbr1_dir = user_space_start;
     var _ttbr0_dir = user_space_start + (board.Info.mem.calcPageTableSizeRam(board.layout.Granule.Fourk) catch |e| {
         bprint("[panic] Page table ttbr0 address calc error: {s}\n", .{@errorName(e)});
         bl_utils.panic();
     });
-    // todo => replace hardcoded 4096
-    // ceiling _ttbr0_dir a multiple of page size (cast req)
-    _ttbr0_dir += 4096 - (std.math.mod(usize, _ttbr0_dir, 4096) catch |e| {
+
+    _ttbr0_dir = utils.ceilRoundToMultiple(_ttbr0_dir, Granule.Section.page_size) catch |e| {
         bprint("[panic] Page table ttbr0 address calc error: {s}\n", .{@errorName(e)});
         bl_utils.panic();
-    });
+    };
+    _ttbr1_dir = utils.ceilRoundToMultiple(_ttbr1_dir, Granule.Section.page_size) catch |e| {
+        bprint("[panic] Page table ttbr0 address calc error: {s}\n", .{@errorName(e)});
+        bl_utils.panic();
+    };
 
     // in case there is no rom(rom_len is equal to zero) and the kernel(and bl) are directly loaded to memory by some rom bootloader
     // the ttbr0 memory is also identity mapped to the ram
@@ -113,8 +117,6 @@ export fn bl_main() callconv(.Naked) noreturn {
         .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block },
     };
 
-    bprint("from: {x}, size: {d} \n", .{ board.Info.mem.ram_start_addr + board.Info.mem.bl_load_addr, board.Info.mem.ram_len });
-
     // mapping general kernel mem (inlcuding device base)
     var ttbr1 = (mmu.PageDir(kernel_mapping) catch |e| {
         @compileError(@errorName(e));
@@ -156,7 +158,7 @@ export fn bl_main() callconv(.Naked) noreturn {
 
     bprint("[bootloader] jumping to secure kernel \n", .{});
     if (board.Info.mem.rom_len == 0) {
-        proc.branchToAddr(kernel_entry);
+        proc.branchToAddr(mmu.toSecure(usize, kernel_entry));
     } else {
         proc.branchToAddr(@ptrToInt(kernel_target_loc.ptr));
     }

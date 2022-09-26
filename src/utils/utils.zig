@@ -1,10 +1,9 @@
+const std = @import("std");
 const periph = @import("peripherals");
 const kprint = periph.serial.kprint;
 
-pub fn printErrNoReturn(err: anytype) noreturn {
-    kprint("Error: {s} \n", .{@errorName(err)});
-    kprint("", .{});
-    unreachable;
+pub fn ceilRoundToMultiple(inp: usize, multiple: usize) !usize {
+    return inp + (multiple - (try std.math.mod(usize, inp, multiple)));
 }
 
 pub fn assert(ok: bool) void {

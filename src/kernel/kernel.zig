@@ -35,10 +35,12 @@ export fn kernel_main() callconv(.Naked) noreturn {
         unreachable;
     });
 
-    if (mmu.toUnsecure(usize, _kernel_end) > board.Info.mem.ram_len) {
-        kprint("[panic] kernel exceeding ram mem (0x{x})\n", .{mmu.toUnsecure(usize, _kernel_end)});
-        k_utils.panic();
-    }
+    _ = _kernel_end;
+    // todo => reduce kernel bin size by not accounting for page tables
+    // if (mmu.toUnsecure(usize, _kernel_end) > board.Info.mem.ram_len) {
+    //     kprint("[panic] kernel exceeding ram mem (0x{x})\n", .{mmu.toUnsecure(usize, _kernel_end)});
+    //     k_utils.panic();
+    // }
 
     var current_el = proc.getCurrentEl();
     if (current_el != 1) {
@@ -46,7 +48,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
         proc.panic();
     }
 
-    if (board.Info.board == .qemuRaspi3b or board.Info.board == .raspi3b) {
+    if (board.Info.board == .raspi3b) {
         timer.initTimer();
         kprint("[kernel] timer inited \n", .{});
 
@@ -89,7 +91,6 @@ export fn kernel_main() callconv(.Naked) noreturn {
         kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
         k_utils.panic();
     };
-
     ttbr0.mapMem() catch |e| {
         kprint("[panic] memory mapping error: {s} \n", .{@errorName(e)});
         k_utils.panic();
@@ -103,14 +104,20 @@ export fn kernel_main() callconv(.Naked) noreturn {
     proc.invalidateCache();
     // updating page dirs for kernel and user space
     proc.setTTBR1(_k_ttbr1_dir);
-    // proc.setTTBR0(_u_ttbr0_dir);
+    proc.setTTBR0(_u_ttbr0_dir);
 
     kprint("[kernel] kernel boot complete \n", .{});
-
+    var page_alloc_start = utils.ceilRoundToMultiple(_kernel_end, board.Info.mem.ram_layout.user_space_gran.page_size) catch |e| {
+        kprint("[panic] UserSpaceAllocator start addr calc err: {s}\n", .{@errorName(e)});
+        k_utils.panic();
+    };
     var user_page_alloc = (UserSpaceAllocator(204800, board.Info.mem.ram_layout.user_space_gran) catch |e| {
         kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
         k_utils.panic();
-    }).init(board.Info.mem.ram_layout.user_space_phys);
+    }).init(page_alloc_start) catch |e| {
+        kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
 
     tests.testKMalloc(&user_page_alloc) catch |e| {
         kprint("[panic] UserSpaceAllocator test error: {s} \n", .{@errorName(e)});

@@ -27,9 +27,8 @@ pub fn build(b: *std.build.Builder) !void {
     bl_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
     const temp_bl_ld = "zig-cache/tmp/tempBlLinker.ld";
     var bl_start_address: usize = currBoard.Info.mem.rom_start_addr;
-    if (currBoard.Info.mem.rom_len == 0) {
+    if (currBoard.Info.mem.rom_len == 0)
         bl_start_address = currBoard.Info.mem.bl_load_addr;
-    }
     try writeVarsToLinkerScript(b.allocator, "src/bootloader/linker.ld", temp_bl_ld, .{ bl_start_address, try currBoard.Info.mem.calcPageTableSizeRam(currBoard.layout.Granule.Fourk), (try currBoard.Info.mem.calcPageTableSizeRom(currBoard.layout.Granule.Section)) + (try currBoard.Info.mem.calcPageTableSizeRam(currBoard.layout.Granule.Section)) });
     bl_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_bl_ld });
     bl_exe.addObjectFile("src/bootloader/bootloader.zig");
@@ -51,8 +50,14 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
     kernel_exe.addOptions("build_options", build_options);
     kernel_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
+    // 0 because because ttdr1 begins at ram start, at which the kernels starts as well
+    var kernel_start_address: usize = currBoard.Info.mem.ram_start_addr;
+    if (currBoard.Info.mem.rom_len == 0) {
+        kernel_start_address = bl_bin_size + currBoard.Info.mem.bl_load_addr;
+    }
+
     const temp_kernel_ld = "zig-cache/tmp/tempKernelLinker.ld";
-    try writeVarsToLinkerScript(b.allocator, "src/kernel/linker.ld", temp_kernel_ld, .{ bl_bin_size + currBoard.Info.mem.bl_load_addr, try currBoard.Info.mem.ram_layout.calcPageTableSizeKernel(), try currBoard.Info.mem.ram_layout.calcPageTableSizeUser() });
+    try writeVarsToLinkerScript(b.allocator, "src/kernel/linker.ld", temp_kernel_ld, .{ kernel_start_address, try currBoard.Info.mem.ram_layout.calcPageTableSizeKernel(), try currBoard.Info.mem.ram_layout.calcPageTableSizeUser() });
     kernel_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_kernel_ld });
     kernel_exe.addObjectFile("src/kernel/kernel.zig");
     kernel_exe.install();
