@@ -158,13 +158,13 @@ export fn bl_main() callconv(.Naked) noreturn {
         std.mem.copy(u8, kernel_target_loc, kernel_bl);
         bprint("[bootloader] kernel copied \n", .{});
     }
+    var kernel_addr = @ptrToInt(kernel_target_loc.ptr);
+    if (board.Info.mem.rom_len == 0)
+        kernel_addr = mmu.toSecure(usize, kernel_entry);
 
-    bprint("[bootloader] jumping to secure kernel \n", .{});
-    if (board.Info.mem.rom_len == 0) {
-        proc.branchToAddr(mmu.toSecure(usize, kernel_entry));
-    } else {
-        proc.branchToAddr(@ptrToInt(kernel_target_loc.ptr));
-    }
+    bprint("[bootloader] jumping to secure kernel at 0x{x}\n", .{kernel_addr});
+
+    proc.branchToAddr(kernel_addr);
 
     while (true) {}
 }
