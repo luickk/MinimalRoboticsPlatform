@@ -1,5 +1,5 @@
 const std = @import("std");
-const periph = @import("peripherals");
+const periph = @import("arm");
 const board = @import("board");
 const utils = @import("utils");
 

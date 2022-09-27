@@ -1,6 +1,6 @@
-pub const layout = @import("memLayout.zig");
+pub const layout = @import("boardConfig.zig");
 
-pub const Info = layout.BoardParams{
+pub const Info = layout.BoardConfig{
     .board = .qemuVirt,
     .mem = layout.BoardMemLayout{
         // qemu raspi is weird since there is no (at least none I could find) layout for the guest memory and only a total of 1gb (which cannot be increased)
@@ -11,7 +11,7 @@ pub const Info = layout.BoardParams{
         .ram_start_addr = 0x40000000,
         .ram_len = 0x80000000,
 
-        .bl_load_addr = 0,
+        .bl_load_addr = null,
 
         .ram_layout = .{
             .kernel_space_size = 0x40000000,

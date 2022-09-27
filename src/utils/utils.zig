@@ -1,5 +1,5 @@
 const std = @import("std");
-const periph = @import("peripherals");
+const periph = @import("arm");
 const kprint = periph.serial.kprint;
 
 pub fn ceilRoundToMultiple(inp: usize, multiple: usize) !usize {

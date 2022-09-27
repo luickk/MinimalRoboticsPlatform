@@ -1,5 +1,5 @@
 const std = @import("std");
-const periph = @import("peripherals");
+const periph = @import("arm");
 const kprint = periph.serial.kprint;
 const board = @import("board");
 const bcm2835IntHandle = @import("board/raspi3b/bcm2835IntHandle.zig");

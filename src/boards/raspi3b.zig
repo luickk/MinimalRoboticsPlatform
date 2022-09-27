@@ -1,10 +1,10 @@
-pub const layout = @import("memLayout.zig");
+pub const layout = @import("boardConfig.zig");
 
-pub const Info = layout.BoardParams{
+pub const Info = layout.BoardConfig{
     .board = .raspi3b,
     .mem = layout.BoardMemLayout{
         // the kernel is loaded by into 0x8000 ram by the gpu, so no relocation (or rom) required
-        .rom_start_addr = 0,
+        .rom_start_addr = null,
         .rom_len = 0,
 
         .ram_start_addr = 0,

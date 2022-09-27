@@ -2,7 +2,7 @@ const std = @import("std");
 const bl_utils = @import("utils.zig");
 const utils = @import("utils");
 const intHandle = @import("gicHandle.zig");
-const periph = @import("peripherals");
+const periph = @import("arm");
 const board = @import("board");
 const b_options = @import("build_options");
 const proc = periph.processor;
@@ -61,7 +61,7 @@ export fn bl_main() callconv(.Naked) noreturn {
     // writing page dirs to userspace in ram. Writing to userspace because it would be overwritten in kernel space, when copying
     // the kernel. Additionally, on mmu turn on, the mmu would try to read from the page tables without mmu kernel space identifier bits on
     // todo => make page dir generation comptime generated and static memory! (currently prevented by max array-size)
-    const user_space_start = board.Info.mem.ram_start_addr + board.Info.mem.bl_load_addr + board.Info.mem.ram_layout.kernel_space_size;
+    const user_space_start = board.Info.mem.ram_start_addr + (board.Info.mem.bl_load_addr orelse 0) + board.Info.mem.ram_layout.kernel_space_size;
     var _ttbr1_dir = user_space_start;
     var _ttbr0_dir = user_space_start + (board.Info.mem.calcPageTableSizeRam(board.layout.Granule.Fourk) catch |e| {
         bprint("[panic] Page table ttbr0 address calc error: {s}\n", .{@errorName(e)});
@@ -81,12 +81,12 @@ export fn bl_main() callconv(.Naked) noreturn {
     // the ttbr0 memory is also identity mapped to the ram
     comptime var rom_len: usize = undefined;
     comptime var rom_start_addr: usize = undefined;
-    if (board.Info.mem.rom_len == 0) {
+    if (board.Info.mem.rom_start_addr == null) {
         rom_len = board.Info.mem.ram_len;
         rom_start_addr = board.Info.mem.ram_start_addr;
     } else {
         rom_len = board.Info.mem.rom_len + board.Info.mem.ram_len;
-        rom_start_addr = board.Info.mem.rom_start_addr;
+        rom_start_addr = board.Info.mem.rom_start_addr orelse 0;
     }
 
     // MMU page dir config
@@ -115,7 +115,7 @@ export fn bl_main() callconv(.Naked) noreturn {
     const kernel_mapping = mmu.Mapping{
         .mem_size = board.Info.mem.ram_len,
         .virt_start_addr = board.Addresses.vaStart,
-        .phys_addr = board.Info.mem.ram_start_addr + board.Info.mem.bl_load_addr,
+        .phys_addr = board.Info.mem.ram_start_addr + (board.Info.mem.bl_load_addr orelse 0),
         .granule = Granule.Section,
         .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block },
     };
@@ -159,7 +159,7 @@ export fn bl_main() callconv(.Naked) noreturn {
         bprint("[bootloader] kernel copied \n", .{});
     }
     var kernel_addr = @ptrToInt(kernel_target_loc.ptr);
-    if (board.Info.mem.rom_len == 0)
+    if (board.Info.mem.rom_start_addr == null)
         kernel_addr = mmu.toSecure(usize, kernel_entry);
 
     bprint("[bootloader] jumping to secure kernel at 0x{x}\n", .{kernel_addr});

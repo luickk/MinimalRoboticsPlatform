@@ -112,7 +112,7 @@ pub const Gicd = struct {
         }
         i = 0;
 
-        // set target of all of shared peripherals to processor 0
+        // set target of all of shared arm to processor 0
         i = regs.gic_intno_spi0 / regs.gicd_itargetsr_per_reg;
         while ((regs.gic_int_max + (regs.gicd_itargetsr_per_reg - 1)) / regs.gicd_itargetsr_per_reg > i) : (i += 1) {
             GicdRegMap.calcReg(GicdRegMap.itargetsr, i).* = @as(u32, regs.gicd_itargetsr_core0_target_bmap);

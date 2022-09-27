@@ -1,6 +1,6 @@
 const std = @import("std");
 const bl_utils = @import("utils.zig");
-const periph = @import("peripherals");
+const periph = @import("arm");
 const bprint = periph.serial.bprint;
 const gic = periph.gicv2;
 const timer = periph.timer;

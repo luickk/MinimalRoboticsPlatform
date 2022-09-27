@@ -1,5 +1,5 @@
 const std = @import("std");
-const periph = @import("peripherals");
+const periph = @import("arm");
 const kprint = periph.serial.kprint;
 const icAddr = @import("board").Addresses.InterruptController;
 const gic = periph.gicv2;

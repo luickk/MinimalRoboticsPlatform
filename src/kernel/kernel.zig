@@ -1,5 +1,5 @@
 const std = @import("std");
-const periph = @import("peripherals");
+const periph = @import("arm");
 const utils = @import("utils");
 const k_utils = @import("utils.zig");
 const tests = @import("tests.zig");

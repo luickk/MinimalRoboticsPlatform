@@ -53,14 +53,14 @@ pub const RamMemLayout = struct {
 };
 
 pub const BoardMemLayout = struct {
-    rom_start_addr: usize,
+    rom_start_addr: ?usize,
     rom_len: usize,
 
     ram_start_addr: usize,
     ram_len: usize,
     ram_layout: RamMemLayout,
 
-    bl_load_addr: usize,
+    bl_load_addr: ?usize,
 
     storage_start_addr: usize,
     storage_len: usize,
@@ -74,8 +74,16 @@ pub const BoardMemLayout = struct {
     }
 };
 
-pub const BoardParams = struct {
+pub const BoardConfig = struct {
     board: supportedBoards,
     mem: BoardMemLayout,
     qemu_launch_command: []const []const u8,
 };
+
+// todo => check config...
+pub fn checkConfig(cfg: *BoardConfig) !void {
+    if (cfg.mem.rom_start_addr == null and cfg.mem.bl_load_addr == null)
+        @compileError("if there is no rom, a boot loader start (or entry) address is required!");
+    if (cfg.mem.rom_start_addr != null and cfg.mem.bl_load_addr != null)
+        @compileError("if there is rom, no boot loader start (or entry) address is supported at the moment!");
+}

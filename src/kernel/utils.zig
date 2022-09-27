@@ -1,4 +1,4 @@
-const kprint = @import("peripherals").serial.kprint;
+const kprint = @import("arm").serial.kprint;
 
 pub fn panic() noreturn {
     kprint("[bootloader] panic \n", .{});

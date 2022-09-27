@@ -10,25 +10,25 @@ const currBoard = @import("src/boards/qemuVirt.zig");
 pub fn build(b: *std.build.Builder) !void {
     var build_options = b.addOptions();
 
-    var peripherals = std.build.Pkg{ .name = "peripherals", .source = .{ .path = "src/peripherals/peripherals.zig" } };
+    var arm = std.build.Pkg{ .name = "arm", .source = .{ .path = "src/arm/arm.zig" } };
     var utils = std.build.Pkg{ .name = "utils", .source = .{ .path = "src/utils/utils.zig" } };
     var board = std.build.Pkg{ .name = "board", .source = .{ .path = "src/boards/" ++ @tagName(currBoard.Info.board) ++ ".zig" } };
 
-    board.dependencies = &.{peripherals};
-    peripherals.dependencies = &.{board};
+    board.dependencies = &.{arm};
+    arm.dependencies = &.{board};
 
     // bootloader
     const bl_exe = b.addExecutable("bootloader", null);
-    bl_exe.addPackage(peripherals);
+    bl_exe.addPackage(arm);
     bl_exe.addPackage(utils);
     bl_exe.addPackage(board);
     bl_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
     bl_exe.addOptions("build_options", build_options);
     bl_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
     const temp_bl_ld = "zig-cache/tmp/tempBlLinker.ld";
-    var bl_start_address: usize = currBoard.Info.mem.rom_start_addr;
-    if (currBoard.Info.mem.rom_len == 0)
-        bl_start_address = currBoard.Info.mem.bl_load_addr;
+    var bl_start_address: usize = currBoard.Info.mem.rom_start_addr orelse 0;
+    if (currBoard.Info.mem.rom_start_addr == null)
+        bl_start_address = currBoard.Info.mem.bl_load_addr orelse 0;
     try writeVarsToLinkerScript(b.allocator, "src/bootloader/linker.ld", temp_bl_ld, .{ bl_start_address, try currBoard.Info.mem.calcPageTableSizeRam(currBoard.layout.Granule.Fourk), (try currBoard.Info.mem.calcPageTableSizeRom(currBoard.layout.Granule.Section)) + (try currBoard.Info.mem.calcPageTableSizeRam(currBoard.layout.Granule.Section)) });
     bl_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_bl_ld });
     bl_exe.addObjectFile("src/bootloader/bootloader.zig");
@@ -44,7 +44,7 @@ pub fn build(b: *std.build.Builder) !void {
 
     // kernel
     const kernel_exe = b.addExecutable("kernel", null);
-    kernel_exe.addPackage(peripherals);
+    kernel_exe.addPackage(arm);
     kernel_exe.addPackage(utils);
     kernel_exe.addPackage(board);
     kernel_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
@@ -52,8 +52,8 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
     // 0 because because ttdr1 begins at ram start, at which the kernels starts as well
     var kernel_start_address: usize = currBoard.Info.mem.ram_start_addr;
-    if (currBoard.Info.mem.rom_len == 0) {
-        kernel_start_address = bl_bin_size + currBoard.Info.mem.bl_load_addr;
+    if (currBoard.Info.mem.rom_start_addr == null) {
+        kernel_start_address = bl_bin_size + (currBoard.Info.mem.bl_load_addr orelse 0);
     }
 
     const temp_kernel_ld = "zig-cache/tmp/tempKernelLinker.ld";

@@ -1,4 +1,4 @@
-const bprint = @import("peripherals").serial.bprint;
+const bprint = @import("arm").serial.bprint;
 
 pub fn panic() noreturn {
     bprint("[bootloader] panic \n", .{});
