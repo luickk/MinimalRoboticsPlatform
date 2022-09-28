@@ -1,11 +1,11 @@
 const std = @import("std");
-const periph = @import("arm");
+const arm = @import("arm");
 const board = @import("board");
 const utils = @import("utils");
 
-const kprint = periph.serial.kprint;
+const kprint = arm.uart.kprint;
 
-pub fn UserSpaceAllocator(comptime mem_size: usize, comptime granule: board.layout.GranuleParams) !type {
+pub fn UserSpaceAllocator(comptime mem_size: usize, comptime granule: board.boardConfig.GranuleParams) !type {
     const n_pages = try std.math.divExact(usize, mem_size, granule.page_size);
     const gran = granule;
     return struct {
@@ -20,7 +20,7 @@ pub fn UserSpaceAllocator(comptime mem_size: usize, comptime granule: board.layo
         kernel_mem: [n_pages]bool,
         mem_start: usize,
         curr_page_pointer: usize,
-        granule: board.layout.GranuleParams,
+        granule: board.boardConfig.GranuleParams,
 
         pub fn init(mem_start: usize) !Self {
             if ((try std.math.mod(usize, mem_start, granule.page_size)) != 0)

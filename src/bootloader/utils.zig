@@ -1,6 +1,6 @@
-const bprint = @import("arm").serial.bprint;
+const kprint = @import("arm").uart.UartWriter(false).kprint;
 
 pub fn panic() noreturn {
-    bprint("[bootloader] panic \n", .{});
+    kprint("[bootloader] panic \n", .{});
     while (true) {}
 }

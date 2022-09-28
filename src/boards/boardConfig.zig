@@ -53,24 +53,26 @@ pub const RamMemLayout = struct {
 };
 
 pub const BoardMemLayout = struct {
+    va_start: usize,
+
     rom_start_addr: ?usize,
-    rom_len: usize,
+    rom_size: ?usize,
 
     ram_start_addr: usize,
-    ram_len: usize,
+    ram_size: usize,
     ram_layout: RamMemLayout,
 
     bl_load_addr: ?usize,
 
     storage_start_addr: usize,
-    storage_len: usize,
+    storage_size: usize,
 
     pub fn calcPageTableSizeRom(self: BoardMemLayout, gran: GranuleParams) !usize {
-        return (try calctotalTablesReq(gran, self.rom_len)) * (gran.page_size / 8);
+        return (try calctotalTablesReq(gran, self.rom_size orelse 0)) * (gran.page_size / 8);
     }
 
     pub fn calcPageTableSizeRam(self: BoardMemLayout, gran: GranuleParams) !usize {
-        return (try calctotalTablesReq(gran, self.ram_len)) * (gran.page_size / 8);
+        return (try calctotalTablesReq(gran, self.ram_size)) * (gran.page_size / 8);
     }
 };
 
@@ -78,12 +80,17 @@ pub const BoardConfig = struct {
     board: supportedBoards,
     mem: BoardMemLayout,
     qemu_launch_command: []const []const u8,
-};
 
-// todo => check config...
-pub fn checkConfig(cfg: *BoardConfig) !void {
-    if (cfg.mem.rom_start_addr == null and cfg.mem.bl_load_addr == null)
-        @compileError("if there is no rom, a boot loader start (or entry) address is required!");
-    if (cfg.mem.rom_start_addr != null and cfg.mem.bl_load_addr != null)
-        @compileError("if there is rom, no boot loader start (or entry) address is supported at the moment!");
-}
+    // todo => check config...
+    pub fn checkConfig(cfg: BoardConfig) void {
+        if (cfg.mem.rom_start_addr == null and cfg.mem.bl_load_addr == null)
+            @panic("if there is no rom, a boot loader start (or entry) address is required! \n");
+        if (cfg.mem.rom_start_addr != null and cfg.mem.bl_load_addr != null)
+            @panic("if there is rom, no boot loader start (or entry) address is supported at the moment! \n");
+        if (cfg.mem.ram_layout.kernel_space_size + cfg.mem.ram_layout.user_space_size > cfg.mem.ram_size)
+            @panic("since no swapping is supported, user/kernel space cannot exceed ram size \n");
+        // optional does does not support equal operator..
+        if ((cfg.mem.rom_size == null and cfg.mem.rom_start_addr != null) or (cfg.mem.rom_size != null and cfg.mem.rom_start_addr == null))
+            @panic("if rom is disabled, both rom addr and len have to be null \n");
+    }
+};

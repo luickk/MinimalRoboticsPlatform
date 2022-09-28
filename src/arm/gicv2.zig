@@ -56,7 +56,7 @@ pub const Gicc = struct {
     }
 
     // send end of interrupt to irq line for gic
-    // ctrlr   irq controller information
+    // ctrlr   irq controller Configrmation
     // irq     irq number
     pub fn gicv2Eoi(irq: u32) void {
         Gicd.gicdClearPending(irq);
@@ -118,7 +118,7 @@ pub const Gicd = struct {
             GicdRegMap.calcReg(GicdRegMap.itargetsr, i).* = @as(u32, regs.gicd_itargetsr_core0_target_bmap);
         }
 
-        // set trigger type for all peripheral interrupts level triggered
+        // set trigger type for all armeral interrupts level triggered
         i = regs.gic_intno_ppi0 / regs.gicd_icfgr_per_reg;
         while ((regs.gic_int_max + (regs.gicd_icfgr_per_reg - 1)) / regs.gicd_icfgr_per_reg > i) : (i += 1) {
             GicdRegMap.calcReg(GicdRegMap.icfgr, i).* = regs.gicd_icfgr_level;

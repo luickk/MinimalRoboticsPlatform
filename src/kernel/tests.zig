@@ -1,5 +1,5 @@
 const UserSpaceAllocator = @import("memory.zig").UserSpaceAllocator;
-const kprint = @import("arm").serial.kprint;
+const kprint = @import("arm").uart.UartWriter(true).kprint;
 
 pub fn testKMalloc(alloc: anytype) !void {
     var p1 = try alloc.allocNPage(10);

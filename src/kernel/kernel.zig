@@ -1,22 +1,22 @@
 const std = @import("std");
-const periph = @import("arm");
+const arm = @import("arm");
 const utils = @import("utils");
 const k_utils = @import("utils.zig");
 const tests = @import("tests.zig");
 
-const kprint = periph.serial.kprint;
+const kprint = arm.uart.UartWriter(false).kprint;
 // kernel services
 const UserSpaceAllocator = @import("memory.zig").UserSpaceAllocator;
 const intHandle = @import("gicHandle.zig");
 const b_options = @import("build_options");
 const board = @import("board");
 
-const proc = periph.processor;
-const mmu = periph.mmu;
+const proc = arm.processor;
+const mmu = arm.mmu;
 
 // raspberry
-const bcm2835IntController = periph.bcm2835IntController;
-const timer = periph.timer;
+const bcm2835IntController = arm.bcm2835IntController.InterruptController(true);
+const timer = arm.timer;
 
 export fn kernel_main() callconv(.Naked) noreturn {
     kprint("[kernel] kernel started! \n", .{});
@@ -37,7 +37,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
 
     _ = _kernel_end;
     // todo => reduce kernel bin size by not accounting for page tables
-    // if (mmu.toUnsecure(usize, _kernel_end) > board.Info.mem.ram_len) {
+    // if (mmu.toUnsecure(usize, _kernel_end) > board.config.mem.ram_size) {
     //     kprint("[panic] kernel exceeding ram mem (0x{x})\n", .{mmu.toUnsecure(usize, _kernel_end)});
     //     k_utils.panic();
     // }
@@ -48,19 +48,19 @@ export fn kernel_main() callconv(.Naked) noreturn {
         proc.panic();
     }
 
-    if (board.Info.board == .raspi3b) {
+    if (board.config.board == .raspi3b) {
         timer.initTimer();
         kprint("[kernel] timer inited \n", .{});
 
-        bcm2835IntController.initIc();
+        bcm2835IntController.init();
         kprint("[kernel] ic inited \n", .{});
     }
 
     const kernel_space_mapping = mmu.Mapping{
-        .mem_size = board.Info.mem.ram_layout.kernel_space_size,
-        .virt_start_addr = board.Info.mem.ram_layout.kernel_space_vs,
-        .phys_addr = board.Info.mem.rom_len + board.Info.mem.ram_layout.kernel_space_phys,
-        .granule = board.Info.mem.ram_layout.kernel_space_gran,
+        .mem_size = board.config.mem.ram_layout.kernel_space_size,
+        .virt_start_addr = board.config.mem.ram_layout.kernel_space_vs,
+        .phys_addr = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_phys,
+        .granule = board.config.mem.ram_layout.kernel_space_gran,
         .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block },
     };
 
@@ -77,10 +77,10 @@ export fn kernel_main() callconv(.Naked) noreturn {
     };
 
     const user_space_mapping = mmu.Mapping{
-        .mem_size = board.Info.mem.ram_layout.user_space_size,
-        .virt_start_addr = board.Info.mem.ram_layout.user_space_vs,
-        .phys_addr = board.Info.mem.rom_len + board.Info.mem.ram_layout.kernel_space_size + board.Info.mem.ram_layout.user_space_phys,
-        .granule = board.Info.mem.ram_layout.user_space_gran,
+        .mem_size = board.config.mem.ram_layout.user_space_size,
+        .virt_start_addr = board.config.mem.ram_layout.user_space_vs,
+        .phys_addr = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_size + board.config.mem.ram_layout.user_space_phys,
+        .granule = board.config.mem.ram_layout.user_space_gran,
         .flags = null,
     };
 
@@ -107,11 +107,11 @@ export fn kernel_main() callconv(.Naked) noreturn {
     proc.setTTBR0(_u_ttbr0_dir);
 
     kprint("[kernel] kernel boot complete \n", .{});
-    // var page_alloc_start = utils.ceilRoundToMultiple(_kernel_end, board.Info.mem.ram_layout.user_space_gran.page_size) catch |e| {
+    // var page_alloc_start = utils.ceilRoundToMultiple(_kernel_end, board.config.mem.ram_layout.user_space_gran.page_size) catch |e| {
     //     kprint("[panic] UserSpaceAllocator start addr calc err: {s}\n", .{@errorName(e)});
     //     k_utils.panic();
     // };
-    // var user_page_alloc = (UserSpaceAllocator(204800, board.Info.mem.ram_layout.user_space_gran) catch |e| {
+    // var user_page_alloc = (UserSpaceAllocator(204800, board.config.mem.ram_layout.user_space_gran) catch |e| {
     //     kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
     //     k_utils.panic();
     // }).init(page_alloc_start) catch |e| {

@@ -1,10 +1,10 @@
 const std = @import("std");
 const board = @import("board");
-const bprint = @import("serial.zig").bprint;
+const kprint = @import("uart.zig").kprint;
 
-const Granule = board.layout.Granule;
-const GranuleParams = board.layout.GranuleParams;
-const TransLvl = board.layout.TransLvl;
+const Granule = board.boardConfig.Granule;
+const GranuleParams = board.boardConfig.GranuleParams;
+const TransLvl = board.boardConfig.TransLvl;
 
 pub const Mapping = struct {
     mem_size: usize,
@@ -241,10 +241,10 @@ pub fn zeroPgDir(pg_dir: []volatile usize) void {
 pub inline fn toSecure(comptime T: type, inp: T) T {
     switch (@typeInfo(T)) {
         .Pointer => {
-            return @intToPtr(T, @ptrToInt(inp) | board.Addresses.vaStart);
+            return @intToPtr(T, @ptrToInt(inp) | board.config.mem.va_start);
         },
         .Int => {
-            return inp | board.Addresses.vaStart;
+            return inp | board.config.mem.va_start;
         },
         else => @compileError("mmu address translation: not supported type"),
     }
@@ -253,10 +253,10 @@ pub inline fn toSecure(comptime T: type, inp: T) T {
 pub inline fn toUnsecure(comptime T: type, inp: T) T {
     switch (@typeInfo(T)) {
         .Pointer => {
-            return @intToPtr(T, @ptrToInt(inp) & ~(board.Addresses.vaStart));
+            return @intToPtr(T, @ptrToInt(inp) & ~(board.config.mem.va_start));
         },
         .Int => {
-            return inp & ~(board.Addresses.vaStart);
+            return inp & ~(board.config.mem.va_start);
         },
         else => @compileError("mmu address translation: not supported type"),
     }

@@ -1,43 +1,43 @@
 const std = @import("std");
 const board = @import("board");
-const kprint = @import("serial.zig").kprint;
+const kprint = @import("uart.zig").kprint;
 
-const Granule = board.layout.Granule;
-const GranuleParams = board.layout.GranuleParams;
-const TransLvl = board.layout.TransLvl;
+const Granule = board.boardConfig.Granule;
+const GranuleParams = board.boardConfig.GranuleParams;
+const TransLvl = board.boardConfig.TransLvl;
 
 // for bootloder.zig...
 // const bl_page_tables = blk: {
 //     @setEvalBranchQuota(1000000);
-//     const ttbr1_size = board.Info.mem.calcPageTableSizeRam() catch |e| {
+//     const ttbr1_size = board.config.mem.calcPageTableSizeRam() catch |e| {
 //         @compileError(@errorName(e));
 //     };
 
 //     // ttbr0 (rom) mapps both rom and ram
-//     const ttbr0_size = (board.Info.mem.calcPageTableSizeRom() catch |e| {
+//     const ttbr0_size = (board.config.mem.calcPageTableSizeRom() catch |e| {
 //         @compileError(@errorName(e));
 //     });
 
 //     var ttbr0_arr: [ttbr0_size]usize = [_]usize{0} ** ttbr0_size;
 //     var ttbr1_arr: [ttbr1_size]usize = [_]usize{0} ** ttbr1_size;
 
-//     // in case there is no rom(rom_len is equal to zero) and the kernel(and bl) are directly loaded to memory by some rom bootloader
+//     // in case there is no rom(rom_size is equal to zero) and the kernel(and bl) are directly loaded to memory by some rom bootloader
 //     // the ttbr0 memory is also identity mapped to the ram
-//     var rom_len: usize = undefined;
+//     var rom_size: usize = undefined;
 //     var rom_start_addr: usize = undefined;
-//     if (board.Info.mem.rom_len == 0) {
-//         rom_len = board.Info.mem.ram_len;
-//         rom_start_addr = board.Info.mem.ram_start_addr;
+//     if (board.config.mem.rom_size == 0) {
+//         rom_size = board.config.mem.ram_size;
+//         rom_start_addr = board.config.mem.ram_start_addr;
 //     } else {
-//         rom_len = board.Info.mem.rom_len + board.Info.mem.ram_len;
-//         rom_start_addr = board.Info.mem.rom_start_addr;
+//         rom_size = board.config.mem.rom_size + board.config.mem.ram_size;
+//         rom_start_addr = board.config.mem.rom_start_addr;
 //     }
 
 //     // MMU page dir config
 
 //     // writing to _id_mapped_dir(label) page table and creating new
 //     // identity mapped memory for bootloader to kernel transfer
-//     const bootloader_mapping = mmuComp.Mapping{ .mem_size = rom_len, .virt_start_addr = 0, .phys_addr = rom_start_addr, .granule = Granule.Section, .flags = mmuComp.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
+//     const bootloader_mapping = mmuComp.Mapping{ .mem_size = rom_size, .virt_start_addr = 0, .phys_addr = rom_start_addr, .granule = Granule.Section, .flags = mmuComp.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
 //     // identity mapped memory for bootloader and kernel contrtol handover!
 //     var ttbr0 = (mmuComp.PageDir(bootloader_mapping) catch |e| {
 //         @compileError(@errorName(e));
@@ -49,7 +49,7 @@ const TransLvl = board.layout.TransLvl;
 //     };
 
 //     // creating virtual address space for kernel
-//     const kernel_mapping = mmuComp.Mapping{ .mem_size = board.Info.mem.ram_len, .virt_start_addr = board.Addresses.vaStart, .phys_addr = board.Info.mem.ram_start_addr, .granule = Granule.Section, .flags = mmuComp.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
+//     const kernel_mapping = mmuComp.Mapping{ .mem_size = board.config.mem.ram_size, .virt_start_addr = board.PeriphConfig.vaStart, .phys_addr = board.config.mem.ram_start_addr, .granule = Granule.Section, .flags = mmuComp.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
 //     // mapping general kernel mem (inlcuding device base)
 //     var ttbr1 = (mmuComp.PageDir(kernel_mapping) catch |e| {
 //         @compileError(@errorName(e));
@@ -321,10 +321,10 @@ pub fn zeroPgDir(pg_dir: []volatile usize) void {
 pub inline fn toSecure(comptime T: type, inp: T) T {
     switch (@typeInfo(T)) {
         .Pointer => {
-            return @intToPtr(T, @ptrToInt(inp) | board.Addresses.vaStart);
+            return @intToPtr(T, @ptrToInt(inp) | board.PeriphConfig.vaStart);
         },
         .Int => {
-            return inp | board.Addresses.vaStart;
+            return inp | board.PeriphConfig.vaStart;
         },
         else => @compileError("mmu address translation: not supported type"),
     }
@@ -333,10 +333,10 @@ pub inline fn toSecure(comptime T: type, inp: T) T {
 pub inline fn toUnsecure(comptime T: type, inp: T) T {
     switch (@typeInfo(T)) {
         .Pointer => {
-            return @intToPtr(T, @ptrToInt(inp) & ~(board.Addresses.vaStart));
+            return @intToPtr(T, @ptrToInt(inp) & ~(board.PeriphConfig.vaStart));
         },
         .Int => {
-            return inp & ~(board.Addresses.vaStart);
+            return inp & ~(board.PeriphConfig.vaStart);
         },
         else => @compileError("mmu address translation: not supported type"),
     }

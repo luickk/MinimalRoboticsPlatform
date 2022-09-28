@@ -2,23 +2,25 @@ const std = @import("std");
 const bl_utils = @import("utils.zig");
 const utils = @import("utils");
 const intHandle = @import("gicHandle.zig");
-const periph = @import("arm");
+const arm = @import("arm");
 const board = @import("board");
 const b_options = @import("build_options");
-const proc = periph.processor;
-const bprint = periph.serial.bprint;
-const mmuComp = periph.mmuComptime;
-const mmu = periph.mmu;
-const pl011 = periph.pl011;
+const proc = arm.processor;
+const mmuComp = arm.mmuComptime;
+const mmu = arm.mmu;
+const pl011 = arm.pl011.Pl011(false);
+// bool arg sets the addresses value to either mmu secure or unsecure
+const PeriphConfig = board.PeriphConfig(false);
+const kprint = arm.uart.UartWriter(false).kprint;
 
 // raspberry
-const bcm2835IntController = periph.bcm2835IntController;
+const bcm2835IntController = arm.bcm2835IntController.InterruptController(false);
 
-const gic = periph.gicv2;
+const gic = arm.gicv2;
 
-const Granule = board.layout.Granule;
-const GranuleParams = board.layout.GranuleParams;
-const TransLvl = board.layout.TransLvl;
+const Granule = board.boardConfig.Granule;
+const GranuleParams = board.boardConfig.GranuleParams;
+const TransLvl = board.boardConfig.TransLvl;
 
 const kernel_bin_size = b_options.kernel_bin_size;
 const bl_bin_size = b_options.bl_bin_size;
@@ -27,18 +29,18 @@ const bl_bin_size = b_options.bl_bin_size;
 
 // note: when bl_main gets too bit(instruction mem wise), the exception vector table could be pushed too far up and potentially not be read!
 export fn bl_main() callconv(.Naked) noreturn {
-    if (board.Info.board == .raspi3b)
-        bcm2835IntController.initIc();
+    if (board.config.board == .raspi3b)
+        bcm2835IntController.init();
 
     // GIC Init
-    if (board.Info.board == .qemuVirt) {
+    if (board.config.board == .qemuVirt) {
         gic.gicv2Initialize();
-        pl011.Pl011.init();
+        pl011.init();
     }
 
     // get address of external linker script variable which marks stack-top and kernel start
     const kernel_entry: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernelrom_start", .linkage = .Strong }) orelse {
-        bprint("error reading _kernelrom_start label\n", .{});
+        kprint("error reading _kernelrom_start label\n", .{});
         bl_utils.panic();
     });
 
@@ -47,46 +49,46 @@ export fn bl_main() callconv(.Naked) noreturn {
     kernel_bl.len = kernel_bin_size;
 
     var kernel_target_loc: []u8 = undefined;
-    kernel_target_loc.ptr = @intToPtr([*]u8, mmu.toSecure(usize, board.Info.mem.ram_start_addr));
+    kernel_target_loc.ptr = @intToPtr([*]u8, mmu.toSecure(usize, board.config.mem.ram_start_addr));
     kernel_target_loc.len = kernel_bin_size;
 
     // todo => check for security state!
 
     var current_el = proc.getCurrentEl();
     if (current_el != 1) {
-        bprint("[panic] el must be 1! (it is: {d})\n", .{current_el});
+        kprint("[panic] el must be 1! (it is: {d})\n", .{current_el});
         bl_utils.panic();
     }
 
     // writing page dirs to userspace in ram. Writing to userspace because it would be overwritten in kernel space, when copying
     // the kernel. Additionally, on mmu turn on, the mmu would try to read from the page tables without mmu kernel space identifier bits on
     // todo => make page dir generation comptime generated and static memory! (currently prevented by max array-size)
-    const user_space_start = board.Info.mem.ram_start_addr + (board.Info.mem.bl_load_addr orelse 0) + board.Info.mem.ram_layout.kernel_space_size;
+    const user_space_start = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + board.config.mem.ram_layout.kernel_space_size;
     var _ttbr1_dir = user_space_start;
-    var _ttbr0_dir = user_space_start + (board.Info.mem.calcPageTableSizeRam(board.layout.Granule.Fourk) catch |e| {
-        bprint("[panic] Page table ttbr0 address calc error: {s}\n", .{@errorName(e)});
+    var _ttbr0_dir = user_space_start + (board.config.mem.calcPageTableSizeRam(board.boardConfig.Granule.Fourk) catch |e| {
+        kprint("[panic] Page table ttbr0 address calc error: {s}\n", .{@errorName(e)});
         bl_utils.panic();
     });
 
     _ttbr0_dir = utils.ceilRoundToMultiple(_ttbr0_dir, Granule.Section.page_size) catch |e| {
-        bprint("[panic] Page table ttbr0 address calc error: {s}\n", .{@errorName(e)});
+        kprint("[panic] Page table ttbr0 address calc error: {s}\n", .{@errorName(e)});
         bl_utils.panic();
     };
     _ttbr1_dir = utils.ceilRoundToMultiple(_ttbr1_dir, Granule.Section.page_size) catch |e| {
-        bprint("[panic] Page table ttbr0 address calc error: {s}\n", .{@errorName(e)});
+        kprint("[panic] Page table ttbr0 address calc error: {s}\n", .{@errorName(e)});
         bl_utils.panic();
     };
 
-    // in case there is no rom(rom_len is equal to zero) and the kernel(and bl) are directly loaded to memory by some rom bootloader
+    // in case there is no rom(rom_size is equal to zero) and the kernel(and bl) are directly loaded to memory by some rom bootloader
     // the ttbr0 memory is also identity mapped to the ram
-    comptime var rom_len: usize = undefined;
+    comptime var rom_size: usize = undefined;
     comptime var rom_start_addr: usize = undefined;
-    if (board.Info.mem.rom_start_addr == null) {
-        rom_len = board.Info.mem.ram_len;
-        rom_start_addr = board.Info.mem.ram_start_addr;
+    if (board.config.mem.rom_start_addr == null) {
+        rom_size = board.config.mem.ram_size;
+        rom_start_addr = board.config.mem.ram_start_addr;
     } else {
-        rom_len = board.Info.mem.rom_len + board.Info.mem.ram_len;
-        rom_start_addr = board.Info.mem.rom_start_addr orelse 0;
+        rom_size = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_size;
+        rom_start_addr = board.config.mem.rom_start_addr orelse 0;
     }
 
     // MMU page dir config
@@ -94,7 +96,7 @@ export fn bl_main() callconv(.Naked) noreturn {
     // writing to _id_mapped_dir(label) page table and creating new
     // identity mapped memory for bootloader to kernel transfer
     const bootloader_mapping = mmu.Mapping{
-        .mem_size = rom_len,
+        .mem_size = rom_size,
         .virt_start_addr = 0,
         .phys_addr = rom_start_addr,
         .granule = Granule.Section,
@@ -104,18 +106,18 @@ export fn bl_main() callconv(.Naked) noreturn {
     var ttbr0 = (mmu.PageDir(bootloader_mapping) catch |e| {
         @compileError(@errorName(e));
     }).init(_ttbr0_dir) catch |e| {
-        bprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+        kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
         bl_utils.panic();
     };
     ttbr0.mapMem() catch |e| {
-        bprint("[panic] memory mapping error: {s} \n", .{@errorName(e)});
+        kprint("[panic] memory mapping error: {s} \n", .{@errorName(e)});
         bl_utils.panic();
     };
 
     const kernel_mapping = mmu.Mapping{
-        .mem_size = board.Info.mem.ram_len,
-        .virt_start_addr = board.Addresses.vaStart,
-        .phys_addr = board.Info.mem.ram_start_addr + (board.Info.mem.bl_load_addr orelse 0),
+        .mem_size = board.config.mem.ram_size,
+        .virt_start_addr = board.config.mem.va_start,
+        .phys_addr = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0),
         .granule = Granule.Section,
         .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block },
     };
@@ -124,17 +126,17 @@ export fn bl_main() callconv(.Naked) noreturn {
     var ttbr1 = (mmu.PageDir(kernel_mapping) catch |e| {
         @compileError(@errorName(e));
     }).init(_ttbr1_dir) catch |e| {
-        bprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+        kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
         bl_utils.panic();
     };
     ttbr1.mapMem() catch |e| {
-        bprint("[panic] memory mapping error: {s} \n", .{@errorName(e)});
+        kprint("[panic] memory mapping error: {s} \n", .{@errorName(e)});
         bl_utils.panic();
     };
 
     // // MMU page dir config
 
-    // bprint("addr: 0x{x} \n", .{_ttbr1_dir});
+    // kprint("addr: 0x{x} \n", .{_ttbr1_dir});
 
     // updating page dirs
     proc.setTTBR1(_ttbr1_dir);
@@ -149,20 +151,20 @@ export fn bl_main() callconv(.Naked) noreturn {
     proc.invalidateMmuTlbEl1();
     proc.invalidateCache();
     proc.isb();
-    bprint("[bootloader] enabling mmu... \n", .{});
+    kprint("[bootloader] enabling mmu... \n", .{});
     proc.enableMmu();
 
-    if (board.Info.mem.rom_len != 0) {
-        bprint("[bootloader] setup mmu, el1, exc table. \n", .{});
-        bprint("[bootloader] Copying kernel to secure: 0x{x}, with size: {d} \n", .{ @ptrToInt(kernel_target_loc.ptr), kernel_target_loc.len });
+    if (board.config.mem.rom_start_addr != null) {
+        kprint("[bootloader] setup mmu, el1, exc table. \n", .{});
+        kprint("[bootloader] Copying kernel to secure: 0x{x}, with size: {d} \n", .{ @ptrToInt(kernel_target_loc.ptr), kernel_target_loc.len });
         std.mem.copy(u8, kernel_target_loc, kernel_bl);
-        bprint("[bootloader] kernel copied \n", .{});
+        kprint("[bootloader] kernel copied \n", .{});
     }
     var kernel_addr = @ptrToInt(kernel_target_loc.ptr);
-    if (board.Info.mem.rom_start_addr == null)
+    if (board.config.mem.rom_start_addr == null)
         kernel_addr = mmu.toSecure(usize, kernel_entry);
 
-    bprint("[bootloader] jumping to secure kernel at 0x{x}\n", .{kernel_addr});
+    kprint("[bootloader] jumping to secure kernel at 0x{x}\n", .{kernel_addr});
 
     proc.branchToAddr(kernel_addr);
 

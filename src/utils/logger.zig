@@ -1,6 +1,6 @@
 const KernelAllocator = @import("memory.zig").KernelAllocator;
 const utils = @import("utils.zig");
-const kprint = @import("serial.zig").kprint;
+const kprint = @import("uart.zig").kprint;
 
 pub fn reportKMemStatus(alloc: anytype) void {
     kprint("-------------- \n", .{});

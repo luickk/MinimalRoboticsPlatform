@@ -1,13 +1,14 @@
 const std = @import("std");
-const periph = @import("arm");
-const kprint = periph.serial.kprint;
-const icAddr = @import("board").Addresses.InterruptController;
-const gic = periph.gicv2;
-const timer = periph.timer;
+const arm = @import("arm");
+const kprint = arm.uart.UartWriter(true).kprint;
+const icAddr = @import("board").PeriphConfig(true).InterruptController;
+const gic = arm.gicv2;
+const timer = arm.timer;
+const intController = arm.bcm2835IntController.InterruptController(true);
 
-const Bank0 = icAddr.Values.Bank0;
-const Bank1 = icAddr.Values.Bank1;
-const Bank2 = icAddr.Values.Bank2;
+const Bank0 = intController.RegValues.Bank0;
+const Bank1 = intController.RegValues.Bank1;
+const Bank2 = intController.RegValues.Bank2;
 
 pub fn irqHandler(exc: *gic.ExceptionFrame) callconv(.C) void {
     _ = exc;

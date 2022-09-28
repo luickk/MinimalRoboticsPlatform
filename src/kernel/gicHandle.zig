@@ -1,10 +1,10 @@
 const std = @import("std");
-const periph = @import("arm");
-const kprint = periph.serial.kprint;
+const arm = @import("arm");
+const kprint = arm.uart.UartWriter(false).kprint;
 const board = @import("board");
 const bcm2835IntHandle = @import("board/raspi3b/bcm2835IntHandle.zig");
-const gic = periph.gicv2;
-const timer = periph.timer;
+const gic = arm.gicv2;
+const timer = arm.timer;
 
 pub const ExceptionClass = enum(u6) {
     unknownReason = 0b000000,
@@ -74,7 +74,7 @@ pub fn irqHandler(exc: *gic.ExceptionFrame) callconv(.C) void {
             kprint(".........sync int............\n", .{});
         },
         gic.ExceptionType.el1Irq, gic.ExceptionType.el1Fiq => {
-            if (board.Info.board == .raspi3b)
+            if (board.config.board == .raspi3b)
                 bcm2835IntHandle.irqHandler(exc);
         },
         else => {

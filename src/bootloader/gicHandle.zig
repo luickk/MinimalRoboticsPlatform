@@ -1,9 +1,9 @@
 const std = @import("std");
 const bl_utils = @import("utils.zig");
-const periph = @import("arm");
-const bprint = periph.serial.bprint;
-const gic = periph.gicv2;
-const timer = periph.timer;
+const arm = @import("arm");
+const kprint = arm.uart.UartWriter(false).kprint;
+const gic = arm.gicv2;
+const timer = arm.timer;
 
 pub const ExceptionClass = enum(u6) {
     unknownReason = 0b000000,
@@ -41,10 +41,10 @@ pub const ExceptionClass = enum(u6) {
 };
 
 pub fn irqHandler(exc: *gic.ExceptionFrame) callconv(.C) void {
-    bprint("irqHandler \n", .{});
+    kprint("irqHandler \n", .{});
     // std intToEnum instead of build in in order to catch err
     var int_type = std.meta.intToEnum(gic.ExceptionType, exc.int_type) catch {
-        bprint("int type not found \n", .{});
+        kprint("int type not found \n", .{});
         bl_utils.panic();
     };
 
@@ -57,23 +57,23 @@ pub fn irqHandler(exc: *gic.ExceptionFrame) callconv(.C) void {
         _ = iss2;
 
         var ec_en = std.meta.intToEnum(ExceptionClass, ec) catch {
-            bprint("esp exception class not found \n", .{});
+            kprint("esp exception class not found \n", .{});
             bl_utils.panic();
         };
 
-        bprint(".........sync exc............\n", .{});
-        bprint("Exception Class(from esp reg): {s} \n", .{@tagName(ec_en)});
-        bprint("Int Type: {s} \n", .{@tagName(int_type)});
+        kprint(".........sync exc............\n", .{});
+        kprint("Exception Class(from esp reg): {s} \n", .{@tagName(ec_en)});
+        kprint("Int Type: {s} \n", .{@tagName(int_type)});
 
         if (il == 1) {
-            bprint("32 bit instruction trapped \n", .{});
+            kprint("32 bit instruction trapped \n", .{});
         } else {
-            bprint("16 bit instruction trapped \n", .{});
+            kprint("16 bit instruction trapped \n", .{});
         }
-        bprint(".........sync exc............\n", .{});
+        kprint(".........sync exc............\n", .{});
     }
     bl_utils.panic();
 }
 pub fn irqElxSpx() callconv(.C) void {
-    bprint("irqElxSpx \n", .{});
+    kprint("irqElxSpx \n", .{});
 }
