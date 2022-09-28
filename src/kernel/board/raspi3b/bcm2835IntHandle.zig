@@ -12,15 +12,15 @@ const Bank2 = intController.RegValues.Bank2;
 
 pub fn irqHandler(exc: *gic.ExceptionFrame) callconv(.C) void {
     _ = exc;
-    var irq_bank_0 = std.meta.intToEnum(Bank0, @intToPtr(*u32, icAddr.pendingBasic).*) catch {
+    var irq_bank_0 = std.meta.intToEnum(Bank0, intController.RegMap.pendingBasic.*) catch {
         kprint("bank0 int type not found. \n", .{});
         return;
     };
-    var irq_bank_1 = std.meta.intToEnum(Bank1, @intToPtr(*u32, icAddr.pendingIrq1).*) catch {
+    var irq_bank_1 = std.meta.intToEnum(Bank1, intController.RegMap.pendingIrq1.*) catch {
         kprint("bank1 int type not found. \n", .{});
         return;
     };
-    var irq_bank_2 = std.meta.intToEnum(Bank2, @intToPtr(*u32, icAddr.pendingIrq2).*) catch {
+    var irq_bank_2 = std.meta.intToEnum(Bank2, intController.RegMap.pendingIrq2.*) catch {
         kprint("bank2 int type not found. \n", .{});
         return;
     };

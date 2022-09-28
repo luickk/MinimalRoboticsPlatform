@@ -2,6 +2,12 @@ const timerAddr = @import("board").PeriphConfig(true).Timer;
 
 var timerVal: u32 = 0;
 
+pub const RegMap = struct {
+    pub const timerCs = @intToPtr(*u32, timerAddr.base_address + 0x0);
+    pub const timerC1 = @intToPtr(*u32, timerAddr.base_address + 0x10);
+    pub const timerClo = @intToPtr(*u32, timerAddr.base_address + 0x4);
+};
+
 // address values
 pub const RegValues = struct {
     pub const timerInterval: u32 = 200000;
@@ -12,13 +18,13 @@ pub const RegValues = struct {
 };
 
 pub fn initTimer() void {
-    var cur_val: u32 = @intToPtr(*u32, timerAddr.timerClo).*;
+    var cur_val: u32 = RegMap.timerClo.*;
     cur_val += RegValues.timerInterval;
-    @intToPtr(*u32, timerAddr.timerC1).* = cur_val;
+    RegMap.timerC1.* = cur_val;
 }
 
 pub fn handleTimerIrq() void {
     timerVal += RegValues.timerInterval;
-    @intToPtr(*u32, timerAddr.timerC1).* = timerVal;
-    @intToPtr(*u32, timerAddr.timerCs).* = RegValues.timerCsM1;
+    RegMap.timerC1.* = timerVal;
+    RegMap.timerCs.* = RegValues.timerCsM1;
 }

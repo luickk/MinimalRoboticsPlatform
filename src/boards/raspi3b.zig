@@ -55,20 +55,11 @@ pub fn PeriphConfig(secure: bool) type {
         };
 
         pub const Timer = struct {
-            pub const timerClo: usize = device_base + 0x00003004;
-            pub const timerC1: usize = device_base + 0x00003010;
-            pub const timerCs: usize = device_base + 0x00003000;
+            pub const base_address: usize = device_base + 0x00003000;
         };
 
         pub const InterruptController = struct {
-            // addresses
-            pub const pendingBasic: usize = device_base + 0x0000b200;
-            pub const pendingIrq1: usize = device_base + 0x0000b204;
-            pub const pendingIrq2: usize = device_base + 0x0000b208;
-
-            pub const enableIrq1: usize = device_base + 0x0000b210;
-            pub const enableIrq2: usize = device_base + 0x0000b214;
-            pub const enableIrqBasic: usize = device_base + 0x0000b218;
+            pub const base_address: usize = device_base + 0x0000b200;
         };
     };
 }

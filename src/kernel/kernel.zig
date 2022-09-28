@@ -4,7 +4,7 @@ const utils = @import("utils");
 const k_utils = @import("utils.zig");
 const tests = @import("tests.zig");
 
-const kprint = arm.uart.UartWriter(false).kprint;
+const kprint = arm.uart.UartWriter(true).kprint;
 // kernel services
 const UserSpaceAllocator = @import("memory.zig").UserSpaceAllocator;
 const intHandle = @import("gicHandle.zig");

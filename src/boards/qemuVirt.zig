@@ -38,6 +38,7 @@ pub const config = boardConfig.BoardConfig{
 };
 
 pub fn PeriphConfig(secure: bool) type {
+    // ! = 0 !
     comptime var device_base: usize = 0;
     if (secure)
         device_base += config.mem.va_start;
@@ -51,6 +52,14 @@ pub fn PeriphConfig(secure: bool) type {
             pub const baudrate: u32 = 115200;
             pub const data_bits: u32 = 8;
             pub const stop_bits: u32 = 1;
+        };
+        pub const GicV2 = struct {
+            pub const base_address: u64 = device_base + 0x08000000;
+
+            pub const intMax: usize = 64;
+            pub const intNoPpi0: usize = 32;
+            pub const intNoSpi0: usize = 16;
+            pub const priShift: usize = 4;
         };
     };
 }

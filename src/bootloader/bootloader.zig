@@ -8,9 +8,9 @@ const b_options = @import("build_options");
 const proc = arm.processor;
 const mmuComp = arm.mmuComptime;
 const mmu = arm.mmu;
-const pl011 = arm.pl011.Pl011(false);
 // bool arg sets the addresses value to either mmu secure or unsecure
 const PeriphConfig = board.PeriphConfig(false);
+const pl011 = arm.pl011.Pl011(false);
 const kprint = arm.uart.UartWriter(false).kprint;
 
 // raspberry
@@ -38,6 +38,7 @@ export fn bl_main() callconv(.Naked) noreturn {
         pl011.init();
     }
 
+    proc.exceptionSvc();
     // get address of external linker script variable which marks stack-top and kernel start
     const kernel_entry: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernelrom_start", .linkage = .Strong }) orelse {
         kprint("error reading _kernelrom_start label\n", .{});
