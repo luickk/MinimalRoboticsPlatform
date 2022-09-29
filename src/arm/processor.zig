@@ -30,6 +30,14 @@ pub inline fn enableMmu() void {
     asm volatile ("isb");
 }
 
+pub inline fn setSp(addr: usize) void {
+    asm volatile ("mov sp, %[addr]"
+        :
+        : [addr] "rax" (addr),
+    );
+    isb();
+}
+
 pub inline fn branchToAddr(addr: usize) void {
     asm volatile ("br %[pc_addr]"
         :
@@ -82,6 +90,15 @@ pub fn getCurrentEl() usize {
         : [curr] "=r" (-> usize),
     );
     return x >> 2;
+}
+
+// has to happen at el3
+pub fn isSecState() bool {
+    // reading NS bit
+    var x: usize = asm ("mrs %[curr], scr_el3"
+        : [curr] "=r" (-> usize),
+    );
+    return (x & (1 << 0)) != 0;
 }
 
 pub fn panic() noreturn {

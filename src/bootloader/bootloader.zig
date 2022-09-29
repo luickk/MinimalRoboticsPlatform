@@ -16,29 +16,32 @@ const kprint = arm.uart.UartWriter(false).kprint;
 // raspberry
 const bcm2835IntController = arm.bcm2835IntController.InterruptController(false);
 
-const gic = arm.gicv2;
+const gic = arm.gicv2.Gic(false);
 
 const Granule = board.boardConfig.Granule;
 const GranuleParams = board.boardConfig.GranuleParams;
 const TransLvl = board.boardConfig.TransLvl;
 
 const kernel_bin_size = b_options.kernel_bin_size;
-const bl_bin_size = b_options.bl_bin_size;
 
 // todo => ttbr1 for kernel is ranging from 0x0-1g instead of _ramSize_ + _bl_load_addr-1g!. Alternatively link kernel with additional offset
 
 // note: when bl_main gets too bit(instruction mem wise), the exception vector table could be pushed too far up and potentially not be read!
 export fn bl_main() callconv(.Naked) noreturn {
+    // using userspace as stack, incase the bootloader is located in rom
+    proc.setSp(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + board.config.mem.ram_layout.kernel_space_size + board.config.mem.bl_stack_size);
+
     if (board.config.board == .raspi3b)
         bcm2835IntController.init();
 
     // GIC Init
     if (board.config.board == .qemuVirt) {
-        gic.gicv2Initialize();
+        gic.init();
         pl011.init();
     }
 
-    proc.exceptionSvc();
+    // proc.exceptionSvc();
+
     // get address of external linker script variable which marks stack-top and kernel start
     const kernel_entry: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernelrom_start", .linkage = .Strong }) orelse {
         kprint("error reading _kernelrom_start label\n", .{});
@@ -53,8 +56,6 @@ export fn bl_main() callconv(.Naked) noreturn {
     kernel_target_loc.ptr = @intToPtr([*]u8, mmu.toSecure(usize, board.config.mem.ram_start_addr));
     kernel_target_loc.len = kernel_bin_size;
 
-    // todo => check for security state!
-
     var current_el = proc.getCurrentEl();
     if (current_el != 1) {
         kprint("[panic] el must be 1! (it is: {d})\n", .{current_el});
@@ -64,7 +65,7 @@ export fn bl_main() callconv(.Naked) noreturn {
     // writing page dirs to userspace in ram. Writing to userspace because it would be overwritten in kernel space, when copying
     // the kernel. Additionally, on mmu turn on, the mmu would try to read from the page tables without mmu kernel space identifier bits on
     // todo => make page dir generation comptime generated and static memory! (currently prevented by max array-size)
-    const user_space_start = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + board.config.mem.ram_layout.kernel_space_size;
+    const user_space_start = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + board.config.mem.ram_layout.kernel_space_size + board.config.mem.bl_stack_size;
     var _ttbr1_dir = user_space_start;
     var _ttbr0_dir = user_space_start + (board.config.mem.calcPageTableSizeRam(board.boardConfig.Granule.Fourk) catch |e| {
         kprint("[panic] Page table ttbr0 address calc error: {s}\n", .{@errorName(e)});

@@ -35,18 +35,9 @@ SECTIONS {
         *(.data);
         *(.data.*);
     }
-     
-    .stack : ALIGN(16) {
-        _stack_bottom = .;
-        . = . + 0x1000;
-        _stack_top = .;   
-    }
-
-    .paging_tbl : ALIGN(0x1000) {
-        _ttbr1_dir = .;
-        . += {@zig};
-        _ttbr0_dir = .;
-        . += {@zig};
+    
+    .align : ALIGN(8) {
+        . = . + 16; 
     }
     _kernelrom_start = .;
 }

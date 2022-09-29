@@ -5,7 +5,7 @@ const os = @import("std").os;
 
 const Error = error{BlExceedsRomSize};
 
-const currBoard = @import("src/boards/qemuVirt.zig");
+const currBoard = @import("src/boards/raspi3b.zig");
 
 pub fn build(b: *std.build.Builder) !void {
     currBoard.config.checkConfig();
@@ -27,22 +27,15 @@ pub fn build(b: *std.build.Builder) !void {
     bl_exe.addOptions("build_options", build_options);
     bl_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
     const temp_bl_ld = "zig-cache/tmp/tempBlLinker.ld";
-    var bl_start_address: usize = currBoard.config.mem.rom_start_addr orelse 0;
-    if (currBoard.config.mem.rom_start_addr == null)
-        bl_start_address = currBoard.config.mem.bl_load_addr orelse 0;
-    try writeVarsToLinkerScript(b.allocator, "src/bootloader/linker.ld", temp_bl_ld, .{
-        bl_start_address,
-        try currBoard.config.mem.calcPageTableSizeRam(currBoard.boardConfig.Granule.Fourk),
-        (try currBoard.config.mem.calcPageTableSizeRom(currBoard.boardConfig.Granule.Section)) + (try currBoard.config.mem.calcPageTableSizeRam(currBoard.boardConfig.Granule.Section)),
-    });
     bl_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_bl_ld });
     bl_exe.addObjectFile("src/bootloader/bootloader.zig");
     bl_exe.addCSourceFile("src/bootloader/board/" ++ @tagName(currBoard.config.board) ++ "/boot.S", &.{});
     bl_exe.addCSourceFile("src/bootloader/board/" ++ @tagName(currBoard.config.board) ++ "/exc_vec.S", &.{});
+
     bl_exe.install();
     bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).artifact.install();
-    const bl_bin_size = try getFileSize("zig-out/bin/bootloader.bin");
-    build_options.addOption(usize, "bl_bin_size", bl_bin_size);
+    // const bl_bin_size = try getFileSize("zig-out/bin/bootloader.bin");
+    // _ = bl_bin_size;
     // todo => kernel bin file size way too big
     // if (bl_bin_size + kernel_bin_size > currBoard.mem.rom_size)
     //     return Error.BlExceedsRomSize;
@@ -55,37 +48,39 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
     kernel_exe.addOptions("build_options", build_options);
     kernel_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
-    // 0 because because ttdr1 begins at ram start, at which the kernels starts as well
-    var kernel_start_address: usize = currBoard.config.mem.ram_start_addr;
-    if (currBoard.config.mem.rom_start_addr == null) {
-        kernel_start_address = bl_bin_size + (currBoard.config.mem.bl_load_addr orelse 0);
-    }
-
     const temp_kernel_ld = "zig-cache/tmp/tempKernelLinker.ld";
-    try writeVarsToLinkerScript(b.allocator, "src/kernel/linker.ld", temp_kernel_ld, .{
-        kernel_start_address,
-        try currBoard.config.mem.ram_layout.calcPageTableSizeKernel(),
-        try currBoard.config.mem.ram_layout.calcPageTableSizeUser(),
-    });
     kernel_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_kernel_ld });
     kernel_exe.addObjectFile("src/kernel/kernel.zig");
     kernel_exe.install();
     kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).artifact.install();
-    const kernel_bin_size = try getFileSize("zig-out/bin/kernel.bin");
-    build_options.addOption(usize, "kernel_bin_size", kernel_bin_size);
+    // const kernel_bin_size = try getFileSize("zig-out/bin/kernel.bin");
+    build_options.addOption(usize, "kernel_bin_size", 100000);
 
-    var concatStep = ConcateBinsStep.create(b, "zig-out/bin/bootloader.bin", "zig-out/bin/kernel.bin", "zig-out/bin/mergedKernel");
+    // compilation steps
+    var concat_step = ConcateBinsStep.create(b, "zig-out/bin/bootloader.bin", "zig-out/bin/kernel.bin", "zig-out/bin/mergedKernel");
+    var update_linker_scripts = UpdateLinkerScripts.create(b, temp_bl_ld, temp_kernel_ld, currBoard.config);
     const run_step_serial = b.step("qemu", "emulate the kernel with no graphics and output uart to console");
-    run_step_serial.dependOn(b.getInstallStep());
-    run_step_serial.dependOn(&concatStep.step);
+    // run_step_serial.dependOn(b.getInstallStep());
+    run_step_serial.dependOn(&update_linker_scripts.step);
+    run_step_serial.dependOn(&bl_exe.step);
+    run_step_serial.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).step);
+    run_step_serial.dependOn(&update_linker_scripts.step);
+    run_step_serial.dependOn(&kernel_exe.step);
+    run_step_serial.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).step);
+    run_step_serial.dependOn(&concat_step.step);
     run_step_serial.dependOn(&b.addSystemCommand(currBoard.config.qemu_launch_command).step);
 
     const run_step_serial_gdb = b.step("qemu-gdb", "emulate the kernel with no graphics and output uart to console");
     var gdb_qemu = b.addSystemCommand(currBoard.config.qemu_launch_command);
     gdb_qemu.addArg("-s");
     gdb_qemu.addArg("-S");
-    run_step_serial_gdb.dependOn(b.getInstallStep());
-    run_step_serial_gdb.dependOn(&concatStep.step);
+    run_step_serial.dependOn(&update_linker_scripts.step);
+    run_step_serial.dependOn(&bl_exe.step);
+    run_step_serial.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).step);
+    run_step_serial.dependOn(&update_linker_scripts.step);
+    run_step_serial.dependOn(&kernel_exe.step);
+    run_step_serial.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).step);
+    run_step_serial.dependOn(&concat_step.step);
     run_step_serial_gdb.dependOn(&gdb_qemu.step);
 
     const test_obj_step = b.addTest("src/utils.zig");
@@ -140,6 +135,49 @@ const ConcateBinsStep = struct {
             try f_concated.writeAll(buf[0..read_size]);
             if (read_size < buf.len) break;
         }
+    }
+};
+
+/// concatenates two files to one. (f1+f2)
+const UpdateLinkerScripts = struct {
+    step: std.build.Step,
+    temp_bl_ld: []const u8,
+    temp_kernel_ld: []const u8,
+    board_config: currBoard.boardConfig.BoardConfig,
+    allocator: std.mem.Allocator,
+
+    pub fn create(b: *std.build.Builder, temp_bl_ld: []const u8, temp_kernel_ld: []const u8, board_config: currBoard.boardConfig.BoardConfig) *UpdateLinkerScripts {
+        const self = b.allocator.create(UpdateLinkerScripts) catch unreachable;
+        self.* = .{
+            .step = std.build.Step.init(.custom, "binConcat", b.allocator, UpdateLinkerScripts.doStep),
+            .temp_bl_ld = temp_bl_ld,
+            .temp_kernel_ld = temp_kernel_ld,
+            .board_config = board_config,
+            .allocator = b.allocator,
+        };
+        return self;
+    }
+
+    fn doStep(step: *std.build.Step) !void {
+        const self = @fieldParentPtr(UpdateLinkerScripts, "step", step);
+        var bl_start_address: usize = self.board_config.mem.rom_start_addr orelse 0;
+        if (self.board_config.mem.rom_start_addr == null)
+            bl_start_address = self.board_config.mem.bl_load_addr orelse 0;
+        try writeVarsToLinkerScript(self.allocator, "src/bootloader/linker.ld", self.temp_bl_ld, .{
+            bl_start_address,
+            null,
+            null,
+        });
+
+        // 0 because because ttdr1 begins at ram start, at which the kernels starts as well
+        var kernel_start_address: usize = self.board_config.mem.ram_start_addr;
+        if (self.board_config.mem.rom_start_addr == null)
+            kernel_start_address = (try getFileSize("zig-out/bin/bootloader.bin")) + (self.board_config.mem.bl_load_addr orelse 0);
+        try writeVarsToLinkerScript(self.allocator, "src/kernel/linker.ld", self.temp_kernel_ld, .{
+            kernel_start_address,
+            try self.board_config.mem.ram_layout.calcPageTableSizeKernel(),
+            try self.board_config.mem.ram_layout.calcPageTableSizeUser(),
+        });
     }
 };
 

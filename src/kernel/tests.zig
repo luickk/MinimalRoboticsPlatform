@@ -19,8 +19,8 @@ pub fn testKMalloc(alloc: anytype) !void {
     kprint("[kTEST] userspace page alloc test successfull \n", .{});
 }
 
-pub fn testUserSpaceMem() void {
-    @intToPtr(*usize, 0x30000000).* = 100;
-    if (@intToPtr(*usize, 0x30000000).* == 100)
+pub fn testUserSpaceMem(addr: usize) void {
+    @intToPtr(*usize, addr).* = 100;
+    if (@intToPtr(*usize, addr).* == 100)
         kprint("[kTEST] write to userspace successfull \n", .{});
 }

@@ -6,6 +6,9 @@ pub const config = boardConfig.BoardConfig{
     .mem = boardConfig.BoardMemLayout{
         .va_start = vaStart,
 
+        .bl_stack_size = 0x1000,
+        .k_stack_size = 0x1000,
+
         // qemus machine has a rom with 1 gb size
         .rom_start_addr = 0,
         .rom_size = 0x40000000,

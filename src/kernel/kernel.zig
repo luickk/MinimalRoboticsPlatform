@@ -5,6 +5,9 @@ const k_utils = @import("utils.zig");
 const tests = @import("tests.zig");
 
 const kprint = arm.uart.UartWriter(true).kprint;
+// todo => fix, works only with unsecure addresses?
+const gic = arm.gicv2.Gic(false);
+
 // kernel services
 const UserSpaceAllocator = @import("memory.zig").UserSpaceAllocator;
 const intHandle = @import("gicHandle.zig");
@@ -47,7 +50,9 @@ export fn kernel_main() callconv(.Naked) noreturn {
         kprint("[panic] el must be 1! (it is: {d})\n", .{current_el});
         proc.panic();
     }
-
+    if (board.config.board == .qemuVirt) {
+        gic.init();
+    }
     if (board.config.board == .raspi3b) {
         timer.initTimer();
         kprint("[kernel] timer inited \n", .{});
@@ -123,7 +128,11 @@ export fn kernel_main() callconv(.Naked) noreturn {
     //     kprint("[panic] UserSpaceAllocator test error: {s} \n", .{@errorName(e)});
     //     k_utils.panic();
     // };
-    tests.testUserSpaceMem();
+    if (board.config.board == .raspi3b)
+        tests.testUserSpaceMem(0x30000000);
+
+    if (board.config.board == .qemuVirt)
+        tests.testUserSpaceMem(0x30000000);
 
     while (true) {}
 }

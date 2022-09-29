@@ -55,6 +55,9 @@ pub const RamMemLayout = struct {
 pub const BoardMemLayout = struct {
     va_start: usize,
 
+    bl_stack_size: usize,
+    k_stack_size: usize,
+
     rom_start_addr: ?usize,
     rom_size: ?usize,
 
@@ -81,7 +84,6 @@ pub const BoardConfig = struct {
     mem: BoardMemLayout,
     qemu_launch_command: []const []const u8,
 
-    // todo => check config...
     pub fn checkConfig(cfg: BoardConfig) void {
         if (cfg.mem.rom_start_addr == null and cfg.mem.bl_load_addr == null)
             @panic("if there is no rom, a boot loader start (or entry) address is required! \n");

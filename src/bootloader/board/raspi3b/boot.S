@@ -6,11 +6,15 @@
 // how to get from el3 to el1 is described here: https://developer.arm.com/documentation/102437/0100/Changing-Exception-levels
 .globl	_start
 _start:
+	// checking for secure state
+	mrs x1, scr_el3
+	tbnz  x1, 0, proc_hang
+
 	mrs	x0, mpidr_el1		
 	and	x0, x0,#0xFF // Check processor id
 	cbz	x0, master // Hang for all non-primary CPU
 	b	proc_hang
-
+	
 el1_entry_aarch64:
 	ldr x0, = _exception_vector_table
 	msr vbar_el1, x0
@@ -20,15 +24,12 @@ el1_entry_aarch64:
 	mov	x0, #3 << 20
 	msr	cpacr_el1, x0
 
+	// clear bss section
     adr	x0, _bss_start
 	adr	x1, _bss_end
 	sub	x1, x1, x0
 	bl 	memzero
-	isb 
-
-    // set top of stack just before our code (stack grows to a lower address per AAPCS64)
-    ldr x1, = _stack_top
-    mov sp, x1
+	isb
 
 	bl  bl_main
 

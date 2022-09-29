@@ -19,6 +19,8 @@ The Rust code can still be found in the separate [rust branch](https://github.co
 Because it simplifies linking and building the kernel as a whole. Linking both the kernel and bootloader is difficult(and error-prone) because it requires the linker to link symbols with VMA offsets that are not supported in size and causes more issues when it comes to relocation of the kernel. 
 Both the bootloader and kernel are compiled&linked separately, then their binaries are concatenated(all in build.zig). The bootloader then prepares the exception vectors, mmu, memory drivers and relocates the kernel code.
 
+The bootloader is really custom and does a few things differently. One of the primary goals is to keep non static memory allocations to an absolute minimum. This is also true for the stack/ paging tables, which have to be loaded at runtime. At the moment both, bootloader stack and page tables are allocated on the ram, to be more specific in the specified userspace section. This allows to boot from rom(non writable memory...) whilst still supporting boot from ram.
+
 ## MMU
 
 I rewrote a complete mmu "composer" with which one can easily configure the page dir in a simple and readable manner. Currently the composer only supports 4096 granule.
