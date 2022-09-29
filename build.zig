@@ -53,18 +53,20 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.addObjectFile("src/kernel/kernel.zig");
     kernel_exe.install();
     kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).artifact.install();
-    // const kernel_bin_size = try getFileSize("zig-out/bin/kernel.bin");
-    build_options.addOption(usize, "kernel_bin_size", 100000);
+    const kernel_bin_size = try getFileSize("zig-out/bin/kernel.bin");
+    // todo => fix STATIC KERNEL SIZE!!
+    build_options.addOption(usize, "kernel_bin_size", kernel_bin_size);
 
     // compilation steps
     var concat_step = ConcateBinsStep.create(b, "zig-out/bin/bootloader.bin", "zig-out/bin/kernel.bin", "zig-out/bin/mergedKernel");
-    var update_linker_scripts = UpdateLinkerScripts.create(b, temp_bl_ld, temp_kernel_ld, currBoard.config);
+    var update_linker_scripts_bl = UpdateLinkerScripts.create(b, .bootloader, temp_bl_ld, temp_kernel_ld, currBoard.config);
+    var update_linker_scripts_k = UpdateLinkerScripts.create(b, .kernel, temp_bl_ld, temp_kernel_ld, currBoard.config);
     const run_step_serial = b.step("qemu", "emulate the kernel with no graphics and output uart to console");
     // run_step_serial.dependOn(b.getInstallStep());
-    run_step_serial.dependOn(&update_linker_scripts.step);
+    run_step_serial.dependOn(&update_linker_scripts_bl.step);
     run_step_serial.dependOn(&bl_exe.step);
     run_step_serial.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).step);
-    run_step_serial.dependOn(&update_linker_scripts.step);
+    run_step_serial.dependOn(&update_linker_scripts_k.step);
     run_step_serial.dependOn(&kernel_exe.step);
     run_step_serial.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).step);
     run_step_serial.dependOn(&concat_step.step);
@@ -74,10 +76,10 @@ pub fn build(b: *std.build.Builder) !void {
     var gdb_qemu = b.addSystemCommand(currBoard.config.qemu_launch_command);
     gdb_qemu.addArg("-s");
     gdb_qemu.addArg("-S");
-    run_step_serial.dependOn(&update_linker_scripts.step);
+    run_step_serial.dependOn(&update_linker_scripts_bl.step);
     run_step_serial.dependOn(&bl_exe.step);
     run_step_serial.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).step);
-    run_step_serial.dependOn(&update_linker_scripts.step);
+    run_step_serial.dependOn(&update_linker_scripts_k.step);
     run_step_serial.dependOn(&kernel_exe.step);
     run_step_serial.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).step);
     run_step_serial.dependOn(&concat_step.step);
@@ -140,19 +142,22 @@ const ConcateBinsStep = struct {
 
 /// concatenates two files to one. (f1+f2)
 const UpdateLinkerScripts = struct {
+    pub const ToUpdate = enum { bootloader, kernel };
     step: std.build.Step,
     temp_bl_ld: []const u8,
     temp_kernel_ld: []const u8,
     board_config: currBoard.boardConfig.BoardConfig,
+    to_update: ToUpdate,
     allocator: std.mem.Allocator,
 
-    pub fn create(b: *std.build.Builder, temp_bl_ld: []const u8, temp_kernel_ld: []const u8, board_config: currBoard.boardConfig.BoardConfig) *UpdateLinkerScripts {
+    pub fn create(b: *std.build.Builder, to_update: ToUpdate, temp_bl_ld: []const u8, temp_kernel_ld: []const u8, board_config: currBoard.boardConfig.BoardConfig) *UpdateLinkerScripts {
         const self = b.allocator.create(UpdateLinkerScripts) catch unreachable;
         self.* = .{
             .step = std.build.Step.init(.custom, "binConcat", b.allocator, UpdateLinkerScripts.doStep),
             .temp_bl_ld = temp_bl_ld,
             .temp_kernel_ld = temp_kernel_ld,
             .board_config = board_config,
+            .to_update = to_update,
             .allocator = b.allocator,
         };
         return self;
@@ -160,24 +165,29 @@ const UpdateLinkerScripts = struct {
 
     fn doStep(step: *std.build.Step) !void {
         const self = @fieldParentPtr(UpdateLinkerScripts, "step", step);
-        var bl_start_address: usize = self.board_config.mem.rom_start_addr orelse 0;
-        if (self.board_config.mem.rom_start_addr == null)
-            bl_start_address = self.board_config.mem.bl_load_addr orelse 0;
-        try writeVarsToLinkerScript(self.allocator, "src/bootloader/linker.ld", self.temp_bl_ld, .{
-            bl_start_address,
-            null,
-            null,
-        });
-
-        // 0 because because ttdr1 begins at ram start, at which the kernels starts as well
-        var kernel_start_address: usize = self.board_config.mem.ram_start_addr;
-        if (self.board_config.mem.rom_start_addr == null)
-            kernel_start_address = (try getFileSize("zig-out/bin/bootloader.bin")) + (self.board_config.mem.bl_load_addr orelse 0);
-        try writeVarsToLinkerScript(self.allocator, "src/kernel/linker.ld", self.temp_kernel_ld, .{
-            kernel_start_address,
-            try self.board_config.mem.ram_layout.calcPageTableSizeKernel(),
-            try self.board_config.mem.ram_layout.calcPageTableSizeUser(),
-        });
+        switch (self.to_update) {
+            .bootloader => {
+                var bl_start_address: usize = self.board_config.mem.rom_start_addr orelse 0;
+                if (self.board_config.mem.rom_start_addr == null)
+                    bl_start_address = self.board_config.mem.bl_load_addr orelse 0;
+                try writeVarsToLinkerScript(self.allocator, "src/bootloader/linker.ld", self.temp_bl_ld, .{
+                    bl_start_address,
+                    null,
+                    null,
+                });
+            },
+            .kernel => {
+                // 0 because because ttdr1 begins at ram start, at which the kernels starts as well
+                var kernel_start_address: usize = self.board_config.mem.ram_start_addr;
+                if (self.board_config.mem.rom_start_addr == null)
+                    kernel_start_address = (try getFileSize("zig-out/bin/bootloader.bin")) + (self.board_config.mem.bl_load_addr orelse 0);
+                try writeVarsToLinkerScript(self.allocator, "src/kernel/linker.ld", self.temp_kernel_ld, .{
+                    kernel_start_address,
+                    try self.board_config.mem.ram_layout.calcPageTableSizeKernel(),
+                    try self.board_config.mem.ram_layout.calcPageTableSizeUser(),
+                });
+            },
+        }
     }
 };
 
