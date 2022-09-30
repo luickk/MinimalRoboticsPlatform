@@ -5,13 +5,16 @@ const os = @import("std").os;
 
 const Error = error{BlExceedsRomSize};
 
-const currBoard = @import("src/boards/qemuVirt.zig");
+const currBoard = @import("src/boards/raspi3b.zig");
+const kernel_bin_size: usize = 0x10000;
+const bl_bin_size: usize = 0x10000;
 
 pub fn build(b: *std.build.Builder) !void {
     currBoard.config.checkConfig();
-    const kernel_bin_size = 30000;
 
     var build_options = b.addOptions();
+    build_options.addOption(usize, "kernel_bin_size", kernel_bin_size);
+    build_options.addOption(usize, "bl_bin_size", bl_bin_size);
 
     // SOC builtin features
     var arm = std.build.Pkg{ .name = "arm", .source = .{ .path = "src/arm/arm.zig" } };
@@ -43,8 +46,6 @@ pub fn build(b: *std.build.Builder) !void {
     bl_exe.addCSourceFile("src/bootloader/board/" ++ @tagName(currBoard.config.board) ++ "/boot.S", &.{});
     bl_exe.addCSourceFile("src/bootloader/board/" ++ @tagName(currBoard.config.board) ++ "/exc_vec.S", &.{});
     bl_exe.install();
-    const bl_bin_size = try getFileSize("zig-out/bin/bootloader.bin");
-
     if (currBoard.config.mem.rom_size) |rs|
         if (bl_bin_size + kernel_bin_size > rs)
             return Error.BlExceedsRomSize;
@@ -61,7 +62,6 @@ pub fn build(b: *std.build.Builder) !void {
     const temp_kernel_ld = "zig-cache/tmp/tempKernelLinker.ld";
     kernel_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_kernel_ld });
     kernel_exe.addObjectFile("src/kernel/kernel.zig");
-    build_options.addOption(usize, "kernel_bin_size", kernel_bin_size);
     kernel_exe.install();
 
     // compilation steps
@@ -71,10 +71,11 @@ pub fn build(b: *std.build.Builder) !void {
     const run_step_serial = b.step("qemu", "emulate the kernel with no graphics and output uart to console");
     // run_step_serial.dependOn(b.getInstallStep());
     run_step_serial.dependOn(&update_linker_scripts_bl.step);
+    // compiling elfs as well, but only for gdb debugging
     run_step_serial.dependOn(&bl_exe.install_step.?.step);
-    run_step_serial.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).step);
+    run_step_serial.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = bl_bin_size }).step);
     run_step_serial.dependOn(&update_linker_scripts_k.step);
-    run_step_serial.dependOn(&kernel_exe.step);
+    run_step_serial.dependOn(&kernel_exe.install_step.?.step);
     run_step_serial.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = kernel_bin_size }).step);
     run_step_serial.dependOn(&concat_step.step);
     run_step_serial.dependOn(&b.addSystemCommand(currBoard.config.qemu_launch_command).step);
@@ -85,9 +86,9 @@ pub fn build(b: *std.build.Builder) !void {
     gdb_qemu.addArg("-S");
     run_step_serial.dependOn(&update_linker_scripts_bl.step);
     run_step_serial.dependOn(&bl_exe.install_step.?.step);
-    run_step_serial.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).step);
+    run_step_serial.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = bl_bin_size }).step);
     run_step_serial.dependOn(&update_linker_scripts_k.step);
-    run_step_serial.dependOn(&kernel_exe.step);
+    run_step_serial.dependOn(&kernel_exe.install_step.?.step);
     run_step_serial.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = kernel_bin_size }).step);
     run_step_serial.dependOn(&concat_step.step);
     run_step_serial_gdb.dependOn(&gdb_qemu.step);
@@ -187,7 +188,7 @@ const UpdateLinkerScripts = struct {
                 // 0 because because ttdr1 begins at ram start, at which the kernels starts as well
                 var kernel_start_address: usize = self.board_config.mem.ram_start_addr;
                 if (self.board_config.mem.rom_start_addr == null)
-                    kernel_start_address = (try getFileSize("zig-out/bin/bootloader.bin")) + (self.board_config.mem.bl_load_addr orelse 0);
+                    kernel_start_address = bl_bin_size + (self.board_config.mem.bl_load_addr orelse 0);
                 try writeVarsToLinkerScript(self.allocator, "src/kernel/linker.ld", self.temp_kernel_ld, .{
                     kernel_start_address,
                     try self.board_config.mem.ram_layout.calcPageTableSizeKernel(),

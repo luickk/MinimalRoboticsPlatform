@@ -24,6 +24,7 @@ const GranuleParams = board.boardConfig.GranuleParams;
 const TransLvl = board.boardConfig.TransLvl;
 
 const kernel_bin_size = b_options.kernel_bin_size;
+const bl_bin_size = b_options.bl_bin_size;
 
 // todo => ttbr1 for kernel is ranging from 0x0-1g instead of _ramSize_ + _bl_load_addr-1g!. Alternatively link kernel with additional offset
 
@@ -47,10 +48,7 @@ export fn bl_main() callconv(.Naked) noreturn {
     // proc.exceptionSvc();
 
     // get address of external linker script variable which marks stack-top and kernel start
-    const kernel_entry: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernelrom_start", .linkage = .Strong }) orelse {
-        kprint("error reading _kernelrom_start label\n", .{});
-        bl_utils.panic();
-    });
+    const kernel_entry: usize = bl_bin_size;
 
     var kernel_bl: []u8 = undefined;
     kernel_bl.ptr = @intToPtr([*]u8, kernel_entry);
@@ -168,9 +166,9 @@ export fn bl_main() callconv(.Naked) noreturn {
     }
     var kernel_addr = @ptrToInt(kernel_target_loc.ptr);
     if (board.config.mem.rom_start_addr == null)
-        kernel_addr = mmu.toSecure(usize, kernel_entry);
+        kernel_addr = mmu.toSecure(usize, board.config.mem.bl_load_addr.? + kernel_entry);
 
-    kprint("[bootloader] jumping to kernel_space kernel at 0x{x}\n", .{kernel_addr});
+    kprint("[bootloader] jumping to kernel at 0x{x}\n", .{kernel_addr});
 
     proc.branchToAddr(kernel_addr);
 
