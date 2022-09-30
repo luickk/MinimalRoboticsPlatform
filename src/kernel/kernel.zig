@@ -1,12 +1,12 @@
 const std = @import("std");
 const arm = @import("arm");
+const periph = @import("periph");
 const utils = @import("utils");
 const k_utils = @import("utils.zig");
 const tests = @import("tests.zig");
 
-const kprint = arm.uart.UartWriter(true).kprint;
-// todo => fix, works only with unsecure addresses?
-const gic = arm.gicv2.Gic(false);
+const kprint = periph.uart.UartWriter(true).kprint;
+const gic = arm.gicv2.Gic(true);
 
 // kernel services
 const UserSpaceAllocator = @import("memory.zig").UserSpaceAllocator;
@@ -38,20 +38,16 @@ export fn kernel_main() callconv(.Naked) noreturn {
         unreachable;
     });
 
-    _ = _kernel_end;
-    // todo => reduce kernel bin size by not accounting for page tables
-    // if (mmu.toUnsecure(usize, _kernel_end) > board.config.mem.ram_size) {
-    //     kprint("[panic] kernel exceeding ram mem (0x{x})\n", .{mmu.toUnsecure(usize, _kernel_end)});
-    //     k_utils.panic();
-    // }
-
     var current_el = proc.getCurrentEl();
     if (current_el != 1) {
         kprint("[panic] el must be 1! (it is: {d})\n", .{current_el});
         proc.panic();
     }
     if (board.config.board == .qemuVirt) {
-        gic.init();
+        gic.init() catch |e| {
+            kprint("[panic] Page table ttbr0 address calc error: {s}\n", .{@errorName(e)});
+            k_utils.panic();
+        };
     }
     if (board.config.board == .raspi3b) {
         timer.initTimer();
@@ -112,6 +108,8 @@ export fn kernel_main() callconv(.Naked) noreturn {
     proc.setTTBR0(_u_ttbr0_dir);
 
     kprint("[kernel] kernel boot complete \n", .{});
+
+    _ = _kernel_end;
     // var page_alloc_start = utils.ceilRoundToMultiple(_kernel_end, board.config.mem.ram_layout.user_space_gran.page_size) catch |e| {
     //     kprint("[panic] UserSpaceAllocator start addr calc err: {s}\n", .{@errorName(e)});
     //     k_utils.panic();
@@ -132,7 +130,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
         tests.testUserSpaceMem(0x30000000);
 
     if (board.config.board == .qemuVirt)
-        tests.testUserSpaceMem(0x30000000);
+        tests.testUserSpaceMem(0x60000000);
 
     while (true) {}
 }

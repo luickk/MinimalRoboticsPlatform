@@ -1,10 +1,9 @@
 const std = @import("std");
 const board = @import("board");
-const mmu = @import("mmu.zig");
-const device_base = @import("build_options").device_base;
+const mmu = @import("arm").mmu;
 
-pub fn UartWriter(secure: bool) type {
-    const pl011 = @import("pl011.zig").Pl011(secure);
+pub fn UartWriter(kernel_space: bool) type {
+    const pl011 = @import("pl011.zig").Pl011(kernel_space);
     return struct {
         const Self = @This();
         pub const Writer = std.io.Writer(*Self, error{}, appendWrite);
@@ -22,7 +21,7 @@ pub fn UartWriter(secure: bool) type {
         }
 
         pub fn kprint(comptime print_string: []const u8, args: anytype) void {
-            var tempW: UartWriter(secure) = undefined;
+            var tempW: UartWriter(kernel_space) = undefined;
             std.fmt.format(tempW.writer(), print_string, args) catch |err| {
                 @panic(err);
             };

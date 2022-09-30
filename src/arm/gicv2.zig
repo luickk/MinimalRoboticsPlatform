@@ -1,3 +1,4 @@
+const std = @import("std");
 const mmu = @import("mmu.zig");
 
 // identifiers for the vector table addr_handler call
@@ -22,18 +23,18 @@ pub const ExceptionFrame = struct {
     lr: u64,
 };
 
-pub fn Gic(secure: bool) type {
-    const gicAddr = @import("board").PeriphConfig(secure).GicV2;
+pub fn Gic(kernel_space: bool) type {
+    const gicCfg = @import("board").PeriphConfig(kernel_space).GicV2;
     return struct {
         // initialize gic controller
-        pub fn init() void {
+        pub fn init() !void {
             Gicc.init();
-            Gicd.init();
+            try Gicd.init();
         }
 
         // 8.8 The GIC Distributor register map
         pub const GicdRegMap = struct {
-            pub const gicdBase = gicAddr.base_address; // gicd mmio base address
+            pub const gicdBase = gicCfg.base_address; // gicd mmio base address
 
             // Enables interrupts and affinity routing
             pub const ctlr = @intToPtr(*volatile u32, gicdBase + 0x0);
@@ -70,13 +71,13 @@ pub fn Gic(secure: bool) type {
 
             // from the gicv2 docs: "The number of implemented GICD_ICACTIVER<n> registers is (GICD_TYPER.ITLinesNumber+1). Registers are numbered from 0"
             pub fn calcReg(offset: *volatile u32, n: usize) *volatile u32 {
-                return @intToPtr(*volatile u32, gicdBase + @as(usize, @ptrToInt(offset)) + (n * 4));
+                return @intToPtr(*volatile u32, @ptrToInt(offset) + (n * 4));
             }
         };
 
         // 8.12 the gic cpu interface register map
         pub const GiccRegMap = struct {
-            pub const giccBase = gicAddr.base_address + 0x10000; // gicc mmio base address
+            pub const giccBase = gicCfg.base_address + 0x10000; // gicc mmio base address
 
             // cpu interface control register
             pub const ctlr = @intToPtr(*volatile u32, giccBase + 0x000);
@@ -125,8 +126,8 @@ pub fn Gic(secure: bool) type {
         pub const GiccRegValues = struct {
             // gicc..
             // 8.13.14 gicc_pmr, cpu interface priority mask register
-            pub const giccPmrPrioMin = @truncate(u32, mmu.toUnsecure(usize, GiccRegMap.giccBase) + 0xff); // the lowest level mask
-            pub const giccPmrPrioHigh = @truncate(u32, mmu.toUnsecure(usize, GiccRegMap.giccBase) + 0x0); // the highest level mask
+            pub const giccPmrPrioMin = @truncate(u32, mmu.toUnsecure(usize, GiccRegMap.giccBase + 0xff)); // the lowest level mask
+            pub const giccPmrPrioHigh = @truncate(u32, mmu.toUnsecure(usize, GiccRegMap.giccBase + 0x0)); // the highest level mask
             // 8.13.7 gicc_ctlr, cpu interface control register
             pub const giccCtlrEnable = 0x1; // enable gicc
             pub const giccCtlrDisable = 0x0; // disable gicc
@@ -148,7 +149,6 @@ pub fn Gic(secure: bool) type {
                 // note: higher priority corresponds to a lower priority field value in the gic_pmr.
                 // in addition to this, writing 255 to the gicc_pmr always sets it to the largest supported priority field value.
                 GiccRegMap.pmr.* = GiccRegValues.giccPmrPrioMin;
-
                 // handle all of interrupts in a single group
                 GiccRegMap.bpr.* = GiccRegValues.giccBprNoGroup;
 
@@ -177,7 +177,7 @@ pub fn Gic(secure: bool) type {
                 _ = exception_frame;
                 var rc: u32 = undefined;
                 var i: u32 = 0;
-                while (gicAddr.intMax > i) : (i += 1) {
+                while (gicCfg.intMax > i) : (i += 1) {
                     if (Gicd.gicdProbePending(i)) {
                         rc = 0;
                         irqp.* = i;
@@ -192,7 +192,7 @@ pub fn Gic(secure: bool) type {
 
         pub const Gicd = struct {
             // init the gic distributor
-            fn init() void {
+            fn init() !void {
                 var i: u32 = 0;
                 var regs_nr: u32 = 0;
 
@@ -200,35 +200,34 @@ pub fn Gic(secure: bool) type {
                 GicdRegMap.ctlr.* = GiccRegValues.giccCtlrDisable;
 
                 // disable all irqs
-                regs_nr = (gicAddr.intMax + GicdRegValues.gicdIntPerReg - 1) / GicdRegValues.gicdIntPerReg;
+                regs_nr = try std.math.divExact(u32, gicCfg.intMax + GicdRegValues.gicdIntPerReg, GicdRegValues.gicdIntPerReg);
                 while (regs_nr > i) : (i += 1) {
                     GicdRegMap.calcReg(GicdRegMap.icenabler, i).* = ~@as(u32, 0);
                 }
                 i = 0;
 
                 // clear all pending irqs
-                regs_nr = (gicAddr.intMax + GicdRegValues.gicdIntPerReg - 1) / GicdRegValues.gicdIntPerReg;
                 while (regs_nr > i) : (i += 1) {
                     GicdRegMap.calcReg(GicdRegMap.icpendr, i).* = ~@as(u32, 0);
                 }
                 i = 0;
 
                 // set all of interrupt priorities as the lowest priority
-                regs_nr = (gicAddr.intMax + GicdRegValues.gicdIpriorityPerReg - 1) / GicdRegValues.gicdIpriorityPerReg;
+                regs_nr = try std.math.divExact(u32, gicCfg.intMax + GicdRegValues.gicdIpriorityPerReg, GicdRegValues.gicdIpriorityPerReg);
                 while (regs_nr > i) : (i += 1) {
                     GicdRegMap.calcReg(GicdRegMap.ipriorityr, i).* = ~@as(u32, 0);
                 }
                 i = 0;
 
                 // set target of all of shared arm to processor 0
-                i = gicAddr.intNoSpi0 / GicdRegValues.gicdItargetsrPerReg;
-                while ((gicAddr.intMax + (GicdRegValues.gicdItargetsrPerReg - 1)) / GicdRegValues.gicdItargetsrPerReg > i) : (i += 1) {
+                i = try std.math.divExact(u32, gicCfg.intNoSpi0, GicdRegValues.gicdItargetsrPerReg);
+                while ((try std.math.divExact(u32, gicCfg.intMax + GicdRegValues.gicdItargetsrPerReg, GicdRegValues.gicdItargetsrPerReg)) > i) : (i += 1) {
                     GicdRegMap.calcReg(GicdRegMap.itargetsr, i).* = @as(u32, GicdRegValues.gicdItargetsrCore0TargetBmap);
                 }
 
                 // set trigger type for all armeral interrupts level triggered
-                i = gicAddr.intNoPpi0 / GicdRegValues.gicdIcfgrPerReg;
-                while ((gicAddr.intMax + (GicdRegValues.gicdIcfgrPerReg - 1)) / GicdRegValues.gicdIcfgrPerReg > i) : (i += 1) {
+                i = try std.math.divExact(u32, gicCfg.intNoPpi0, GicdRegValues.gicdIcfgrPerReg);
+                while ((try std.math.divExact(u32, gicCfg.intMax + GicdRegValues.gicdIcfgrPerReg, GicdRegValues.gicdIcfgrPerReg)) > i) : (i += 1) {
                     GicdRegMap.calcReg(GicdRegMap.icfgr, i).* = GicdRegValues.gicdIcfgrLevel;
                 }
 
@@ -238,26 +237,26 @@ pub fn Gic(secure: bool) type {
 
             // disable irq
             // irq irq number
-            pub fn gicdDisableInt(irq: u32) void {
-                GicdRegMap.calcReg(GicdRegMap.icenabler, irq / GiccRegValues.gicdIcenablerPerReg).* = @as(u8, 1) << @truncate(u3, irq % GiccRegValues.gicdIcenablerPerReg);
+            pub fn gicdDisableInt(irq: u32) !void {
+                GicdRegMap.calcReg(try std.math.divExact(u32, GicdRegMap.icenabler, irq, GiccRegValues.gicdIcenablerPerReg)).* = @as(u8, 1) << @truncate(u3, irq % GiccRegValues.gicdIcenablerPerReg);
             }
 
             // enable irq
             // irq irq number
-            pub fn gicdEnableInt(irq: u32) void {
-                GicdRegMap.calcReg(GicdRegMap.isenabler, irq / GiccRegValues.gicdIsenablerPerReg).* = @as(u8, 1) << @truncate(u3, irq % GiccRegValues.gicdIsenablerPerReg);
+            pub fn gicdEnableInt(irq: u32) !void {
+                GicdRegMap.calcReg(try std.math.divExact(u32, GicdRegMap.isenabler, irq, GiccRegValues.gicdIsenablerPerReg)).* = @as(u8, 1) << @truncate(u3, irq % GiccRegValues.gicdIsenablerPerReg);
             }
 
             // clear a pending interrupt
             // irq irq number
-            fn gicdClearPending(irq: u32) void {
-                GicdRegMap.calcReg(GicdRegMap.icpendr, irq / GiccRegValues.gicdIcpendrPerReg).* = @as(u8, 1) << @truncate(u3, irq % GiccRegValues.gicdIcpendrPerReg);
+            fn gicdClearPending(irq: u32) !void {
+                GicdRegMap.calcReg(try std.math.divExact(u32, GicdRegMap.icpendr, irq, GiccRegValues.gicdIcpendrPerReg)).* = @as(u8, 1) << @truncate(u3, irq % GiccRegValues.gicdIcpendrPerReg);
             }
 
             // probe pending interrupt
             // irq irq number
-            fn gicdProbePending(irq: u32) bool {
-                var is_pending = (GicdRegMap.calcReg(GicdRegMap.ispendr, (irq / GiccRegValues.gicdIspendrPerReg)).* & (@as(u8, 1) << @truncate(u3, irq % GiccRegValues.gicdIspendrPerReg)));
+            fn gicdProbePending(irq: u32) !bool {
+                var is_pending = GicdRegMap.calcReg(GicdRegMap.ispendr, try std.math.divExact(u32, irq, GiccRegValues.gicdIspendrPerReg)).* & (@as(u8, 1) << @truncate(u3, irq % GiccRegValues.gicdIspendrPerReg));
                 return is_pending != 0;
             }
 

@@ -3,15 +3,16 @@ const bl_utils = @import("utils.zig");
 const utils = @import("utils");
 const intHandle = @import("gicHandle.zig");
 const arm = @import("arm");
+const periph = @import("periph");
 const board = @import("board");
 const b_options = @import("build_options");
 const proc = arm.processor;
 const mmuComp = arm.mmuComptime;
 const mmu = arm.mmu;
-// bool arg sets the addresses value to either mmu secure or unsecure
+// bool arg sets the addresses value to either mmu kernel_space or unsecure
 const PeriphConfig = board.PeriphConfig(false);
-const pl011 = arm.pl011.Pl011(false);
-const kprint = arm.uart.UartWriter(false).kprint;
+const pl011 = periph.Pl011(false);
+const kprint = periph.uart.UartWriter(false).kprint;
 
 // raspberry
 const bcm2835IntController = arm.bcm2835IntController.InterruptController(false);
@@ -36,7 +37,10 @@ export fn bl_main() callconv(.Naked) noreturn {
 
     // GIC Init
     if (board.config.board == .qemuVirt) {
-        gic.init();
+        gic.init() catch |e| {
+            kprint("[panic] GIC init error: {s} \n", .{@errorName(e)});
+            bl_utils.panic();
+        };
         pl011.init();
     }
 
@@ -158,7 +162,7 @@ export fn bl_main() callconv(.Naked) noreturn {
 
     if (board.config.mem.rom_start_addr != null) {
         kprint("[bootloader] setup mmu, el1, exc table. \n", .{});
-        kprint("[bootloader] Copying kernel to secure: 0x{x}, with size: {d} \n", .{ @ptrToInt(kernel_target_loc.ptr), kernel_target_loc.len });
+        kprint("[bootloader] Copying kernel to kernel_space: 0x{x}, with size: {d} \n", .{ @ptrToInt(kernel_target_loc.ptr), kernel_target_loc.len });
         std.mem.copy(u8, kernel_target_loc, kernel_bl);
         kprint("[bootloader] kernel copied \n", .{});
     }
@@ -166,7 +170,7 @@ export fn bl_main() callconv(.Naked) noreturn {
     if (board.config.mem.rom_start_addr == null)
         kernel_addr = mmu.toSecure(usize, kernel_entry);
 
-    kprint("[bootloader] jumping to secure kernel at 0x{x}\n", .{kernel_addr});
+    kprint("[bootloader] jumping to kernel_space kernel at 0x{x}\n", .{kernel_addr});
 
     proc.branchToAddr(kernel_addr);
 

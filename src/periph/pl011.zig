@@ -1,16 +1,16 @@
 const std = @import("std");
 const board = @import("board");
 
-pub fn Pl011(secure: bool) type {
-    const pl011Addr = board.PeriphConfig(secure).Pl011;
+pub fn Pl011(kernel_space: bool) type {
+    const pl011Cfg = board.PeriphConfig(kernel_space).Pl011;
     return struct {
         const RegMap = struct {
-            pub const dataReg = @intToPtr(*volatile u32, pl011Addr.base_address + 0x000);
-            pub const flagReg = @intToPtr(*volatile u32, pl011Addr.base_address + 0x018);
-            pub const intBaudRateReg = @intToPtr(*volatile u32, pl011Addr.base_address + 0x024);
-            pub const fracBaudRateReg = @intToPtr(*volatile u32, pl011Addr.base_address + 0x028);
+            pub const dataReg = @intToPtr(*volatile u32, pl011Cfg.base_address + 0x000);
+            pub const flagReg = @intToPtr(*volatile u32, pl011Cfg.base_address + 0x018);
+            pub const intBaudRateReg = @intToPtr(*volatile u32, pl011Cfg.base_address + 0x024);
+            pub const fracBaudRateReg = @intToPtr(*volatile u32, pl011Cfg.base_address + 0x028);
             pub const lineCtrlReg = struct {
-                pub const reg = @intToPtr(*volatile u32, pl011Addr.base_address + 0x02c);
+                pub const reg = @intToPtr(*volatile u32, pl011Cfg.base_address + 0x02c);
                 pub const RegAttr = packed struct {
                     padding: u24 = 0,
                     stick_parity_select: bool = false,
@@ -27,7 +27,7 @@ pub fn Pl011(secure: bool) type {
                 };
             };
             pub const ctrlReg = struct {
-                pub const reg = @intToPtr(*volatile u32, pl011Addr.base_address + 0x030);
+                pub const reg = @intToPtr(*volatile u32, pl011Cfg.base_address + 0x030);
                 pub const RegAttr = packed struct {
                     padding: u16 = 0,
                     cts_hwflow_ctrl_en: bool = false,
@@ -49,8 +49,8 @@ pub fn Pl011(secure: bool) type {
                     }
                 };
             };
-            pub const intMaskSetClearReg = @intToPtr(*volatile u32, pl011Addr.base_address + 0x038);
-            pub const dmaCtrlReg = @intToPtr(*volatile u32, pl011Addr.base_address + 0x048);
+            pub const intMaskSetClearReg = @intToPtr(*volatile u32, pl011Cfg.base_address + 0x038);
+            pub const dmaCtrlReg = @intToPtr(*volatile u32, pl011Cfg.base_address + 0x048);
         };
 
         fn waitForTransmissionEnd() void {
@@ -59,7 +59,7 @@ pub fn Pl011(secure: bool) type {
         }
         // used for fracBaudRateReg, intBaudRateReg config registers
         fn calcClockDevisor() struct { integer: u16, fraction: u6 } {
-            const div: u32 = 4 * pl011Addr.base_clock / pl011Addr.baudrate;
+            const div: u32 = 4 * pl011Cfg.base_clock / pl011Cfg.baudrate;
             return .{ .integer = (div >> 6) & 0xffff, .fraction = div & 0x3f };
         }
 
@@ -78,9 +78,9 @@ pub fn Pl011(secure: bool) type {
             RegMap.fracBaudRateReg.* = dev.fraction;
 
             var two_stop_bits = false;
-            if (pl011Addr.stop_bits == 2)
+            if (pl011Cfg.stop_bits == 2)
                 two_stop_bits = true;
-            if (pl011Addr.data_bits != 8)
+            if (pl011Cfg.data_bits != 8)
                 @compileError("pl011 only supports 8 bit wlen");
 
             RegMap.lineCtrlReg.reg.* = (RegMap.lineCtrlReg.RegAttr{

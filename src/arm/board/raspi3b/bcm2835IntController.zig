@@ -1,5 +1,5 @@
-pub fn InterruptController(secure: bool) type {
-    const base_address = @import("board").PeriphConfig(secure).InterruptController.base_address;
+pub fn InterruptController(kernel_space: bool) type {
+    const base_address = @import("board").PeriphConfig(kernel_space).InterruptController.base_address;
     return struct {
         const Self = @This();
 
@@ -56,7 +56,7 @@ pub fn InterruptController(secure: bool) type {
             // bank2
             pub const Bank2 = enum(u32) { hostport = 1 << 0, videoscaler = 1 << 1, ccp2tx = 1 << 2, sdc = 1 << 3, dsi0 = 1 << 4, ave = 1 << 5, cam0 = 1 << 6, cam1 = 1 << 7, hdmi0 = 1 << 8, hdmi1 = 1 << 9, pixelValve1 = 1 << 10, i2cSpislv = 1 << 11, dsi1 = 1 << 12, pwa0 = 1 << 13, pwa1 = 1 << 14, cpr = 1 << 15, smi = 1 << 16, gpio0 = 1 << 17, gpio1 = 1 << 18, gpio2 = 1 << 19, gpio3 = 1 << 20, vci2c = 1 << 21, vcSpi = 1 << 22, vcI2spcm = 1 << 23, vcSdio = 1 << 24, vcUart = 1 << 25, slimbus = 1 << 26, vec = 1 << 27, cpg = 1 << 28, rng = 1 << 29, vcArasansdio = 1 << 30, avspmon = 1 << 31, notDefined = 0 };
         };
-        const icAddr = @import("board").PeriphConfig(secure).InterruptController;
+        const icAddr = @import("board").PeriphConfig(kernel_space).InterruptController;
         pub fn init() void {
             // enabling all irq types
             // enalbles system timer

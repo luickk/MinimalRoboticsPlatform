@@ -1,6 +1,5 @@
 const std = @import("std");
 const board = @import("board");
-const kprint = @import("uart.zig").kprint;
 
 const Granule = board.boardConfig.Granule;
 const GranuleParams = board.boardConfig.GranuleParams;
@@ -253,26 +252,6 @@ pub fn PageDir(mapping: Mapping) !type {
                 }
                 pg_dir_offset += req_table;
             }
-            // var i: usize = 0;
-            // var j: usize = 0;
-            // while (i <= 20000000) : (i += 1) {
-            //     j = 0;
-            //     kprint("new table({d}): \n", .{i});
-            //     while (j < self.table_len) : (j += 1) {
-            //         kprint("val: 0x{x} addr: 0x{x} \n", .{ self.map_pg_dir[i][j], @ptrToInt(&self.map_pg_dir[i][j]) });
-            //     }
-            // }
-            // kprint("base address: {*} \n", .{self.map_pg_dir.ptr});
-            // kprint("1 lvl (1 table entry): {*} 0x{x} \n", .{ &self.map_pg_dir[0][0], self.map_pg_dir[0][0] });
-            // kprint("------- \n", .{});
-            // kprint("2 lvl (2 table entry): {*} 0x{x} \n", .{ &self.map_pg_dir[1][0], self.map_pg_dir[1][0] });
-            // kprint("2 lvl (2 table entry): {*} 0x{x} \n", .{ &self.map_pg_dir[1][1], self.map_pg_dir[1][1] });
-            // kprint("2 lvl (2 table entry): {*} 0x{x} \n", .{ &self.map_pg_dir[1][2], self.map_pg_dir[1][2] });
-            // kprint("------- \n", .{});
-            // kprint("3 lvl (3 table base address!): {*} 0x{x} \n", .{ &self.map_pg_dir[2][0], self.map_pg_dir[2][0] });
-            // kprint("3 lvl (4 table base address!): {*} 0x{x} \n", .{ &self.map_pg_dir[3][0], self.map_pg_dir[3][0] });
-            // kprint("3 lvl (5 table base address!): {*} 0x{x} \n", .{ &self.map_pg_dir[4][0], self.map_pg_dir[4][0] });
-            // kprint("---------------------------- \n", .{});
         }
 
         // todo => support more pages

@@ -1,11 +1,11 @@
-const timerAddr = @import("board").PeriphConfig(true).Timer;
+const timerCfg = @import("board").PeriphConfig(true).Timer;
 
 var timerVal: u32 = 0;
 
 pub const RegMap = struct {
-    pub const timerCs = @intToPtr(*u32, timerAddr.base_address + 0x0);
-    pub const timerC1 = @intToPtr(*u32, timerAddr.base_address + 0x10);
-    pub const timerClo = @intToPtr(*u32, timerAddr.base_address + 0x4);
+    pub const timerCs = @intToPtr(*u32, timerCfg.base_address + 0x0);
+    pub const timerC1 = @intToPtr(*u32, timerCfg.base_address + 0x10);
+    pub const timerClo = @intToPtr(*u32, timerCfg.base_address + 0x4);
 };
 
 // address values

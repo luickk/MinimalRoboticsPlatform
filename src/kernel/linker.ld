@@ -40,7 +40,7 @@ SECTIONS {
     }
     
     # aligned by page size
-    .paging_tbl : ALIGN(0x00001000)  {
+    .paging_tbl (NOLOAD) : ALIGN(0x00001000)  {
         _kernel_ttbr1_dir = .;
         . += {@zig};
         _user_ttbr0_dir = .;

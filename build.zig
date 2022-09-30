@@ -5,15 +5,25 @@ const os = @import("std").os;
 
 const Error = error{BlExceedsRomSize};
 
-const currBoard = @import("src/boards/raspi3b.zig");
+const currBoard = @import("src/boards/qemuVirt.zig");
 
 pub fn build(b: *std.build.Builder) !void {
     currBoard.config.checkConfig();
+    const kernel_bin_size = 30000;
+
     var build_options = b.addOptions();
 
+    // SOC builtin features
     var arm = std.build.Pkg{ .name = "arm", .source = .{ .path = "src/arm/arm.zig" } };
+    // functions generally required
     var utils = std.build.Pkg{ .name = "utils", .source = .{ .path = "src/utils/utils.zig" } };
+    // board pkg contains the configuration "template"(boardConfig.zig) and different configuration files for different boards
     var board = std.build.Pkg{ .name = "board", .source = .{ .path = "src/boards/" ++ @tagName(currBoard.config.board) ++ ".zig" } };
+    // peripheral drivers
+    var periph = std.build.Pkg{ .name = "periph", .source = .{ .path = "src/periph/periph.zig" } };
+
+    periph.dependencies = &.{arm};
+    periph.dependencies = &.{board};
 
     board.dependencies = &.{arm};
     arm.dependencies = &.{board};
@@ -23,6 +33,7 @@ pub fn build(b: *std.build.Builder) !void {
     bl_exe.addPackage(arm);
     bl_exe.addPackage(utils);
     bl_exe.addPackage(board);
+    bl_exe.addPackage(periph);
     bl_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
     bl_exe.addOptions("build_options", build_options);
     bl_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
@@ -31,31 +42,27 @@ pub fn build(b: *std.build.Builder) !void {
     bl_exe.addObjectFile("src/bootloader/bootloader.zig");
     bl_exe.addCSourceFile("src/bootloader/board/" ++ @tagName(currBoard.config.board) ++ "/boot.S", &.{});
     bl_exe.addCSourceFile("src/bootloader/board/" ++ @tagName(currBoard.config.board) ++ "/exc_vec.S", &.{});
-
     bl_exe.install();
-    bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).artifact.install();
-    // const bl_bin_size = try getFileSize("zig-out/bin/bootloader.bin");
-    // _ = bl_bin_size;
-    // todo => kernel bin file size way too big
-    // if (bl_bin_size + kernel_bin_size > currBoard.mem.rom_size)
-    //     return Error.BlExceedsRomSize;
+    const bl_bin_size = try getFileSize("zig-out/bin/bootloader.bin");
+
+    if (currBoard.config.mem.rom_size) |rs|
+        if (bl_bin_size + kernel_bin_size > rs)
+            return Error.BlExceedsRomSize;
 
     // kernel
     const kernel_exe = b.addExecutable("kernel", null);
     kernel_exe.addPackage(arm);
     kernel_exe.addPackage(utils);
     kernel_exe.addPackage(board);
+    kernel_exe.addPackage(periph);
     kernel_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
     kernel_exe.addOptions("build_options", build_options);
     kernel_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
     const temp_kernel_ld = "zig-cache/tmp/tempKernelLinker.ld";
     kernel_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_kernel_ld });
     kernel_exe.addObjectFile("src/kernel/kernel.zig");
-    kernel_exe.install();
-    kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).artifact.install();
-    const kernel_bin_size = try getFileSize("zig-out/bin/kernel.bin");
-    // todo => fix STATIC KERNEL SIZE!!
     build_options.addOption(usize, "kernel_bin_size", kernel_bin_size);
+    kernel_exe.install();
 
     // compilation steps
     var concat_step = ConcateBinsStep.create(b, "zig-out/bin/bootloader.bin", "zig-out/bin/kernel.bin", "zig-out/bin/mergedKernel");
@@ -64,11 +71,11 @@ pub fn build(b: *std.build.Builder) !void {
     const run_step_serial = b.step("qemu", "emulate the kernel with no graphics and output uart to console");
     // run_step_serial.dependOn(b.getInstallStep());
     run_step_serial.dependOn(&update_linker_scripts_bl.step);
-    run_step_serial.dependOn(&bl_exe.step);
+    run_step_serial.dependOn(&bl_exe.install_step.?.step);
     run_step_serial.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).step);
     run_step_serial.dependOn(&update_linker_scripts_k.step);
     run_step_serial.dependOn(&kernel_exe.step);
-    run_step_serial.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).step);
+    run_step_serial.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = kernel_bin_size }).step);
     run_step_serial.dependOn(&concat_step.step);
     run_step_serial.dependOn(&b.addSystemCommand(currBoard.config.qemu_launch_command).step);
 
@@ -77,11 +84,11 @@ pub fn build(b: *std.build.Builder) !void {
     gdb_qemu.addArg("-s");
     gdb_qemu.addArg("-S");
     run_step_serial.dependOn(&update_linker_scripts_bl.step);
-    run_step_serial.dependOn(&bl_exe.step);
+    run_step_serial.dependOn(&bl_exe.install_step.?.step);
     run_step_serial.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).step);
     run_step_serial.dependOn(&update_linker_scripts_k.step);
     run_step_serial.dependOn(&kernel_exe.step);
-    run_step_serial.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin }).step);
+    run_step_serial.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = kernel_bin_size }).step);
     run_step_serial.dependOn(&concat_step.step);
     run_step_serial_gdb.dependOn(&gdb_qemu.step);
 

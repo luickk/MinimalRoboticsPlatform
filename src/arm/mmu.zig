@@ -1,6 +1,5 @@
 const std = @import("std");
 const board = @import("board");
-const kprint = @import("uart.zig").kprint;
 
 const Granule = board.boardConfig.Granule;
 const GranuleParams = board.boardConfig.GranuleParams;
