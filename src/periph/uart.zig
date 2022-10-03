@@ -1,6 +1,5 @@
 const std = @import("std");
 const board = @import("board");
-const mmu = @import("arm").mmu;
 
 pub fn UartWriter(kernel_space: bool) type {
     const pl011 = @import("pl011.zig").Pl011(kernel_space);

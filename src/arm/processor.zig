@@ -79,6 +79,9 @@ pub fn invalidateCache() void {
 pub inline fn isb() void {
     asm volatile ("isb");
 }
+pub inline fn dsb() void {
+    asm volatile ("dsb SY");
+}
 
 pub inline fn exceptionSvc() void {
     // Supervisor call to allow application code to call the OS.  It generates an exception targeting exception level 1 (EL1).

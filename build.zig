@@ -5,7 +5,7 @@ const os = @import("std").os;
 
 const Error = error{BlExceedsRomSize};
 
-const currBoard = @import("src/boards/raspi3b.zig");
+const currBoard = @import("src/boards/qemuVirt.zig");
 const kernel_bin_size: usize = 0x10000;
 const bl_bin_size: usize = 0x10000;
 
@@ -84,13 +84,14 @@ pub fn build(b: *std.build.Builder) !void {
     var gdb_qemu = b.addSystemCommand(currBoard.config.qemu_launch_command);
     gdb_qemu.addArg("-s");
     gdb_qemu.addArg("-S");
-    run_step_serial.dependOn(&update_linker_scripts_bl.step);
-    run_step_serial.dependOn(&bl_exe.install_step.?.step);
-    run_step_serial.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = bl_bin_size }).step);
-    run_step_serial.dependOn(&update_linker_scripts_k.step);
-    run_step_serial.dependOn(&kernel_exe.install_step.?.step);
-    run_step_serial.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = kernel_bin_size }).step);
-    run_step_serial.dependOn(&concat_step.step);
+    run_step_serial_gdb.dependOn(&update_linker_scripts_bl.step);
+    // compiling elfs as well, but only for gdb debugging
+    run_step_serial_gdb.dependOn(&bl_exe.install_step.?.step);
+    run_step_serial_gdb.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = bl_bin_size }).step);
+    run_step_serial_gdb.dependOn(&update_linker_scripts_k.step);
+    run_step_serial_gdb.dependOn(&kernel_exe.install_step.?.step);
+    run_step_serial_gdb.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = kernel_bin_size }).step);
+    run_step_serial_gdb.dependOn(&concat_step.step);
     run_step_serial_gdb.dependOn(&gdb_qemu.step);
 
     const test_obj_step = b.addTest("src/utils.zig");

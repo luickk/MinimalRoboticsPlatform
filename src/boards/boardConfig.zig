@@ -6,13 +6,13 @@ pub const supportedBoards = enum {
 };
 
 pub fn calctotalTablesReq(granule: GranuleParams, mem_size: usize) !usize {
-    var table_len = granule.page_size / 8;
+    var table_size = granule.page_size / 8;
     const req_pages = try std.math.divExact(usize, mem_size, granule.page_size);
 
     var req_table_total: usize = 0;
-    var ccurr_lvl: usize = 1;
-    while (ccurr_lvl <= @enumToInt(granule.lvls_required) + 1) : (ccurr_lvl += 1) {
-        req_table_total += try std.math.divCeil(usize, req_pages, std.math.pow(usize, table_len, ccurr_lvl));
+    var ci_lvl: usize = 1;
+    while (ci_lvl <= @enumToInt(granule.lvls_required) + 1) : (ci_lvl += 1) {
+        req_table_total += try std.math.divCeil(usize, req_pages, std.math.pow(usize, table_size, ci_lvl));
     }
     return req_table_total;
 }

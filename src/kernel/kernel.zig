@@ -62,11 +62,11 @@ export fn kernel_main() callconv(.Naked) noreturn {
         .virt_start_addr = board.config.mem.ram_layout.kernel_space_vs,
         .phys_addr = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_phys,
         .granule = board.config.mem.ram_layout.kernel_space_gran,
-        .flags = mmu.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block },
+        .flags = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block },
     };
 
     // creating virtual address space for kernel
-    var ttbr1 = (mmu.PageDir(kernel_space_mapping) catch |e| {
+    var ttbr1 = (mmu.PageTable(kernel_space_mapping) catch |e| {
         @compileError(@errorName(e));
     }).init(_k_ttbr1_dir) catch |e| {
         kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
@@ -86,7 +86,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
     };
 
     // creating virtual address space user space with 4096 granule
-    var ttbr0 = (mmu.PageDir(user_space_mapping) catch |e| {
+    var ttbr0 = (mmu.PageTable(user_space_mapping) catch |e| {
         @compileError(@errorName(e));
     }).init(_u_ttbr0_dir) catch |e| {
         kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
@@ -96,16 +96,31 @@ export fn kernel_main() callconv(.Naked) noreturn {
         kprint("[panic] memory mapping error: {s} \n", .{@errorName(e)});
         k_utils.panic();
     };
-
+    kprint("addr: {x} \n", .{_u_ttbr0_dir});
+    kprint("pa: {x} \n", .{user_space_mapping.phys_addr});
     // t0sz: The size offset of the memory region addressed by TTBR0_EL1 (64-48=16)
     // t1sz: The size offset of the memory region addressed by TTBR1_EL1
     // tg0: Granule size for the TTBR0_EL1.
     proc.setTcrEl1((mmu.TcrReg{ .t0sz = 16, .t1sz = 16, .tg0 = 2 }).asInt());
+    proc.setMairEl1((mmu.MairReg{ .attr0 = 0x00, .attr1 = 0x04, .attr2 = 0x0c, .attr3 = 0x44, .attr4 = 0xFF }).asInt());
+    // // updating page dirs for kernel and user space
+    // proc.setTTBR1(0x0);
+    // proc.setTTBR0(0x0);
+    // proc.dsb();
+    // proc.isb();
+
     proc.invalidateMmuTlbEl1();
     proc.invalidateCache();
+
+    proc.dsb();
+    proc.isb();
+
     // updating page dirs for kernel and user space
     proc.setTTBR1(_k_ttbr1_dir);
     proc.setTTBR0(_u_ttbr0_dir);
+
+    proc.dsb();
+    proc.isb();
 
     kprint("[kernel] kernel boot complete \n", .{});
 

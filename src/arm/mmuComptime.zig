@@ -36,9 +36,9 @@ const TransLvl = board.boardConfig.TransLvl;
 
 //     // writing to _id_mapped_dir(label) page table and creating new
 //     // identity mapped memory for bootloader to kernel transfer
-//     const bootloader_mapping = mmuComp.Mapping{ .mem_size = rom_size, .virt_start_addr = 0, .phys_addr = rom_start_addr, .granule = Granule.Section, .flags = mmuComp.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
+//     const bootloader_mapping = mmuComp.Mapping{ .mem_size = rom_size, .virt_start_addr = 0, .phys_addr = rom_start_addr, .granule = Granule.Section, .flags = mmuComp.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
 //     // identity mapped memory for bootloader and kernel contrtol handover!
-//     var ttbr0 = (mmuComp.PageDir(bootloader_mapping) catch |e| {
+//     var ttbr0 = (mmuComp.PageTable(bootloader_mapping) catch |e| {
 //         @compileError(@errorName(e));
 //     }).init(&ttbr0_arr) catch |e| {
 //         @compileError(@errorName(e));
@@ -48,9 +48,9 @@ const TransLvl = board.boardConfig.TransLvl;
 //     };
 
 //     // creating virtual address space for kernel
-//     const kernel_mapping = mmuComp.Mapping{ .mem_size = board.config.mem.ram_size, .virt_start_addr = board.PeriphConfig.vaStart, .phys_addr = board.config.mem.ram_start_addr, .granule = Granule.Section, .flags = mmuComp.TableEntryAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
+//     const kernel_mapping = mmuComp.Mapping{ .mem_size = board.config.mem.ram_size, .virt_start_addr = board.PeriphConfig.vaStart, .phys_addr = board.config.mem.ram_start_addr, .granule = Granule.Section, .flags = mmuComp.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
 //     // mapping general kernel mem (inlcuding device base)
-//     var ttbr1 = (mmuComp.PageDir(kernel_mapping) catch |e| {
+//     var ttbr1 = (mmuComp.PageTable(kernel_mapping) catch |e| {
 //         @compileError(@errorName(e));
 //     }).init(&ttbr1_arr) catch |e| {
 //         @compileError(@errorName(e));
@@ -68,13 +68,13 @@ pub const Mapping = struct {
     phys_addr: usize,
     granule: GranuleParams,
     // currently only supported for sections
-    flags: ?TableEntryAttr,
+    flags: ?TableDescriptorAttr,
 };
 
 // In addition to an output address, a translation table entry that refers to a page or region of memory
 // includes fields that define properties of the target memory region. These fields can be classified as
 // address map control, access control, and region attribute fields.
-pub const TableEntryAttr = packed struct {
+pub const TableDescriptorAttr = packed struct {
     // block indicates next trans lvl (or physical for sections) and page the last trans lvl (with physical addr)
     pub const DescType = enum(u1) { block = 0, page = 1 };
     // redirects read from mem tables to mairx reg
@@ -120,7 +120,7 @@ pub const TableEntryAttr = packed struct {
 
     _padding2: u10 = 0,
 
-    pub fn asInt(self: TableEntryAttr) usize {
+    pub fn asInt(self: TableDescriptorAttr) usize {
         return @bitCast(u64, self);
     }
 };
@@ -187,7 +187,7 @@ pub const TcrReg = packed struct {
     }
 };
 
-pub fn PageDir(mapping: Mapping) !type {
+pub fn PageTable(mapping: Mapping) !type {
     const page_size = mapping.granule.page_size;
     const table_len = try std.math.divExact(usize, page_size, @sizeOf(usize));
     const max_lvl = mapping.granule.lvls_required;
@@ -224,8 +224,8 @@ pub fn PageDir(mapping: Mapping) !type {
                 try createSection(self.map_pg_dir, self.mapping);
                 return;
             }
-            const lvl_1_attr = (TableEntryAttr{ .accessPerm = .read_write, .descType = .block }).asInt();
-            var phys_count = self.mapping.phys_addr | (TableEntryAttr{ .accessPerm = .read_write, .descType = .page }).asInt();
+            const lvl_1_attr = (TableDescriptorAttr{ .accessPerm = .read_write, .descType = .block }).asInt();
+            var phys_count = self.mapping.phys_addr | (TableDescriptorAttr{ .accessPerm = .read_write, .descType = .page }).asInt();
             var pg_dir_offset: usize = 0;
             var curr_lvl: usize = 0;
             while (curr_lvl <= @enumToInt(self.max_lvl)) : (curr_lvl += 1) {
