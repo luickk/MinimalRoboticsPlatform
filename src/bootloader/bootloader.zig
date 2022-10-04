@@ -7,8 +7,8 @@ const periph = @import("periph");
 const board = @import("board");
 const b_options = @import("build_options");
 const proc = arm.processor;
-const mmuComp = arm.mmuComptime;
 const mmu = arm.mmu;
+const mmuComp = arm.mmuComptime;
 // bool arg sets the addresses value to either mmu kernel_space or unsecure
 const PeriphConfig = board.PeriphConfig(false);
 const pl011 = periph.Pl011(false);
@@ -27,6 +27,81 @@ const kernel_bin_size = b_options.kernel_bin_size;
 const bl_bin_size = b_options.bl_bin_size;
 
 // todo => ttbr1 for kernel is ranging from 0x0-1g instead of _ramSize_ + _bl_load_addr-1g!. Alternatively link kernel with additional offset
+
+// for bootloder.zig...
+const ttbr0 align(4096) = blk: {
+    @setEvalBranchQuota(1000000);
+
+    // in case there is no rom(rom_size is equal to zero) and the kernel(and bl) are directly loaded to memory by some rom bootloader
+    // the ttbr0 memory is also identity mapped to the ram
+    comptime var mapping_bl_phys_size: usize = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_size;
+    comptime var mapping_bl_phys_addr: usize = board.config.mem.rom_start_addr orelse 0;
+    if (board.config.mem.rom_start_addr == null) {
+        mapping_bl_phys_size = board.config.mem.ram_size;
+        mapping_bl_phys_addr = board.config.mem.ram_start_addr;
+    }
+
+    // ttbr0 (rom) mapps both rom and ram
+    const ttbr0_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.Section, mapping_bl_phys_size, 4096) catch |e| {
+        @compileError(@errorName(e));
+    });
+
+    var ttbr0_arr: [ttbr0_size]usize align(4096) = [_]usize{0} ** ttbr0_size;
+
+    // MMU page dir config
+
+    // writing to _id_mapped_dir(label) page table and creating new
+    // identity mapped memory for bootloader to kernel transfer
+    const bootloader_mapping = mmuComp.Mapping{
+        .mem_size = mapping_bl_phys_size,
+        .virt_start_addr = 0,
+        .phys_addr = mapping_bl_phys_addr,
+        .granule = Granule.Section,
+        .flags = mmuComp.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
+    };
+    // identity mapped memory for bootloader and kernel contrtol handover!
+    var ttbr0_write = (mmuComp.PageTable(bootloader_mapping) catch |e| {
+        @compileError(@errorName(e));
+    }).init(&ttbr0_arr) catch |e| {
+        @compileError(@errorName(e));
+    };
+    ttbr0_write.mapMem() catch |e| {
+        @compileError(@errorName(e));
+    };
+
+    break :blk ttbr0_arr;
+};
+
+const ttbr1 align(4096) = blk: {
+    @setEvalBranchQuota(1000000);
+
+    // ttbr0 (rom) mapps both rom and ram
+    const ttbr1_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.Section, board.config.mem.ram_size, 4096) catch |e| {
+        @compileError(@errorName(e));
+    });
+    var ttbr1_arr: [ttbr1_size]usize align(4096) = [_]usize{0} ** ttbr1_size;
+
+    // creating virtual address space for kernel
+    const kernel_mapping = mmuComp.Mapping{
+        .mem_size = board.config.mem.ram_size,
+        .virt_start_addr = board.config.mem.va_start,
+        .phys_addr = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0),
+        .granule = Granule.Section,
+        .flags = mmuComp.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
+    };
+    // mapping general kernel mem (inlcuding device base)
+    var ttbr1_write = (mmuComp.PageTable(kernel_mapping) catch |e| {
+        @compileError(@errorName(e));
+    }).init(&ttbr1_arr) catch |e| {
+        @compileError(@errorName(e));
+    };
+    ttbr1_write.mapMem() catch |e| {
+        @compileError(@errorName(e));
+    };
+    break :blk ttbr1_arr;
+};
+
+// todo => replace if(rom_size == null) with explicit if (no_rom)...
 
 // note: when bl_main gets too bit(instruction mem wise), the exception vector table could be pushed too far up and potentially not be read!
 export fn bl_main() callconv(.Naked) noreturn {
@@ -63,94 +138,12 @@ export fn bl_main() callconv(.Naked) noreturn {
         kprint("[panic] el must be 1! (it is: {d})\n", .{current_el});
         bl_utils.panic();
     }
-    const user_space_start = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + board.config.mem.ram_layout.kernel_space_size + board.config.mem.bl_stack_size;
-
-    // writing page dirs to userspace in ram. Writing to userspace because it would be overwritten in kernel space, when copying
-    // the kernel. Additionally, on mmu turn on, the mmu would try to read from the page tables without mmu kernel space identifier bits on
-    const _ttbr1_dir = blk: {
-        var _ttbr1_dir = user_space_start;
-        _ttbr1_dir = utils.ceilRoundToMultiple(_ttbr1_dir, Granule.Fourk.page_size) catch |e| {
-            kprint("[panic] Page table _ttbr1_dir alignment calc error: {s}\n", .{@errorName(e)});
-            bl_utils.panic();
-        };
-        break :blk _ttbr1_dir;
-    };
-
-    const _ttbr0_dir = blk: {
-        var _ttbr0_dir = user_space_start + (board.config.mem.calcPageTableSizeRam(board.boardConfig.Granule.Fourk) catch |e| {
-            kprint("[panic] Page table ttbr0 address calc error: {s}\n", .{@errorName(e)});
-            bl_utils.panic();
-        });
-        _ttbr0_dir = utils.ceilRoundToMultiple(_ttbr0_dir, Granule.Fourk.page_size) catch |e| {
-            kprint("[panic] Page table ttbr0 address alignment error: {s}\n", .{@errorName(e)});
-            bl_utils.panic();
-        };
-        break :blk _ttbr0_dir;
-    };
-
-    // todo => make page dir generation comptime generated and static memory! (currently prevented by max array-size)
-    // MMU ttbr0 config
-    {
-        // in case there is no rom(rom_size is equal to zero) and the kernel(and bl) are directly loaded to memory by some rom bootloader
-        // the ttbr0 memory is also identity mapped to the ram
-        comptime var mapping_bl_phys_size: usize = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_size;
-        comptime var mapping_bl_phys_addr: usize = board.config.mem.rom_start_addr orelse 0;
-        if (board.config.mem.rom_start_addr == null) {
-            mapping_bl_phys_size = board.config.mem.ram_size;
-            mapping_bl_phys_addr = board.config.mem.ram_start_addr;
-        }
-
-        // writing to _id_mapped_dir(label) page table and creating new
-        // identity mapped memory for bootloader to kernel transfer
-        const bootloader_mapping = mmu.Mapping{
-            .mem_size = mapping_bl_phys_size,
-            .virt_start_addr = 0,
-            .phys_addr = mapping_bl_phys_addr,
-            .granule = Granule.Section,
-            .flags = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
-        };
-        // identity mapped memory for bootloader and kernel contrtol handover!
-        var ttbr0 = (mmu.PageTable(bootloader_mapping) catch |e| {
-            @compileError(@errorName(e));
-        }).init(_ttbr0_dir) catch |e| {
-            kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
-            bl_utils.panic();
-        };
-        ttbr0.mapMem() catch |e| {
-            kprint("[panic] memory mapping error: {s} \n", .{@errorName(e)});
-            bl_utils.panic();
-        };
-    }
-    // MMU ttbr1 config
-    {
-        const kernel_mapping = mmu.Mapping{
-            .mem_size = board.config.mem.ram_size,
-            .virt_start_addr = board.config.mem.va_start,
-            .phys_addr = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0),
-            .granule = Granule.Section,
-            .flags = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
-        };
-
-        // mapping general kernel mem (inlcuding device base)
-        var ttbr1 = (mmu.PageTable(kernel_mapping) catch |e| {
-            @compileError(@errorName(e));
-        }).init(_ttbr1_dir) catch |e| {
-            kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
-            bl_utils.panic();
-        };
-        ttbr1.mapMem() catch |e| {
-            kprint("[panic] memory mapping error: {s} \n", .{@errorName(e)});
-            bl_utils.panic();
-        };
-    }
-
-    // kprint("addr: 0x{x} \n", .{_ttbr1_dir});
 
     // updating page dirs
-    proc.setTTBR1(_ttbr1_dir);
-    proc.setTTBR0(_ttbr0_dir);
-    kprint("_ttbr0_dir: {d} \n", .{_ttbr0_dir});
-    kprint("_ttbr1_dir: {d} \n", .{_ttbr1_dir});
+    proc.setTTBR1(@ptrToInt(&ttbr1));
+    proc.setTTBR0(@ptrToInt(&ttbr1));
+    kprint("_ttbr0_dir: {d} \n", .{@ptrToInt(&ttbr0)});
+    kprint("_ttbr1_dir: {d} \n", .{@ptrToInt(&ttbr1)});
     // t0sz: The size offset of the memory region addressed by TTBR0_EL1 (64-48=16)
     // t1sz: The size offset of the memory region addressed by TTBR1_EL1
     // tg0: Granule size for the TTBR0_EL1.

@@ -1,66 +1,35 @@
 const std = @import("std");
 const board = @import("board");
+const kprint = @import("periph").uart.UartWriter(false).kprint;
+
+pub const DirtyWriter = struct {
+    pub const Writer = std.io.Writer(*DirtyWriter, error{}, appendWrite);
+
+    pub fn writer(self: *DirtyWriter) Writer {
+        return .{ .context = self };
+    }
+
+    /// Same as `append` except it returns the number of bytes written, which is always the same
+    /// as `m.len`. The purpose of this function existing is to match `std.io.Writer` API.
+    fn appendWrite(self: *DirtyWriter, data: []const u8) error{}!usize {
+        _ = self;
+        for (data) |ch| {
+            @intToPtr(*u8, 0x9000000).* = ch;
+        }
+        return data.len;
+    }
+};
+
+pub fn dprint(comptime print_string: []const u8, args: anytype) void {
+    var tempW: DirtyWriter = undefined;
+    std.fmt.format(tempW.writer(), print_string, args) catch |err| {
+        @panic(err);
+    };
+}
 
 const Granule = board.boardConfig.Granule;
 const GranuleParams = board.boardConfig.GranuleParams;
 const TransLvl = board.boardConfig.TransLvl;
-
-// for bootloder.zig...
-// const bl_page_tables = blk: {
-//     @setEvalBranchQuota(1000000);
-//     const ttbr1_size = board.config.mem.calcPageTableSizeRam() catch |e| {
-//         @compileError(@errorName(e));
-//     };
-
-//     // ttbr0 (rom) mapps both rom and ram
-//     const ttbr0_size = (board.config.mem.calcPageTableSizeRom() catch |e| {
-//         @compileError(@errorName(e));
-//     });
-
-//     var ttbr0_arr: [ttbr0_size]usize = [_]usize{0} ** ttbr0_size;
-//     var ttbr1_arr: [ttbr1_size]usize = [_]usize{0} ** ttbr1_size;
-
-//     // in case there is no rom(rom_size is equal to zero) and the kernel(and bl) are directly loaded to memory by some rom bootloader
-//     // the ttbr0 memory is also identity mapped to the ram
-//     var rom_size: usize = undefined;
-//     var rom_start_addr: usize = undefined;
-//     if (board.config.mem.rom_size == 0) {
-//         rom_size = board.config.mem.ram_size;
-//         rom_start_addr = board.config.mem.ram_start_addr;
-//     } else {
-//         rom_size = board.config.mem.rom_size + board.config.mem.ram_size;
-//         rom_start_addr = board.config.mem.rom_start_addr;
-//     }
-
-//     // MMU page dir config
-
-//     // writing to _id_mapped_dir(label) page table and creating new
-//     // identity mapped memory for bootloader to kernel transfer
-//     const bootloader_mapping = mmuComp.Mapping{ .mem_size = rom_size, .virt_start_addr = 0, .phys_addr = rom_start_addr, .granule = Granule.Section, .flags = mmuComp.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
-//     // identity mapped memory for bootloader and kernel contrtol handover!
-//     var ttbr0 = (mmuComp.PageTable(bootloader_mapping) catch |e| {
-//         @compileError(@errorName(e));
-//     }).init(&ttbr0_arr) catch |e| {
-//         @compileError(@errorName(e));
-//     };
-//     ttbr0.mapMem() catch |e| {
-//         @compileError(@errorName(e));
-//     };
-
-//     // creating virtual address space for kernel
-//     const kernel_mapping = mmuComp.Mapping{ .mem_size = board.config.mem.ram_size, .virt_start_addr = board.PeriphConfig.vaStart, .phys_addr = board.config.mem.ram_start_addr, .granule = Granule.Section, .flags = mmuComp.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block } };
-//     // mapping general kernel mem (inlcuding device base)
-//     var ttbr1 = (mmuComp.PageTable(kernel_mapping) catch |e| {
-//         @compileError(@errorName(e));
-//     }).init(&ttbr1_arr) catch |e| {
-//         @compileError(@errorName(e));
-//     };
-//     ttbr1.mapMem() catch |e| {
-//         @compileError(@errorName(e));
-//     };
-
-//     break :blk .{ ttbr0_arr, ttbr1_arr };
-// };
 
 pub const Mapping = struct {
     mem_size: usize,
@@ -71,14 +40,14 @@ pub const Mapping = struct {
     flags: ?TableDescriptorAttr,
 };
 
-// In addition to an output address, a translation table entry that refers to a page or region of memory
+// In addition to an output address, a translation table descriptor that refers to a page or region of memory
 // includes fields that define properties of the target memory region. These fields can be classified as
 // address map control, access control, and region attribute fields.
 pub const TableDescriptorAttr = packed struct {
     // block indicates next trans lvl (or physical for sections) and page the last trans lvl (with physical addr)
     pub const DescType = enum(u1) { block = 0, page = 1 };
-    // redirects read from mem tables to mairx reg
-    pub const AttrIndex = enum(u3) { mair0 = 0, mair1 = 1 };
+    // redirects read from mem tables to mairx reg (domain)
+    pub const AttrIndex = enum(u3) { mair0 = 0, mair1 = 1, mair2 = 2, mair3 = 3, mair4 = 4, mair5 = 5, mair6 = 6, mair7 = 7 };
     pub const Sharability = enum(u2) { non_sharable = 0, unpredictable = 1, outer_sharable = 2, innner_sharable = 3 };
 
     // for Non-secure stage 1 of the EL1&0 translation regime
@@ -96,7 +65,7 @@ pub const TableDescriptorAttr = packed struct {
     descType: DescType = .block,
 
     // https://armv8-ref.codingbelief.com/en/chapter_d4/d43_3_memory_attribute_fields_in_the_vmsav8-64_translation_table_formats_descriptors.html
-    attrIndex: AttrIndex = .mair1,
+    attrIndex: AttrIndex = .mair0,
     // For memory accesses from Secure state, specifies whether the output address is in the Secure or Non-secure address map
     ns: bool = false,
     // depends on translation level (Stage2AccessPerm, Stage1AccessPerm, SecureAccessPerm)
@@ -106,12 +75,13 @@ pub const TableDescriptorAttr = packed struct {
     // The access flag indicates when a page or section of memory is accessed for the first time since the
     // Access flag in the corresponding translation table descriptor was set to 0.
     accessFlag: bool = true,
-    // the not global bit. Determines whether the TLB entry applies to all ASID values, or only to the current ASID value
+    // the not global bit. Determines whether the TLB descriptor applies to all ASID values, or only to the current ASID value
     notGlobal: bool = false,
 
+    // upper attr following
     _padding: u39 = 0,
 
-    // indicating that the translation table entry is one of a contiguous set or entries, that might be cached in a single TLB entry
+    // indicating that the translation table descriptor is one of a contiguous set or descriptors, that might be cached in a single TLB descriptor
     contiguous: bool = false,
     // priviledeg execute-never bit. Determines whether the region is executable at EL1
     pxn: bool = false,
@@ -189,121 +159,95 @@ pub const TcrReg = packed struct {
 
 pub fn PageTable(mapping: Mapping) !type {
     const page_size = mapping.granule.page_size;
-    const table_len = try std.math.divExact(usize, page_size, @sizeOf(usize));
+    const table_size = 4096;
     const max_lvl = mapping.granule.lvls_required;
 
-    comptime var req_table_total = try calctotalTablesReq(mapping.granule, mapping.mem_size);
+    comptime var req_table_total = try board.boardConfig.calctotalTablesReq(mapping.granule, mapping.mem_size);
 
     return struct {
         const Self = @This();
         page_size: usize,
-        table_len: usize,
+        table_size: usize,
 
         mapping: Mapping,
         max_lvl: TransLvl,
-        map_pg_dir: *[req_table_total][table_len]usize,
+        map_pg_dir: *volatile [req_table_total][table_size]usize,
 
-        pub fn init(pg_dir_arr: *[req_table_total * table_len]usize) !Self {
+        // todo => make input generic for usize, pointer, arr
+        pub fn init(base_addr: *[req_table_total * table_size]usize) !Self {
             return Self{
                 // sizes
                 .page_size = page_size,
-                .table_len = table_len,
+                .table_size = table_size,
 
                 .max_lvl = max_lvl,
                 .mapping = mapping,
-                .map_pg_dir = @ptrCast(*[req_table_total][table_len]usize, pg_dir_arr),
+                .map_pg_dir = @ptrCast(*[req_table_total][table_size]usize, base_addr),
             };
         }
 
-        fn calcTransLvlEntrySize(self: *Self, lvl: TransLvl) usize {
-            return std.math.pow(usize, self.table_len, @enumToInt(self.max_lvl) - @enumToInt(lvl)) * self.page_size;
+        fn calcTransLvlDescriptorSize(self: *Self, lvl: TransLvl) usize {
+            return std.math.pow(usize, self.table_size, @enumToInt(self.max_lvl) - @enumToInt(lvl)) * self.page_size;
         }
 
         pub fn mapMem(self: *Self) !void {
-            if (mapping.granule.page_size == Granule.Section.page_size) {
-                try createSection(self.map_pg_dir, self.mapping);
-                return;
-            }
-            const lvl_1_attr = (TableDescriptorAttr{ .accessPerm = .read_write, .descType = .block }).asInt();
-            var phys_count = self.mapping.phys_addr | (TableDescriptorAttr{ .accessPerm = .read_write, .descType = .page }).asInt();
-            var pg_dir_offset: usize = 0;
-            var curr_lvl: usize = 0;
-            while (curr_lvl <= @enumToInt(self.max_lvl)) : (curr_lvl += 1) {
-                var req_entry = try std.math.divCeil(usize, self.mapping.mem_size, self.calcTransLvlEntrySize(@intToEnum(TransLvl, curr_lvl)));
-                var req_table = try std.math.divCeil(usize, req_entry, self.table_len);
-                var curr_entry: usize = 0;
-                var curr_table: usize = 0;
-                while (curr_table < req_table) : (curr_table += 1) {
-                    curr_entry = 0;
-                    while (curr_entry < req_entry and curr_entry <= self.table_len) : (curr_entry += 1) {
+            var i_lvl: usize = 0;
+            var to_map_in_descriptors: usize = 0;
+            var table_offset: usize = 0;
+            var phys_count_flags: TableDescriptorAttr = undefined;
+
+            while (i_lvl <= @enumToInt(self.max_lvl)) : (i_lvl += 1) {
+                switch (mapping.granule.page_size) {
+                    Granule.Section.page_size => {
+                        to_map_in_descriptors = try std.math.divExact(usize, mapping.mem_size, self.page_size);
+                        phys_count_flags = mapping.flags.?;
+                    },
+                    else => {
+                        to_map_in_descriptors = try std.math.divCeil(usize, self.mapping.mem_size, self.calcTransLvlDescriptorSize(@intToEnum(TransLvl, i_lvl)));
+                        phys_count_flags = TableDescriptorAttr{ .accessPerm = .read_write, .descType = .page };
+                    },
+                }
+
+                const to_map_in_tables = try std.math.divFloor(usize, to_map_in_descriptors, self.table_size);
+                const rest_to_map_in_descriptors = try std.math.mod(usize, to_map_in_descriptors, self.table_size);
+
+                const lvl_1_attr = (TableDescriptorAttr{ .accessPerm = .read_write, .descType = .block }).asInt();
+                var phys_count = self.mapping.phys_addr | phys_count_flags.asInt();
+                var i_table: usize = 0;
+                var i_descriptors: usize = 0;
+                // looping one table too far to write rest_to_map_in_descriptors which are leftover and accounted for in to_map_in_tables
+                table_loop: while (i_table <= to_map_in_tables) : (i_table += 1) {
+                    while (i_descriptors < self.table_size) : (i_descriptors += 1) {
+                        // if last table is reached, only write the rest_to_map_in_descriptors
+                        if (i_table == to_map_in_tables and i_descriptors > rest_to_map_in_descriptors)
+                            break :table_loop;
+
                         // last lvl translation links to physical mem
-                        if (curr_lvl == @enumToInt(self.max_lvl)) {
-                            self.map_pg_dir[pg_dir_offset + curr_table][curr_entry] = phys_count;
-                            phys_count += self.page_size;
-                            // trans layer before link to next tables
+                        if (i_lvl == @enumToInt(self.max_lvl)) {
+                            self.map_pg_dir[table_offset + i_table][i_descriptors] = phys_count;
+                            phys_count += self.mapping.granule.page_size;
                         } else {
-                            self.map_pg_dir[pg_dir_offset + curr_table][curr_entry] = @ptrToInt(&self.map_pg_dir[pg_dir_offset + req_table + curr_entry]);
-                            if (curr_lvl == @enumToInt(TransLvl.first_lvl))
-                                self.map_pg_dir[pg_dir_offset + curr_table][curr_entry] |= lvl_1_attr;
+                            // linking to next table...
+                            self.map_pg_dir[table_offset + i_table][i_descriptors] = @ptrToInt(&self.map_pg_dir[table_offset + to_map_in_tables + i_descriptors]);
+                            if (i_lvl == @enumToInt(TransLvl.first_lvl))
+                                self.map_pg_dir[table_offset + i_table][i_descriptors] |= lvl_1_attr;
                         }
                     }
-                    if (req_entry >= self.table_len)
-                        req_entry -= self.table_len;
+                    i_descriptors = 0;
                 }
-                pg_dir_offset += req_table;
-            }
-        }
-
-        // todo => support more pages
-        // populates a Page Table with physical adresses aka. sections or pages
-        pub fn createSection(pg_dir_arr: *[req_table_total][table_len]usize, sect_mapping: Mapping) !void {
-            var pg_dir = @ptrCast(*[req_table_total * table_len]usize, pg_dir_arr);
-            const section_size = sect_mapping.granule.page_size;
-            var phys_count = sect_mapping.phys_addr | sect_mapping.flags.?.asInt();
-            // phys_count >>= shift;
-            // phys_count |= phys_shifted;
-
-            var i: usize = sect_mapping.virt_start_addr;
-            i = toUnsecure(usize, i);
-            i = try std.math.divCeil(usize, i, section_size);
-
-            var i_max: usize = sect_mapping.virt_start_addr + sect_mapping.mem_size;
-            i_max = toUnsecure(usize, i_max) - toUnsecure(usize, sect_mapping.virt_start_addr);
-            i_max = try std.math.divCeil(usize, i_max, section_size);
-
-            while (i <= i_max) : (i += 1) {
-                pg_dir[i] = phys_count;
-                phys_count += section_size;
+                table_offset += i_table + 1;
             }
         }
     };
 }
 
-pub fn calctotalTablesReq(granule: GranuleParams, mem_size: usize) !usize {
-    var table_len = granule.page_size / 8;
-    const req_pages = try std.math.divExact(usize, mem_size, granule.page_size);
-
-    var req_table_total: usize = 0;
-    var ccurr_lvl: usize = 1;
-    while (ccurr_lvl <= @enumToInt(granule.lvls_required) + 1) : (ccurr_lvl += 1) {
-        req_table_total += try std.math.divCeil(usize, req_pages, std.math.pow(usize, table_len, ccurr_lvl));
-    }
-    return req_table_total;
-}
-
-pub fn zeroPgDir(pg_dir: []volatile usize) void {
-    for (pg_dir) |*e| {
-        e.* = 0x0;
-    }
-}
-
 pub inline fn toSecure(comptime T: type, inp: T) T {
     switch (@typeInfo(T)) {
         .Pointer => {
-            return @intToPtr(T, @ptrToInt(inp) | board.PeriphConfig.vaStart);
+            return @intToPtr(T, @ptrToInt(inp) | board.config.mem.va_start);
         },
         .Int => {
-            return inp | board.PeriphConfig.vaStart;
+            return inp | board.config.mem.va_start;
         },
         else => @compileError("mmu address translation: not supported type"),
     }
@@ -312,10 +256,10 @@ pub inline fn toSecure(comptime T: type, inp: T) T {
 pub inline fn toUnsecure(comptime T: type, inp: T) T {
     switch (@typeInfo(T)) {
         .Pointer => {
-            return @intToPtr(T, @ptrToInt(inp) & ~(board.PeriphConfig.vaStart));
+            return @intToPtr(T, @ptrToInt(inp) & ~(board.config.mem.va_start));
         },
         .Int => {
-            return inp & ~(board.PeriphConfig.vaStart);
+            return inp & ~(board.config.mem.va_start);
         },
         else => @compileError("mmu address translation: not supported type"),
     }

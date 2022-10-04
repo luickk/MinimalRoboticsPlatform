@@ -17,6 +17,10 @@ pub fn calctotalTablesReq(granule: GranuleParams, mem_size: usize) !usize {
     return req_table_total;
 }
 
+pub fn calcPageTableSizeTotal(gran: GranuleParams, mem_size: usize, table_size: usize) !usize {
+    return (try calctotalTablesReq(gran, mem_size)) * table_size;
+}
+
 pub const Granule = struct {
     pub const Fourk: GranuleParams = .{ .page_size = 4096, .lvls_required = .third_lvl };
     pub const Sixteenk: GranuleParams = .{ .page_size = 16384, .lvls_required = .third_lvl };
@@ -42,6 +46,7 @@ pub const RamMemLayout = struct {
     user_space_phys: usize,
     user_space_gran: GranuleParams,
 
+    // todo => remove those...
     pub fn calcPageTableSizeKernel(self: RamMemLayout) !usize {
         return (try calctotalTablesReq(self.kernel_space_gran, self.kernel_space_size)) * (self.kernel_space_gran.page_size / 8);
     }
@@ -68,14 +73,6 @@ pub const BoardMemLayout = struct {
 
     storage_start_addr: usize,
     storage_size: usize,
-
-    pub fn calcPageTableSizeRom(self: BoardMemLayout, gran: GranuleParams) !usize {
-        return (try calctotalTablesReq(gran, self.rom_size orelse 0)) * (gran.page_size / 8);
-    }
-
-    pub fn calcPageTableSizeRam(self: BoardMemLayout, gran: GranuleParams) !usize {
-        return (try calctotalTablesReq(gran, self.ram_size)) * (gran.page_size / 8);
-    }
 };
 
 pub const BoardConfig = struct {

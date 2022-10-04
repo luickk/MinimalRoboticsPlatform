@@ -159,7 +159,7 @@ pub const TcrReg = packed struct {
 
 pub fn PageTable(mapping: Mapping) !type {
     const page_size = mapping.granule.page_size;
-    const table_size = try std.math.divExact(usize, page_size, 8);
+    const table_size = 4096;
     const max_lvl = mapping.granule.lvls_required;
 
     comptime var req_table_total = try board.boardConfig.calctotalTablesReq(mapping.granule, mapping.mem_size);
