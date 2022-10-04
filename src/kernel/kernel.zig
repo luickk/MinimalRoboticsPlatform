@@ -16,22 +16,77 @@ const board = @import("board");
 
 const proc = arm.processor;
 const mmu = arm.mmu;
+const mmuComp = arm.mmuComptime;
 
 // raspberry
 const bcm2835IntController = arm.bcm2835IntController.InterruptController(true);
 const timer = arm.timer;
 
+const ttbr1 align(4096) = blk: {
+    @setEvalBranchQuota(1000000);
+
+    // ttbr0 (rom) mapps both rom and ram
+    const ttbr1_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.Section, board.config.mem.ram_layout.kernel_space_size, 4096) catch |e| {
+        @compileError(@errorName(e));
+    });
+    var ttbr1_arr: [ttbr1_size]usize align(4096) = [_]usize{0} ** ttbr1_size;
+
+    // creating virtual address space for kernel
+    const kernel_space_mapping = mmuComp.Mapping{
+        .mem_size = board.config.mem.ram_layout.kernel_space_size,
+        .virt_start_addr = board.config.mem.ram_layout.kernel_space_vs,
+        .phys_addr = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_phys,
+        .granule = board.config.mem.ram_layout.kernel_space_gran,
+        .flags = mmuComp.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block },
+    };
+    // mapping general kernel mem (inlcuding device base)
+    var ttbr1_write = (mmuComp.PageTable(kernel_space_mapping) catch |e| {
+        @compileError(@errorName(e));
+    }).init(&ttbr1_arr) catch |e| {
+        @compileError(@errorName(e));
+    };
+    ttbr1_write.mapMem() catch |e| {
+        @compileError(@errorName(e));
+    };
+    break :blk ttbr1_arr;
+};
+
+const ttbr0 align(4096) = blk: {
+    @setEvalBranchQuota(1000000);
+
+    // ttbr0 (rom) mapps both rom and ram
+    const ttbr0_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.Fourk, board.config.mem.ram_layout.user_space_size, 4096) catch |e| {
+        @compileError(@errorName(e));
+    });
+
+    var ttbr0_arr: [ttbr0_size]usize align(4096) = [_]usize{0} ** ttbr0_size;
+
+    // MMU page dir config
+
+    // writing to _id_mapped_dir(label) page table and creating new
+    // identity mapped memory for bootloader to kernel transfer
+    const user_space_mapping = mmuComp.Mapping{
+        .mem_size = board.config.mem.ram_layout.user_space_size,
+        .virt_start_addr = board.config.mem.ram_layout.user_space_vs,
+        .phys_addr = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_size + board.config.mem.ram_layout.user_space_phys,
+        .granule = board.config.mem.ram_layout.user_space_gran,
+        .flags = null,
+    };
+    // identity mapped memory for bootloader and kernel contrtol handover!
+    var ttbr0_write = (mmuComp.PageTable(user_space_mapping) catch |e| {
+        @compileError(@errorName(e));
+    }).init(&ttbr0_arr) catch |e| {
+        @compileError(@errorName(e));
+    };
+    ttbr0_write.mapMem() catch |e| {
+        @compileError(@errorName(e));
+    };
+
+    break :blk ttbr0_arr;
+};
+
 export fn kernel_main() callconv(.Naked) noreturn {
     kprint("[kernel] kernel started! \n", .{});
-
-    const _k_ttbr1_dir: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernel_ttbr1_dir" }) orelse {
-        kprint("error reading _kernel_ttbr1_dir label\n", .{});
-        unreachable;
-    });
-    const _u_ttbr0_dir: usize = @ptrToInt(@extern(?*u8, .{ .name = "_user_ttbr0_dir" }) orelse {
-        kprint("error reading _user_ttbr0_dir label\n", .{});
-        unreachable;
-    });
 
     const _kernel_end: usize = @ptrToInt(@extern(?*u8, .{ .name = "_stack_top" }) orelse {
         kprint("error reading _stack_top label\n", .{});
@@ -57,47 +112,6 @@ export fn kernel_main() callconv(.Naked) noreturn {
         kprint("[kernel] ic inited \n", .{});
     }
 
-    const kernel_space_mapping = mmu.Mapping{
-        .mem_size = board.config.mem.ram_layout.kernel_space_size,
-        .virt_start_addr = board.config.mem.ram_layout.kernel_space_vs,
-        .phys_addr = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_phys,
-        .granule = board.config.mem.ram_layout.kernel_space_gran,
-        .flags = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block },
-    };
-
-    // creating virtual address space for kernel
-    var ttbr1 = (mmu.PageTable(kernel_space_mapping) catch |e| {
-        @compileError(@errorName(e));
-    }).init(_k_ttbr1_dir) catch |e| {
-        kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
-        k_utils.panic();
-    };
-    ttbr1.mapMem() catch |e| {
-        kprint("[panic] memory mapping error: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
-
-    const user_space_mapping = mmu.Mapping{
-        .mem_size = board.config.mem.ram_layout.user_space_size,
-        .virt_start_addr = board.config.mem.ram_layout.user_space_vs,
-        .phys_addr = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_size + board.config.mem.ram_layout.user_space_phys,
-        .granule = board.config.mem.ram_layout.user_space_gran,
-        .flags = null,
-    };
-
-    // creating virtual address space user space with 4096 granule
-    var ttbr0 = (mmu.PageTable(user_space_mapping) catch |e| {
-        @compileError(@errorName(e));
-    }).init(_u_ttbr0_dir) catch |e| {
-        kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
-        k_utils.panic();
-    };
-    ttbr0.mapMem() catch |e| {
-        kprint("[panic] memory mapping error: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
-    kprint("addr: {x} \n", .{_u_ttbr0_dir});
-    kprint("pa: {x} \n", .{user_space_mapping.phys_addr});
     // t0sz: The size offset of the memory region addressed by TTBR0_EL1 (64-48=16)
     // t1sz: The size offset of the memory region addressed by TTBR1_EL1
     // tg0: Granule size for the TTBR0_EL1.
@@ -116,8 +130,8 @@ export fn kernel_main() callconv(.Naked) noreturn {
     proc.isb();
 
     // updating page dirs for kernel and user space
-    proc.setTTBR1(_k_ttbr1_dir);
-    proc.setTTBR0(_u_ttbr0_dir);
+    proc.setTTBR1(@ptrToInt(&ttbr1));
+    proc.setTTBR0(@ptrToInt(&ttbr0));
 
     proc.dsb();
     proc.isb();

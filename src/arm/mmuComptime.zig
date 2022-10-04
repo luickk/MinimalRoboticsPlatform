@@ -214,26 +214,26 @@ pub fn PageTable(mapping: Mapping) !type {
                 const lvl_1_attr = (TableDescriptorAttr{ .accessPerm = .read_write, .descType = .block }).asInt();
                 var phys_count = self.mapping.phys_addr | phys_count_flags.asInt();
                 var i_table: usize = 0;
-                var i_descriptors: usize = 0;
+                var i_descriptor: usize = 0;
                 // looping one table too far to write rest_to_map_in_descriptors which are leftover and accounted for in to_map_in_tables
                 table_loop: while (i_table <= to_map_in_tables) : (i_table += 1) {
-                    while (i_descriptors < self.table_size) : (i_descriptors += 1) {
+                    while (i_descriptor < self.table_size) : (i_descriptor += 1) {
                         // if last table is reached, only write the rest_to_map_in_descriptors
-                        if (i_table == to_map_in_tables and i_descriptors > rest_to_map_in_descriptors)
+                        if (i_table == to_map_in_tables and i_descriptor > rest_to_map_in_descriptors)
                             break :table_loop;
 
                         // last lvl translation links to physical mem
                         if (i_lvl == @enumToInt(self.max_lvl)) {
-                            self.map_pg_dir[table_offset + i_table][i_descriptors] = phys_count;
+                            self.map_pg_dir[table_offset + i_table][i_descriptor] = phys_count;
                             phys_count += self.mapping.granule.page_size;
                         } else {
                             // linking to next table...
-                            self.map_pg_dir[table_offset + i_table][i_descriptors] = @ptrToInt(&self.map_pg_dir[table_offset + to_map_in_tables + i_descriptors]);
+                            self.map_pg_dir[table_offset + i_table][i_descriptor] = (table_offset + to_map_in_tables + i_descriptor) * self.table_size;
                             if (i_lvl == @enumToInt(TransLvl.first_lvl))
-                                self.map_pg_dir[table_offset + i_table][i_descriptors] |= lvl_1_attr;
+                                self.map_pg_dir[table_offset + i_table][i_descriptor] |= lvl_1_attr;
                         }
                     }
-                    i_descriptors = 0;
+                    i_descriptor = 0;
                 }
                 table_offset += i_table + 1;
             }
