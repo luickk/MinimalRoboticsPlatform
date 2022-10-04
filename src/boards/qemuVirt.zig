@@ -14,6 +14,7 @@ pub const config = boardConfig.BoardConfig{
         .rom_size = 0x80000000,
         // according to qemu docs ram starts at 1gib
         .ram_start_addr = 0x40000000,
+        // 0x100000000
         .ram_size = 0x80000000,
 
         // since the bootloader is loaded at 0x no bl_load_addr is required

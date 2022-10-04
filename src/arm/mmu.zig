@@ -159,7 +159,7 @@ pub const TcrReg = packed struct {
 
 pub fn PageTable(mapping: Mapping) !type {
     const page_size = mapping.granule.page_size;
-    const table_size = 4096;
+    const table_size = mapping.granule.table_size;
     const max_lvl = mapping.granule.lvls_required;
 
     comptime var req_table_total = try board.boardConfig.calctotalTablesReq(mapping.granule, mapping.mem_size);
@@ -173,7 +173,8 @@ pub fn PageTable(mapping: Mapping) !type {
         max_lvl: TransLvl,
         map_pg_dir: *volatile [req_table_total][table_size]usize,
 
-        pub fn init(base_addr: usize) !Self {
+        // todo => make input generic for usize, pointer, arr
+        pub fn init(base_addr: *[req_table_total * table_size]usize) !Self {
             return Self{
                 // sizes
                 .page_size = page_size,
@@ -181,7 +182,7 @@ pub fn PageTable(mapping: Mapping) !type {
 
                 .max_lvl = max_lvl,
                 .mapping = mapping,
-                .map_pg_dir = @intToPtr(*volatile [req_table_total][table_size]usize, base_addr),
+                .map_pg_dir = @ptrCast(*[req_table_total][table_size]usize, base_addr),
             };
         }
 
@@ -213,26 +214,25 @@ pub fn PageTable(mapping: Mapping) !type {
                 const lvl_1_attr = (TableDescriptorAttr{ .accessPerm = .read_write, .descType = .block }).asInt();
                 var phys_count = self.mapping.phys_addr | phys_count_flags.asInt();
                 var i_table: usize = 0;
-                var i_descriptors: usize = 0;
-                // looping one table too far to write rest_to_map_in_descriptors which are leftover and accounted for in to_map_in_tables
-                table_loop: while (i_table <= to_map_in_tables) : (i_table += 1) {
-                    while (i_descriptors < self.table_size) : (i_descriptors += 1) {
+                var i_descriptor: usize = 0;
+                table_loop: while (i_table < to_map_in_tables) : (i_table += 1) {
+                    while (i_descriptor < self.table_size) : (i_descriptor += 1) {
                         // if last table is reached, only write the rest_to_map_in_descriptors
-                        if (i_table == to_map_in_tables and i_descriptors > rest_to_map_in_descriptors)
+                        if (i_table == to_map_in_tables and i_descriptor > rest_to_map_in_descriptors)
                             break :table_loop;
 
                         // last lvl translation links to physical mem
                         if (i_lvl == @enumToInt(self.max_lvl)) {
-                            self.map_pg_dir[table_offset + i_table][i_descriptors] = phys_count;
+                            self.map_pg_dir[table_offset + i_table][i_descriptor] = phys_count;
                             phys_count += self.mapping.granule.page_size;
                         } else {
                             // linking to next table...
-                            self.map_pg_dir[table_offset + i_table][i_descriptors] = @ptrToInt(&self.map_pg_dir[table_offset + to_map_in_tables + i_descriptors]);
+                            self.map_pg_dir[table_offset + i_table][i_descriptor] = (table_offset + to_map_in_tables + i_descriptor) * self.table_size;
                             if (i_lvl == @enumToInt(TransLvl.first_lvl))
-                                self.map_pg_dir[table_offset + i_table][i_descriptors] |= lvl_1_attr;
+                                self.map_pg_dir[table_offset + i_table][i_descriptor] |= lvl_1_attr;
                         }
                     }
-                    i_descriptors = 0;
+                    i_descriptor = 0;
                 }
                 table_offset += i_table + 1;
             }

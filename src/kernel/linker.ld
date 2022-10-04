@@ -39,11 +39,7 @@ SECTIONS {
         _stack_top = .;
     }
     
-    # aligned by page size
-    .paging_tbl (NOLOAD) : ALIGN(0x00001000)  {
-        _kernel_ttbr1_dir = .;
-        . += {@zig};
-        _user_ttbr0_dir = .;
-        . += {@zig};
+    .align : ALIGN(8) {
+        . = . + 16; 
     }
 }

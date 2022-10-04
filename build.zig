@@ -5,9 +5,9 @@ const os = @import("std").os;
 
 const Error = error{BlExceedsRomSize};
 
-const currBoard = @import("src/boards/qemuVirt.zig");
-const kernel_bin_size: usize = 0x1000000;
-const bl_bin_size: usize = 0x1000000;
+const currBoard = @import("src/boards/raspi3b.zig");
+const kernel_bin_size: usize = 0x2000000;
+const bl_bin_size: usize = 0x2000000;
 
 pub fn build(b: *std.build.Builder) !void {
     currBoard.config.checkConfig();
