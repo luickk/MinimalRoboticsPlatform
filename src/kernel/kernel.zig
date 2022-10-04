@@ -53,8 +53,8 @@ const ttbr1 align(4096) = blk: {
 export fn kernel_main() callconv(.Naked) noreturn {
     kprint("[kernel] kernel started! \n", .{});
 
-    const _kernel_end: usize = @ptrToInt(@extern(?*u8, .{ .name = "_stack_top" }) orelse {
-        kprint("error reading _stack_top label\n", .{});
+    const _kernel_ttbr1: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernel_ttbr1_dir" }) orelse {
+        kprint("error reading _kernel_ttbr1_dir label\n", .{});
         unreachable;
     });
 
@@ -87,11 +87,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
         });
 
         // todo => write proper kernel allocater and put it there
-        const ttbr0_addr = utils.ceilRoundToMultiple(_kernel_end, 4096) catch |e| {
-            kprint("[panic] Page table ttbr0 address calc error: {s}\n", .{@errorName(e)});
-            k_utils.panic();
-        };
-        const ttbr0_arr = @intToPtr(*[ttbr0_size]usize, ttbr0_addr);
+        const ttbr0_arr = @intToPtr(*[ttbr0_size]usize, _kernel_ttbr1);
 
         // MMU page dir config
 
@@ -138,8 +134,9 @@ export fn kernel_main() callconv(.Naked) noreturn {
     proc.dsb();
     proc.isb();
 
+    kprint("0: {x}, 1: {x} \n", .{ @ptrToInt(&ttbr0), @ptrToInt(&ttbr1) });
     // updating page dirs for kernel and user space
-    proc.setTTBR1(@ptrToInt(&ttbr1));
+    proc.setTTBR1(mmu.toUnsecure(usize, @ptrToInt(&ttbr1)));
     proc.setTTBR0(@ptrToInt(&ttbr0));
     proc.dsb();
     proc.isb();
@@ -149,7 +146,6 @@ export fn kernel_main() callconv(.Naked) noreturn {
 
     kprint("[kernel] kernel boot complete \n", .{});
 
-    _ = _kernel_end;
     // var page_alloc_start = utils.ceilRoundToMultiple(_kernel_end, board.config.mem.ram_layout.user_space_gran.page_size) catch |e| {
     //     kprint("[panic] UserSpaceAllocator start addr calc err: {s}\n", .{@errorName(e)});
     //     k_utils.panic();

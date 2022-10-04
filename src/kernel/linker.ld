@@ -39,7 +39,7 @@ SECTIONS {
         _stack_top = .;
     }
     
-    .align : ALIGN(8) {
-        . = . + 16; 
+    .paging_tbl (NOLOAD) : ALIGN(0x00001000)  {
+        _kernel_ttbr1_dir = .;
     }
 }
