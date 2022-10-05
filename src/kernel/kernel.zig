@@ -9,7 +9,8 @@ const kprint = periph.uart.UartWriter(true).kprint;
 const gic = arm.gicv2.Gic(true);
 
 // kernel services
-const UserSpaceAllocator = @import("memory.zig").UserSpaceAllocator;
+const KernelAllocator = @import("KernelAllocator.zig").KernelAllocator;
+const UserPageAllocator = @import("UserPageAllocator.zig").UserPageAllocator;
 const intHandle = @import("gicHandle.zig");
 const b_options = @import("build_options");
 const board = @import("board");
@@ -32,7 +33,8 @@ const ttbr1 align(4096) = blk: {
 
     // creating virtual address space for kernel
     const kernel_space_mapping = mmu.Mapping{
-        .mem_size = board.config.mem.ram_layout.kernel_space_size,
+        // todo => !! fix hould be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
+        .mem_size = board.config.mem.ram_size,
         .virt_start_addr = board.config.mem.ram_layout.kernel_space_vs,
         .phys_addr = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_phys,
         .granule = board.config.mem.ram_layout.kernel_space_gran,
@@ -52,11 +54,78 @@ const ttbr1 align(4096) = blk: {
 
 export fn kernel_main() callconv(.Naked) noreturn {
     kprint("[kernel] kernel started! \n", .{});
+    kprint("[kernel] configuring mmu... \n", .{});
 
-    const _kernel_ttbr1: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernel_ttbr1_dir" }) orelse {
-        kprint("error reading _kernel_ttbr1_dir label\n", .{});
+    const _kernel_ttbr0: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernel_ttbr0" }) orelse {
+        kprint("error reading _kernel_ttbr0 label\n", .{});
         unreachable;
     });
+    // mmu config block
+    {
+        kprint("ttbr0: {x} \n", .{_kernel_ttbr0});
+        kprint("ttbr1: {x} \n", .{@ptrToInt(&ttbr1)});
+        // user space is runtime evalua
+        const ttbr0 = blk: {
+            // ttbr0 (rom) mapps both rom and ram
+            comptime var ttbr0_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.Fourk, board.config.mem.ram_layout.user_space_size) catch |e| {
+                kprint("[panic] Page table size calc error: {s}\n", .{@errorName(e)});
+                k_utils.panic();
+            });
+
+            // todo => write proper kernel allocater and put it there
+            const ttbr0_arr = @intToPtr(*[ttbr0_size]usize, _kernel_ttbr0);
+
+            // MMU page dir config
+
+            // writing to _id_mapped_dir(label) page table and creating new
+            // identity mapped memory for bootloader to kernel transfer
+            const user_space_mapping = mmu.Mapping{
+                .mem_size = board.config.mem.ram_layout.user_space_size,
+                .virt_start_addr = board.config.mem.ram_layout.user_space_vs,
+                .phys_addr = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_size + board.config.mem.ram_layout.user_space_phys,
+                .granule = board.config.mem.ram_layout.user_space_gran,
+                .flags = null,
+            };
+            // identity mapped memory for bootloader and kernel contrtol handover!
+            var ttbr0_write = (mmu.PageTable(user_space_mapping) catch |e| {
+                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+                k_utils.panic();
+            }).init(ttbr0_arr) catch |e| {
+                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+                k_utils.panic();
+            };
+            ttbr0_write.mapMem() catch |e| {
+                kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
+                k_utils.panic();
+            };
+            break :blk ttbr0_arr;
+        };
+        brfn();
+        kprint("[kernel] changing to kernel page tables.. \n", .{});
+        // t0sz: The size offset of the memory region addressed by TTBR0_EL1 (64-48=16)
+        // t1sz: The size offset of the memory region addressed by TTBR1_EL1
+        // tg0: Granule size for the TTBR0_EL1.
+        proc.setTcrEl1((mmu.TcrReg{ .t0sz = 16, .t1sz = 16, .tg0 = 2 }).asInt());
+        proc.setMairEl1((mmu.MairReg{ .attr0 = 0x00, .attr1 = 0x04, .attr2 = 0x0c, .attr3 = 0x44, .attr4 = 0xFF }).asInt());
+        // proc.dsb();
+        // proc.isb();
+
+        proc.dsb();
+        proc.isb();
+
+        // updating page dirs for kernel and user space
+        // toUnse is bc we are in ttbr1 and can't change with page tables that are also in ttbr1
+        // kprint("text {x} \n", .{mmu.toSecure(usize, @ptrToInt(&ttbr1))});
+        proc.setTTBR1(@ptrToInt(&ttbr1));
+        _ = ttbr0;
+        // proc.setTTBR0(mmu.toSecure(usize, @ptrToInt(&ttbr0)));
+
+        proc.invalidateMmuTlbEl1();
+        proc.invalidateCache();
+
+        proc.dsb();
+        proc.isb();
+    }
 
     var current_el = proc.getCurrentEl();
     if (current_el != 1) {
@@ -77,80 +146,16 @@ export fn kernel_main() callconv(.Naked) noreturn {
         kprint("[kernel] ic inited \n", .{});
     }
 
-    // user space is runtime evalua
-    const ttbr0 = blk: {
-
-        // ttbr0 (rom) mapps both rom and ram
-        comptime var ttbr0_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.Fourk, board.config.mem.ram_layout.user_space_size) catch |e| {
-            kprint("[panic] Page table size calc error: {s}\n", .{@errorName(e)});
-            k_utils.panic();
-        });
-
-        // todo => write proper kernel allocater and put it there
-        const ttbr0_arr = @intToPtr(*[ttbr0_size]usize, _kernel_ttbr1);
-
-        // MMU page dir config
-
-        // writing to _id_mapped_dir(label) page table and creating new
-        // identity mapped memory for bootloader to kernel transfer
-        const user_space_mapping = mmu.Mapping{
-            .mem_size = board.config.mem.ram_layout.user_space_size,
-            .virt_start_addr = board.config.mem.ram_layout.user_space_vs,
-            .phys_addr = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_size + board.config.mem.ram_layout.user_space_phys,
-            .granule = board.config.mem.ram_layout.user_space_gran,
-            .flags = null,
-        };
-        // identity mapped memory for bootloader and kernel contrtol handover!
-        var ttbr0_write = (mmu.PageTable(user_space_mapping) catch |e| {
-            kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
-            k_utils.panic();
-        }).init(ttbr0_arr) catch |e| {
-            kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
-            k_utils.panic();
-        };
-        ttbr0_write.mapMem() catch |e| {
-            kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
-            k_utils.panic();
-        };
-
-        break :blk ttbr0_arr;
-    };
-
-    kprint("[kernel] changing to kernel page tables.. \n", .{});
-    // t0sz: The size offset of the memory region addressed by TTBR0_EL1 (64-48=16)
-    // t1sz: The size offset of the memory region addressed by TTBR1_EL1
-    // tg0: Granule size for the TTBR0_EL1.
-    proc.setTcrEl1((mmu.TcrReg{ .t0sz = 16, .t1sz = 16, .tg0 = 2 }).asInt());
-    proc.setMairEl1((mmu.MairReg{ .attr0 = 0x00, .attr1 = 0x04, .attr2 = 0x0c, .attr3 = 0x44, .attr4 = 0xFF }).asInt());
-    // // updating page dirs for kernel and user space
-    // proc.setTTBR1(0x0);
-    // proc.setTTBR0(0x0);
-    // proc.dsb();
-    // proc.isb();
-
-    proc.invalidateMmuTlbEl1();
-    proc.invalidateCache();
-
-    proc.dsb();
-    proc.isb();
-
-    kprint("0: {x}, 1: {x} \n", .{ @ptrToInt(&ttbr0), @ptrToInt(&ttbr1) });
-    // updating page dirs for kernel and user space
-    proc.setTTBR1(mmu.toUnsecure(usize, @ptrToInt(&ttbr1)));
-    proc.setTTBR0(@ptrToInt(&ttbr0));
-    proc.dsb();
-    proc.isb();
-
-    // kprint("_ttbr0_dir: {d} \n", .{@ptrToInt(&ttbr0)});
-    // kprint("_ttbr1_dir: {d} \n", .{@ptrToInt(&ttbr1)});
-
     kprint("[kernel] kernel boot complete \n", .{});
 
-    // var page_alloc_start = utils.ceilRoundToMultiple(_kernel_end, board.config.mem.ram_layout.user_space_gran.page_size) catch |e| {
+    kprint("ttbr1: {x} \n", .{_kernel_ttbr0});
+
+    // var page_alloc_start = utils.ceilRoundToMultiple(_kernel_ttbr0, 8) catch |e| {
     //     kprint("[panic] UserSpaceAllocator start addr calc err: {s}\n", .{@errorName(e)});
     //     k_utils.panic();
     // };
-    // var user_page_alloc = (UserSpaceAllocator(204800, board.config.mem.ram_layout.user_space_gran) catch |e| {
+
+    // var user_page_alloc = (UserPageAllocator(204800, board.config.mem.ram_layout.user_space_gran) catch |e| {
     //     kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
     //     k_utils.panic();
     // }).init(page_alloc_start) catch |e| {
@@ -162,13 +167,18 @@ export fn kernel_main() callconv(.Naked) noreturn {
     //     kprint("[panic] UserSpaceAllocator test error: {s} \n", .{@errorName(e)});
     //     k_utils.panic();
     // };
+
     if (board.config.board == .raspi3b)
-        tests.testUserSpaceMem(0x30000000);
+        tests.testUserSpaceMem(100);
 
     if (board.config.board == .qemuVirt)
-        tests.testUserSpaceMem(0x60000000);
+        tests.testUserSpaceMem(100);
 
     while (true) {}
+}
+
+pub fn brfn() void {
+    kprint("[kernel] gdb breakpoint function...", .{});
 }
 
 comptime {

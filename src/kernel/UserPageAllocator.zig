@@ -5,7 +5,7 @@ const utils = @import("utils");
 
 const kprint = arm.uart.kprint;
 
-pub fn UserSpaceAllocator(comptime mem_size: usize, comptime granule: board.boardConfig.GranuleParams) !type {
+pub fn UserPageAllocator(comptime mem_size: usize, comptime granule: board.boardConfig.GranuleParams) !type {
     const n_pages = try std.math.divExact(usize, mem_size, granule.page_size);
     const gran = granule;
     return struct {

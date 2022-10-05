@@ -1,4 +1,4 @@
-const UserSpaceAllocator = @import("memory.zig").UserSpaceAllocator;
+const UserSpaceAllocator = @import("KernelAllocator.zig").UserSpaceAllocator;
 const kprint = @import("periph").uart.UartWriter(true).kprint;
 
 pub fn testKMalloc(alloc: anytype) !void {

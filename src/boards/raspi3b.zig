@@ -22,13 +22,13 @@ pub const config = boardConfig.BoardConfig{
         .bl_load_addr = 0x80000,
 
         .ram_layout = .{
-            .kernel_space_size = 0x20000000,
+            .kernel_space_size = 0x30000000,
             .kernel_space_vs = vaStart,
             // !kernel_space_phys already includes the offset to the kernel space!
             .kernel_space_phys = 0,
             .kernel_space_gran = boardConfig.Granule.Section,
 
-            .user_space_size = 0x20000000,
+            .user_space_size = 0x10000000,
             .user_space_vs = 0,
             // !user_space_phys already includes the offset to the user space!
             .user_space_phys = 0,

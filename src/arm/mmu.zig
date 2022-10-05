@@ -215,10 +215,11 @@ pub fn PageTable(mapping: Mapping) !type {
                 var phys_count = self.mapping.phys_addr | phys_count_flags.asInt();
                 var i_table: usize = 0;
                 var i_descriptor: usize = 0;
+
                 table_loop: while (i_table < to_map_in_tables) : (i_table += 1) {
                     while (i_descriptor < self.table_size) : (i_descriptor += 1) {
                         // if last table is reached, only write the rest_to_map_in_descriptors
-                        if (i_table == to_map_in_tables and i_descriptor > rest_to_map_in_descriptors)
+                        if (i_table == (to_map_in_tables - 1) and i_descriptor > rest_to_map_in_descriptors)
                             break :table_loop;
 
                         // last lvl translation links to physical mem
