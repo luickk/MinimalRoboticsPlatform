@@ -25,10 +25,9 @@ pub fn build(b: *std.build.Builder) !void {
     // peripheral drivers
     var periph = std.build.Pkg{ .name = "periph", .source = .{ .path = "src/periph/periph.zig" } };
 
-    periph.dependencies = &.{arm};
     periph.dependencies = &.{board};
 
-    board.dependencies = &.{arm};
+    arm.dependencies = &.{periph};
     arm.dependencies = &.{board};
 
     // bootloader

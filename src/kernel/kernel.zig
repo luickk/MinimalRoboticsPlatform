@@ -26,15 +26,16 @@ const ttbr1 align(4096) = blk: {
     @setEvalBranchQuota(1000000);
 
     // ttbr0 (rom) mapps both rom and ram
-    const ttbr1_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.Section, board.config.mem.ram_layout.kernel_space_size) catch |e| {
+    // todo => !! fix should be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
+    const ttbr1_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.Section, board.config.mem.ram_size + (board.config.mem.rom_size orelse 0)) catch |e| {
         @compileError(@errorName(e));
     });
     var ttbr1_arr: [ttbr1_size]usize align(4096) = [_]usize{0} ** ttbr1_size;
 
     // creating virtual address space for kernel
     const kernel_space_mapping = mmu.Mapping{
-        // todo => !! fix hould be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
-        .mem_size = board.config.mem.ram_size,
+        // todo => !! fix should be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
+        .mem_size = board.config.mem.ram_size + (board.config.mem.rom_size orelse 0),
         .virt_start_addr = board.config.mem.ram_layout.kernel_space_vs,
         .phys_addr = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_phys,
         .granule = board.config.mem.ram_layout.kernel_space_gran,
@@ -67,7 +68,8 @@ export fn kernel_main() callconv(.Naked) noreturn {
         // user space is runtime evalua
         const ttbr0 = blk: {
             // ttbr0 (rom) mapps both rom and ram
-            comptime var ttbr0_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.Fourk, board.config.mem.ram_layout.user_space_size) catch |e| {
+            // todo => !! fix should be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
+            comptime var ttbr0_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.Fourk, board.config.mem.ram_size + (board.config.mem.rom_size orelse 0)) catch |e| {
                 kprint("[panic] Page table size calc error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
             });
@@ -80,7 +82,8 @@ export fn kernel_main() callconv(.Naked) noreturn {
             // writing to _id_mapped_dir(label) page table and creating new
             // identity mapped memory for bootloader to kernel transfer
             const user_space_mapping = mmu.Mapping{
-                .mem_size = board.config.mem.ram_layout.user_space_size,
+                // todo => !! fix should be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
+                .mem_size = board.config.mem.ram_size + (board.config.mem.rom_size orelse 0),
                 .virt_start_addr = board.config.mem.ram_layout.user_space_vs,
                 .phys_addr = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_size + board.config.mem.ram_layout.user_space_phys,
                 .granule = board.config.mem.ram_layout.user_space_gran,
@@ -100,15 +103,12 @@ export fn kernel_main() callconv(.Naked) noreturn {
             };
             break :blk ttbr0_arr;
         };
-        brfn();
         kprint("[kernel] changing to kernel page tables.. \n", .{});
         // t0sz: The size offset of the memory region addressed by TTBR0_EL1 (64-48=16)
         // t1sz: The size offset of the memory region addressed by TTBR1_EL1
         // tg0: Granule size for the TTBR0_EL1.
         proc.setTcrEl1((mmu.TcrReg{ .t0sz = 16, .t1sz = 16, .tg0 = 2 }).asInt());
         proc.setMairEl1((mmu.MairReg{ .attr0 = 0x00, .attr1 = 0x04, .attr2 = 0x0c, .attr3 = 0x44, .attr4 = 0xFF }).asInt());
-        // proc.dsb();
-        // proc.isb();
 
         proc.dsb();
         proc.isb();
@@ -117,8 +117,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
         // toUnse is bc we are in ttbr1 and can't change with page tables that are also in ttbr1
         // kprint("text {x} \n", .{mmu.toSecure(usize, @ptrToInt(&ttbr1))});
         proc.setTTBR1(@ptrToInt(&ttbr1));
-        _ = ttbr0;
-        // proc.setTTBR0(mmu.toSecure(usize, @ptrToInt(&ttbr0)));
+        proc.setTTBR0(@ptrToInt(&ttbr0));
 
         proc.invalidateMmuTlbEl1();
         proc.invalidateCache();
@@ -178,7 +177,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
 }
 
 pub fn brfn() void {
-    kprint("[kernel] gdb breakpoint function...", .{});
+    kprint("[kernel] gdb breakpoint function... \n", .{});
 }
 
 comptime {

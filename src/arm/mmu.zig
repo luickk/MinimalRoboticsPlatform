@@ -15,6 +15,7 @@ pub const DirtyWriter = struct {
         _ = self;
         for (data) |ch| {
             @intToPtr(*u8, 0x9000000).* = ch;
+            // 0xffff000009000000
         }
         return data.len;
     }
@@ -160,7 +161,7 @@ pub const TcrReg = packed struct {
 pub fn PageTable(mapping: Mapping) !type {
     const page_size = mapping.granule.page_size;
     const table_size = mapping.granule.table_size;
-    const max_lvl = mapping.granule.lvls_required;
+    const max_lvl_gran = mapping.granule.lvls_required;
 
     comptime var req_table_total = try board.boardConfig.calctotalTablesReq(mapping.granule, mapping.mem_size);
 
@@ -180,9 +181,9 @@ pub fn PageTable(mapping: Mapping) !type {
                 .page_size = page_size,
                 .table_size = table_size,
 
-                .max_lvl = max_lvl,
+                .max_lvl = max_lvl_gran,
                 .mapping = mapping,
-                .map_pg_dir = @ptrCast(*[req_table_total][table_size]usize, base_addr),
+                .map_pg_dir = @ptrCast(*volatile [req_table_total][table_size]usize, base_addr),
             };
         }
 
@@ -191,11 +192,11 @@ pub fn PageTable(mapping: Mapping) !type {
         }
 
         pub fn mapMem(self: *Self) !void {
-            var i_lvl: usize = 0;
             var to_map_in_descriptors: usize = 0;
             var table_offset: usize = 0;
             var phys_count_flags: TableDescriptorAttr = undefined;
 
+            var i_lvl: usize = 0;
             while (i_lvl <= @enumToInt(self.max_lvl)) : (i_lvl += 1) {
                 switch (mapping.granule.page_size) {
                     Granule.Section.page_size => {
@@ -208,34 +209,39 @@ pub fn PageTable(mapping: Mapping) !type {
                     },
                 }
 
-                const to_map_in_tables = try std.math.divFloor(usize, to_map_in_descriptors, self.table_size);
+                const to_map_in_tables = try std.math.divCeil(usize, to_map_in_descriptors, self.table_size);
                 const rest_to_map_in_descriptors = try std.math.mod(usize, to_map_in_descriptors, self.table_size);
-
                 const lvl_1_attr = (TableDescriptorAttr{ .accessPerm = .read_write, .descType = .block }).asInt();
                 var phys_count = self.mapping.phys_addr | phys_count_flags.asInt();
                 var i_table: usize = 0;
                 var i_descriptor: usize = 0;
-
-                table_loop: while (i_table < to_map_in_tables) : (i_table += 1) {
-                    while (i_descriptor < self.table_size) : (i_descriptor += 1) {
-                        // if last table is reached, only write the rest_to_map_in_descriptors
-                        if (i_table == (to_map_in_tables - 1) and i_descriptor > rest_to_map_in_descriptors)
-                            break :table_loop;
-
+                var left_descriptors: usize = 0;
+                while (i_table < to_map_in_tables) : (i_table += 1) {
+                    // if last table is reached, only write the rest_to_map_in_descriptors
+                    left_descriptors = blk: {
+                        // todo => a bit sktechy bc it's -1 but probably casted to signed temp
+                        if (i_table == (to_map_in_tables - 1) and rest_to_map_in_descriptors != 0) {
+                            break :blk rest_to_map_in_descriptors;
+                        } else {
+                            break :blk self.table_size;
+                        }
+                    };
+                    while (i_descriptor < left_descriptors) : (i_descriptor += 1) {
                         // last lvl translation links to physical mem
                         if (i_lvl == @enumToInt(self.max_lvl)) {
                             self.map_pg_dir[table_offset + i_table][i_descriptor] = phys_count;
                             phys_count += self.mapping.granule.page_size;
                         } else {
                             // linking to next table...
-                            self.map_pg_dir[table_offset + i_table][i_descriptor] = (table_offset + to_map_in_tables + i_descriptor) * self.table_size;
+                            // todo => is not relative but absolute address from table index 0
+                            self.map_pg_dir[table_offset + i_table][i_descriptor] = @ptrToInt(&self.map_pg_dir[table_offset + to_map_in_tables + i_descriptor]);
                             if (i_lvl == @enumToInt(TransLvl.first_lvl))
                                 self.map_pg_dir[table_offset + i_table][i_descriptor] |= lvl_1_attr;
                         }
                     }
                     i_descriptor = 0;
                 }
-                table_offset += i_table + 1;
+                table_offset += i_table;
             }
         }
     };
