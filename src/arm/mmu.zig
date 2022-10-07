@@ -34,7 +34,6 @@ const TransLvl = board.boardConfig.TransLvl;
 
 pub const Mapping = struct {
     mem_size: usize,
-    virt_start_addr: usize,
     phys_addr: usize,
     granule: GranuleParams,
     // currently only supported for sections
@@ -174,7 +173,6 @@ pub fn PageTable(mapping: Mapping) !type {
         max_lvl: TransLvl,
         map_pg_dir: *volatile [req_table_total][table_size]usize,
 
-        // todo => make input generic for usize, pointer, arr
         pub fn init(base_addr: *[req_table_total * table_size]usize) !Self {
             return Self{
                 // sizes
@@ -218,14 +216,11 @@ pub fn PageTable(mapping: Mapping) !type {
                 var left_descriptors: usize = 0;
                 while (i_table < to_map_in_tables) : (i_table += 1) {
                     // if last table is reached, only write the rest_to_map_in_descriptors
-                    left_descriptors = blk: {
-                        // todo => a bit sktechy bc it's -1 but probably casted to signed temp
-                        if (i_table == (to_map_in_tables - 1) and rest_to_map_in_descriptors != 0) {
-                            break :blk rest_to_map_in_descriptors;
-                        } else {
-                            break :blk self.table_size;
-                        }
-                    };
+                    left_descriptors = self.table_size;
+                    // explicitely casting to signed bc substraction could result in negative num.
+                    if (i_table == @as(i128, to_map_in_tables - 1) and rest_to_map_in_descriptors != 0)
+                        left_descriptors = rest_to_map_in_descriptors;
+
                     while (i_descriptor < left_descriptors) : (i_descriptor += 1) {
                         // last lvl translation links to physical mem
                         if (i_lvl == @enumToInt(self.max_lvl)) {

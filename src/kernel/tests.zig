@@ -1,5 +1,5 @@
 const UserSpaceAllocator = @import("KernelAllocator.zig").UserSpaceAllocator;
-const kprint = @import("periph").uart.UartWriter(true).kprint;
+const kprint = @import("periph").uart.UartWriter(.ttbr1).kprint;
 
 pub fn testKMalloc(alloc: anytype) !void {
     var p1 = try alloc.allocNPage(10);

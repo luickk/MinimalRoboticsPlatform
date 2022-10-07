@@ -40,9 +40,9 @@ pub const config = boardConfig.BoardConfig{
     .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "raspi3b", "-device", "loader,addr=0x80000,file=zig-out/bin/mergedKernel,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
 };
 
-pub fn PeriphConfig(kernel_space: bool) type {
+pub fn PeriphConfig(addr_space: boardConfig.AddrSpace) type {
     comptime var device_base: usize = 0x3f000000;
-    if (kernel_space)
+    if (addr_space.isKernelSpace())
         device_base += config.mem.va_start;
 
     return struct {

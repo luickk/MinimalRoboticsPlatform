@@ -191,8 +191,8 @@ const UpdateLinkerScripts = struct {
                     kernel_start_address = bl_bin_size + (self.board_config.mem.bl_load_addr orelse 0);
                 try writeVarsToLinkerScript(self.allocator, "src/kernel/linker.ld", self.temp_kernel_ld, .{
                     kernel_start_address,
-                    try self.board_config.mem.ram_layout.calcPageTableSizeKernel(),
-                    try self.board_config.mem.ram_layout.calcPageTableSizeUser(),
+                    self.board_config.mem.k_stack_size,
+                    null,
                 });
             },
         }

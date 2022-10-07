@@ -1,11 +1,11 @@
 const std = @import("std");
 const arm = @import("arm");
 const periph = @import("periph");
-const kprint = periph.uart.UartWriter(true).kprint;
-const icCfg = @import("board").PeriphConfig(true).InterruptController;
+const kprint = periph.uart.UartWriter(.ttbr1).kprint;
+const icCfg = @import("board").PeriphConfig(.ttbr1).InterruptController;
 const gic = arm.gicv2;
 const timer = arm.timer;
-const intController = arm.bcm2835IntController.InterruptController(true);
+const intController = arm.bcm2835IntController.InterruptController(.ttbr1);
 
 const Bank0 = intController.RegValues.Bank0;
 const Bank1 = intController.RegValues.Bank1;

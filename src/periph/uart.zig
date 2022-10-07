@@ -1,8 +1,9 @@
 const std = @import("std");
 const board = @import("board");
+const AddrSpace = board.boardConfig.AddrSpace;
 
-pub fn UartWriter(kernel_space: bool) type {
-    const pl011 = @import("pl011.zig").Pl011(kernel_space);
+pub fn UartWriter(addr_space: AddrSpace) type {
+    const pl011 = @import("pl011.zig").Pl011(addr_space);
     return struct {
         const Self = @This();
         pub const Writer = std.io.Writer(*Self, error{}, appendWrite);
@@ -20,7 +21,7 @@ pub fn UartWriter(kernel_space: bool) type {
         }
 
         pub fn kprint(comptime print_string: []const u8, args: anytype) void {
-            var tempW: UartWriter(kernel_space) = undefined;
+            var tempW: UartWriter(addr_space) = undefined;
             std.fmt.format(tempW.writer(), print_string, args) catch |err| {
                 @panic(err);
             };

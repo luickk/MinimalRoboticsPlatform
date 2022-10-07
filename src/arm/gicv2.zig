@@ -1,5 +1,6 @@
 const std = @import("std");
 const mmu = @import("mmu.zig");
+const AddrSpace = @import("board").boardConfig.AddrSpace;
 
 // identifiers for the vector table addr_handler call
 pub const ExceptionType = enum(u64) {
@@ -23,8 +24,8 @@ pub const ExceptionFrame = struct {
     lr: u64,
 };
 
-pub fn Gic(kernel_space: bool) type {
-    const gicCfg = @import("board").PeriphConfig(kernel_space).GicV2;
+pub fn Gic(addr_space: AddrSpace) type {
+    const gicCfg = @import("board").PeriphConfig(addr_space).GicV2;
     return struct {
         // initialize gic controller
         pub fn init() !void {

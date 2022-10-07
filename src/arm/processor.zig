@@ -1,5 +1,9 @@
 // todo => write generic functions
 
+// pub const ExceptionLevels = enum { el0, el1, el2, el3 };
+// pub fn Proccessor(el: ExceptionLevels, secure: bool,) type {
+//     return struct {};
+// }
 pub inline fn setTcrEl1(val: usize) void {
     asm volatile ("msr tcr_el1, %[val]"
         :

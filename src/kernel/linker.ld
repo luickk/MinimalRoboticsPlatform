@@ -35,7 +35,7 @@ SECTIONS {
 
     .stack : ALIGN(16) {
         _stack_bottom = .;
-        . = . + 0x1000;
+        . = . + {@zig};
         _stack_top = .;
     }
     

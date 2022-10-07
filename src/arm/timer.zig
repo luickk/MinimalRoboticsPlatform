@@ -1,4 +1,4 @@
-const timerCfg = @import("board").PeriphConfig(true).Timer;
+const timerCfg = @import("board").PeriphConfig(.ttbr1).Timer;
 
 var timerVal: u32 = 0;
 

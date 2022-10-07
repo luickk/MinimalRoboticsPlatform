@@ -1,8 +1,17 @@
 const std = @import("std");
 
-pub const supportedBoards = enum {
+pub const SupportedBoards = enum {
     raspi3b,
     qemuVirt,
+};
+
+pub const AddrSpace = enum(u8) {
+    ttbr1 = 1,
+    ttbr0 = 0,
+
+    pub fn isKernelSpace(self: AddrSpace) bool {
+        return @enumToInt(self) != 0;
+    }
 };
 
 pub fn calctotalTablesReq(granule: GranuleParams, mem_size: usize) !usize {
@@ -46,15 +55,6 @@ pub const RamMemLayout = struct {
     user_space_vs: usize,
     user_space_phys: usize,
     user_space_gran: GranuleParams,
-
-    // todo => remove those...
-    pub fn calcPageTableSizeKernel(self: RamMemLayout) !usize {
-        return (try calctotalTablesReq(self.kernel_space_gran, self.kernel_space_size)) * (self.kernel_space_gran.page_size / 8);
-    }
-
-    pub fn calcPageTableSizeUser(self: RamMemLayout) !usize {
-        return (try calctotalTablesReq(self.user_space_gran, self.user_space_size)) * (self.user_space_gran.page_size / 8);
-    }
 };
 
 pub const BoardMemLayout = struct {
@@ -77,7 +77,7 @@ pub const BoardMemLayout = struct {
 };
 
 pub const BoardConfig = struct {
-    board: supportedBoards,
+    board: SupportedBoards,
     mem: BoardMemLayout,
     qemu_launch_command: []const []const u8,
 

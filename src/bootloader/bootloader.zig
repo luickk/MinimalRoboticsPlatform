@@ -8,15 +8,15 @@ const board = @import("board");
 const b_options = @import("build_options");
 const proc = arm.processor;
 const mmu = arm.mmu;
-// bool arg sets the addresses value to either mmu kernel_space or unsecure
-const PeriphConfig = board.PeriphConfig(false);
-const pl011 = periph.Pl011(false);
-const kprint = periph.uart.UartWriter(false).kprint;
+// .ttbr0 arg sets the addresses value to either or user_, kernel_space
+const PeriphConfig = board.PeriphConfig(.ttbr0);
+const pl011 = periph.Pl011(.ttbr0);
+const kprint = periph.uart.UartWriter(.ttbr0).kprint;
 
 // raspberry
-const bcm2835IntController = arm.bcm2835IntController.InterruptController(false);
+const bcm2835IntController = arm.bcm2835IntController.InterruptController(.ttbr0);
 
-const gic = arm.gicv2.Gic(false);
+const gic = arm.gicv2.Gic(.ttbr0);
 
 const Granule = board.boardConfig.Granule;
 const GranuleParams = board.boardConfig.GranuleParams;
@@ -53,7 +53,6 @@ const ttbr0 align(4096) = blk: {
     // identity mapped memory for bootloader to kernel transfer
     const bootloader_mapping = mmu.Mapping{
         .mem_size = mapping_bl_phys_size,
-        .virt_start_addr = 0,
         .phys_addr = mapping_bl_phys_addr,
         .granule = Granule.Section,
         .flags = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
@@ -83,7 +82,6 @@ const ttbr1 align(4096) = blk: {
     // creating virtual address space for kernel
     const kernel_mapping = mmu.Mapping{
         .mem_size = board.config.mem.ram_size,
-        .virt_start_addr = board.config.mem.va_start,
         .phys_addr = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0),
         .granule = Granule.Section,
         .flags = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
@@ -159,7 +157,7 @@ export fn bl_main() callconv(.Naked) noreturn {
 
     if (board.config.mem.rom_start_addr != null) {
         kprint("[bootloader] setup mmu, el1, exc table. \n", .{});
-        kprint("[bootloader] Copying kernel to kernel_space: 0x{x}, with size: {d} \n", .{ @ptrToInt(kernel_target_loc.ptr), kernel_target_loc.len });
+        kprint("[bootloader] Copying kernel to addr_space: 0x{x}, with size: {d} \n", .{ @ptrToInt(kernel_target_loc.ptr), kernel_target_loc.len });
         std.mem.copy(u8, kernel_target_loc, kernel_bl);
         kprint("[bootloader] kernel copied \n", .{});
     }

@@ -5,8 +5,8 @@ const utils = @import("utils");
 const k_utils = @import("utils.zig");
 const tests = @import("tests.zig");
 
-const kprint = periph.uart.UartWriter(true).kprint;
-const gic = arm.gicv2.Gic(true);
+const kprint = periph.uart.UartWriter(.ttbr1).kprint;
+const gic = arm.gicv2.Gic(.ttbr1);
 
 // kernel services
 const KernelAllocator = @import("KernelAllocator.zig").KernelAllocator;
@@ -19,7 +19,7 @@ const proc = arm.processor;
 const mmu = arm.mmu;
 
 // raspberry
-const bcm2835IntController = arm.bcm2835IntController.InterruptController(true);
+const bcm2835IntController = arm.bcm2835IntController.InterruptController(.ttbr1);
 const timer = arm.timer;
 
 const ttbr1 align(4096) = blk: {
@@ -36,7 +36,6 @@ const ttbr1 align(4096) = blk: {
     const kernel_space_mapping = mmu.Mapping{
         // todo => !! fix should be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
         .mem_size = board.config.mem.ram_size + (board.config.mem.rom_size orelse 0),
-        .virt_start_addr = board.config.mem.ram_layout.kernel_space_vs,
         .phys_addr = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_phys,
         .granule = board.config.mem.ram_layout.kernel_space_gran,
         .flags = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block },
@@ -54,6 +53,14 @@ const ttbr1 align(4096) = blk: {
 };
 
 export fn kernel_main() callconv(.Naked) noreturn {
+    const _stack_top: usize = @ptrToInt(@extern(?*u8, .{ .name = "_stack_top" }) orelse {
+        kprint("error reading _stack_top label\n", .{});
+        unreachable;
+    });
+
+    // setting stack back to linker section
+    proc.setSp(mmu.toSecure(usize, _stack_top));
+
     kprint("[kernel] kernel started! \n", .{});
     kprint("[kernel] configuring mmu... \n", .{});
 
@@ -61,6 +68,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
         kprint("error reading _kernel_ttbr0 label\n", .{});
         unreachable;
     });
+
     // mmu config block
     {
         kprint("ttbr0: {x} \n", .{_kernel_ttbr0});
@@ -84,7 +92,6 @@ export fn kernel_main() callconv(.Naked) noreturn {
             const user_space_mapping = mmu.Mapping{
                 // todo => !! fix should be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
                 .mem_size = board.config.mem.ram_size + (board.config.mem.rom_size orelse 0),
-                .virt_start_addr = board.config.mem.ram_layout.user_space_vs,
                 .phys_addr = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_size + board.config.mem.ram_layout.user_space_phys,
                 .granule = board.config.mem.ram_layout.user_space_gran,
                 .flags = null,
@@ -112,11 +119,13 @@ export fn kernel_main() callconv(.Naked) noreturn {
 
         proc.dsb();
         proc.isb();
+        brfn();
 
         // updating page dirs for kernel and user space
         // toUnse is bc we are in ttbr1 and can't change with page tables that are also in ttbr1
         // kprint("text {x} \n", .{mmu.toSecure(usize, @ptrToInt(&ttbr1))});
         proc.setTTBR1(@ptrToInt(&ttbr1));
+        // kprint("ttbr0: {*} \n", .{&ttbr0});
         proc.setTTBR0(@ptrToInt(&ttbr0));
 
         proc.invalidateMmuTlbEl1();
@@ -146,8 +155,6 @@ export fn kernel_main() callconv(.Naked) noreturn {
     }
 
     kprint("[kernel] kernel boot complete \n", .{});
-
-    kprint("ttbr1: {x} \n", .{_kernel_ttbr0});
 
     // var page_alloc_start = utils.ceilRoundToMultiple(_kernel_ttbr0, 8) catch |e| {
     //     kprint("[panic] UserSpaceAllocator start addr calc err: {s}\n", .{@errorName(e)});

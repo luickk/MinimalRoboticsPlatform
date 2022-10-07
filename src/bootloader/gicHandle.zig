@@ -2,7 +2,7 @@ const std = @import("std");
 const bl_utils = @import("utils.zig");
 const arm = @import("arm");
 const periph = @import("periph");
-const kprint = periph.uart.UartWriter(false).kprint;
+const kprint = periph.uart.UartWriter(.ttbr0).kprint;
 const gic = arm.gicv2;
 const timer = arm.timer;
 

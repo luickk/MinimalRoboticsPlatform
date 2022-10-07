@@ -11,7 +11,7 @@ pub const config = boardConfig.BoardConfig{
 
         // qemus machine has a rom with 1 gb size
         .rom_start_addr = 0,
-        .rom_size = 0x80000000,
+        .rom_size = 0x40000000,
         // according to qemu docs ram starts at 1gib
         .ram_start_addr = 0x40000000,
         // 0x100000000
@@ -41,10 +41,10 @@ pub const config = boardConfig.BoardConfig{
     .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "virt", "-m", "10G", "-cpu", "cortex-a53", "-device", "loader,file=zig-out/bin/mergedKernel,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
 };
 
-pub fn PeriphConfig(kernel_space: bool) type {
+pub fn PeriphConfig(addr_space: boardConfig.AddrSpace) type {
     // ! = 0 !
     comptime var device_base: usize = 0;
-    if (kernel_space)
+    if (addr_space.isKernelSpace())
         device_base += config.mem.va_start;
 
     return struct {

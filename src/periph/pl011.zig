@@ -1,8 +1,9 @@
 const std = @import("std");
 const board = @import("board");
+const AddrSpace = board.boardConfig.AddrSpace;
 
-pub fn Pl011(kernel_space: bool) type {
-    const pl011Cfg = board.PeriphConfig(kernel_space).Pl011;
+pub fn Pl011(addr_space: AddrSpace) type {
+    const pl011Cfg = board.PeriphConfig(addr_space).Pl011;
     return struct {
         const RegMap = struct {
             pub const dataReg = @intToPtr(*volatile u32, pl011Cfg.base_address + 0x000);
