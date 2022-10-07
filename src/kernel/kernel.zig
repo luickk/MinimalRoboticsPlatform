@@ -15,7 +15,7 @@ const intHandle = @import("gicHandle.zig");
 const b_options = @import("build_options");
 const board = @import("board");
 
-const proc = arm.processor;
+const proc = arm.processor.Proccessor(.ttbr1, .el1, false);
 const mmu = arm.mmu;
 
 // raspberry
@@ -114,8 +114,8 @@ export fn kernel_main() callconv(.Naked) noreturn {
         // t0sz: The size offset of the memory region addressed by TTBR0_EL1 (64-48=16)
         // t1sz: The size offset of the memory region addressed by TTBR1_EL1
         // tg0: Granule size for the TTBR0_EL1.
-        proc.setTcrEl1((mmu.TcrReg{ .t0sz = 16, .t1sz = 16, .tg0 = 2 }).asInt());
-        proc.setMairEl1((mmu.MairReg{ .attr0 = 0x00, .attr1 = 0x04, .attr2 = 0x0c, .attr3 = 0x44, .attr4 = 0xFF }).asInt());
+        proc.tcr_el.setTcrEl(.el1, (mmu.TcrReg{ .t0sz = 16, .t1sz = 16, .tg0 = 2 }).asInt());
+        proc.mair_el.setMairEl(.el1, (mmu.MairReg{ .attr0 = 0x00, .attr1 = 0x04, .attr2 = 0x0c, .attr3 = 0x44, .attr4 = 0xFF }).asInt());
 
         proc.dsb();
         proc.isb();

@@ -2,32 +2,6 @@ const std = @import("std");
 const board = @import("board");
 const kprint = @import("periph").uart.UartWriter(false).kprint;
 
-pub const DirtyWriter = struct {
-    pub const Writer = std.io.Writer(*DirtyWriter, error{}, appendWrite);
-
-    pub fn writer(self: *DirtyWriter) Writer {
-        return .{ .context = self };
-    }
-
-    /// Same as `append` except it returns the number of bytes written, which is always the same
-    /// as `m.len`. The purpose of this function existing is to match `std.io.Writer` API.
-    fn appendWrite(self: *DirtyWriter, data: []const u8) error{}!usize {
-        _ = self;
-        for (data) |ch| {
-            @intToPtr(*u8, 0x9000000).* = ch;
-            // 0xffff000009000000
-        }
-        return data.len;
-    }
-};
-
-pub fn dprint(comptime print_string: []const u8, args: anytype) void {
-    var tempW: DirtyWriter = undefined;
-    std.fmt.format(tempW.writer(), print_string, args) catch |err| {
-        @panic(err);
-    };
-}
-
 const Granule = board.boardConfig.Granule;
 const GranuleParams = board.boardConfig.GranuleParams;
 const TransLvl = board.boardConfig.TransLvl;

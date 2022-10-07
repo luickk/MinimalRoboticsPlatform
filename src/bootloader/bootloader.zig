@@ -6,7 +6,7 @@ const arm = @import("arm");
 const periph = @import("periph");
 const board = @import("board");
 const b_options = @import("build_options");
-const proc = arm.processor;
+const proc = arm.processor.Proccessor(.ttbr0, .el1, false);
 const mmu = arm.mmu;
 // .ttbr0 arg sets the addresses value to either or user_, kernel_space
 const PeriphConfig = board.PeriphConfig(.ttbr0);
@@ -144,16 +144,16 @@ export fn bl_main() callconv(.Naked) noreturn {
     // t1sz: The size offset of the memory region addressed by TTBR1_EL1
     // tg0: Granule size for the TTBR0_EL1.
     // tg1 not required since it's sections
-    proc.setTcrEl1((mmu.TcrReg{ .t0sz = 16, .t1sz = 16, .tg1 = 2 }).asInt());
+    proc.tcr_el.setTcrEl(.el1, (mmu.TcrReg{ .t0sz = 16, .t1sz = 16, .tg1 = 2 }).asInt());
     // attr0 is normal mem, not cachable
-    proc.setMairEl1((mmu.MairReg{ .attr0 = 4, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
+    proc.mair_el.setMairEl(.el1, (mmu.MairReg{ .attr0 = 4, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
 
     proc.invalidateMmuTlbEl1();
     proc.invalidateCache();
     proc.isb();
     proc.dsb();
     kprint("[bootloader] enabling mmu... \n", .{});
-    proc.enableMmu();
+    proc.enableMmu(.el1);
 
     if (board.config.mem.rom_start_addr != null) {
         kprint("[bootloader] setup mmu, el1, exc table. \n", .{});
