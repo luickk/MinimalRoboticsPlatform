@@ -1,5 +1,7 @@
 pub const boardConfig = @import("boardConfig.zig");
 
+// todo => fix exception/ interrupt handling
+
 const vaStart: usize = 0xffff000000000000;
 pub const config = boardConfig.BoardConfig{
     .board = .qemuVirt,
@@ -30,7 +32,7 @@ pub const config = boardConfig.BoardConfig{
             .user_space_size = 0x40000000,
             // !user_space_phys already includes the offset to the user space!
             .user_space_phys = 0,
-            .user_space_gran = boardConfig.Granule.Section,
+            .user_space_gran = boardConfig.Granule.Fourk,
         },
         .storage_start_addr = 0,
         .storage_size = 0,

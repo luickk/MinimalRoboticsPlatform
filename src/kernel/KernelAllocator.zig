@@ -1,9 +1,11 @@
 const std = @import("std");
 const periph = @import("peripherals");
 const utils = @import("utils");
+const arm = @import("arm");
 
 const kprint = periph.serial.kprint;
 const addr = periph.rbAddr;
+const mmu = arm.mmu;
 
 // simply keeps record of what is kept where, slow but safe
 pub fn KernelAllocator(comptime mem_size: usize, comptime chunk_size: usize) type {

@@ -54,7 +54,7 @@ const ttbr0 align(4096) = blk: {
         .mem_size = mapping_bl_phys_size,
         .phys_addr = mapping_bl_phys_addr,
         .granule = Granule.Section,
-        .flags = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
+        .flags = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page, .attrIndex = .mair0 },
     };
     // identity mapped memory for bootloader and kernel contrtol handover!
     var ttbr0_write = (mmu.PageTable(bootloader_mapping) catch |e| {
@@ -83,6 +83,7 @@ const ttbr1 align(4096) = blk: {
         .mem_size = board.config.mem.ram_size,
         .phys_addr = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0),
         .granule = Granule.Section,
+        // todo => .descType should be .page but does not work with raspberry board..
         .flags = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
     };
     // mapping general kernel mem (inlcuding device base)
@@ -115,9 +116,6 @@ export fn bl_main() callconv(.Naked) noreturn {
         };
         pl011.init();
     }
-
-    kprint("bl ttbr0: {*} \n", .{&ttbr1});
-    kprint("bl ttbr1: {*} \n", .{&ttbr0});
     // proc.exceptionSvc();
 
     // get address of external linker script variable which marks stack-top and kernel start
@@ -145,7 +143,7 @@ export fn bl_main() callconv(.Naked) noreturn {
     // t1sz: The size offset of the memory region addressed by TTBR1_EL1
     // tg0: Granule size for the TTBR0_EL1.
     // tg1 not required since it's sections
-    proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 16, .t1sz = 16 }).asInt());
+    proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 16, .t1sz = 16, .tg0 = 0, .tg1 = 0 }).asInt());
     // attr0 is normal mem, not cachable
     proc.MairReg.setMairEl(.el1, (proc.MairReg{ .attr0 = 4, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
 

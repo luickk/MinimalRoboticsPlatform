@@ -71,8 +71,6 @@ export fn kernel_main() callconv(.Naked) noreturn {
 
     // mmu config block
     {
-        kprint("ttbr0: {x} \n", .{_kernel_ttbr0});
-        kprint("ttbr1: {x} \n", .{@ptrToInt(&ttbr1)});
         // user space is runtime evalua
         const ttbr0 = blk: {
             // ttbr0 (rom) mapps both rom and ram
@@ -110,11 +108,12 @@ export fn kernel_main() callconv(.Naked) noreturn {
             };
             break :blk ttbr0_arr;
         };
+
         kprint("[kernel] changing to kernel page tables.. \n", .{});
         // t0sz: The size offset of the memory region addressed by TTBR0_EL1 (64-48=16)
         // t1sz: The size offset of the memory region addressed by TTBR1_EL1
         // tg0: Granule size for the TTBR0_EL1.
-        proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 16, .t1sz = 16, .tg0 = 0 }).asInt());
+        proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 16, .t1sz = 16, .tg0 = 0, .tg1 = 0 }).asInt());
         proc.MairReg.setMairEl(.el1, (proc.MairReg{ .attr0 = 4, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
 
         proc.dsb();
@@ -152,24 +151,24 @@ export fn kernel_main() callconv(.Naked) noreturn {
     }
 
     kprint("[kernel] kernel boot complete \n", .{});
+    var page_alloc_start = utils.ceilRoundToMultiple((board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_size, board.config.mem.ram_layout.user_space_gran.page_size) catch |e| {
+        kprint("[panic] UserSpaceAllocator start addr calc err: {s}\n", .{@errorName(e)});
+        k_utils.panic();
+    };
 
-    // var page_alloc_start = utils.ceilRoundToMultiple(_kernel_ttbr0, 8) catch |e| {
-    //     kprint("[panic] UserSpaceAllocator start addr calc err: {s}\n", .{@errorName(e)});
-    //     k_utils.panic();
-    // };
+    var user_page_alloc = (UserPageAllocator(204800, board.config.mem.ram_layout.user_space_gran) catch |e| {
+        kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    }).init(page_alloc_start) catch |e| {
+        kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
 
-    // var user_page_alloc = (UserPageAllocator(204800, board.config.mem.ram_layout.user_space_gran) catch |e| {
-    //     kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
-    //     k_utils.panic();
-    // }).init(page_alloc_start) catch |e| {
-    //     kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
-    //     k_utils.panic();
-    // };
-
-    // tests.testKMalloc(&user_page_alloc) catch |e| {
-    //     kprint("[panic] UserSpaceAllocator test error: {s} \n", .{@errorName(e)});
-    //     k_utils.panic();
-    // };
+    brfn();
+    tests.testKMalloc(&user_page_alloc) catch |e| {
+        kprint("[panic] UserSpaceAllocator test error: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
 
     if (board.config.board == .raspi3b)
         tests.testUserSpaceMem(100);

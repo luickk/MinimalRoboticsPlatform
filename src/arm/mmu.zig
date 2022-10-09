@@ -115,12 +115,13 @@ pub fn PageTable(mapping: Mapping) !type {
                     },
                     else => {
                         to_map_in_descriptors = try std.math.divCeil(usize, self.mapping.mem_size, self.calcTransLvlDescriptorSize(@intToEnum(TransLvl, i_lvl)));
-                        phys_count_flags = TableDescriptorAttr{ .accessPerm = .read_write, .descType = .page };
+                        phys_count_flags = TableDescriptorAttr{ .accessPerm = .read_write, .descType = .block };
                     },
                 }
 
                 const to_map_in_tables = try std.math.divCeil(usize, to_map_in_descriptors, self.table_size);
                 const rest_to_map_in_descriptors = try std.math.mod(usize, to_map_in_descriptors, self.table_size);
+                // todo => should be .page, but does not work...
                 const lvl_1_attr = (TableDescriptorAttr{ .accessPerm = .read_write, .descType = .block }).asInt();
                 var phys_count = self.mapping.phys_addr | phys_count_flags.asInt();
                 var i_table: usize = 0;

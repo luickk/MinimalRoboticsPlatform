@@ -15,6 +15,7 @@ pub fn testKMalloc(alloc: anytype) !void {
     try alloc.freeNPage(p3, 10);
     try alloc.freeNPage(p4, 10);
     try alloc.freeNPage(p5, 10);
+
     try alloc.freeNPage(p6, 10);
     kprint("[kTEST] userspace page alloc test successfull \n", .{});
 }

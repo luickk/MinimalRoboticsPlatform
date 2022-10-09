@@ -2,8 +2,9 @@ const std = @import("std");
 const arm = @import("arm");
 const board = @import("board");
 const utils = @import("utils");
+const kprint = @import("periph").uart.UartWriter(.ttbr1).kprint;
 
-const kprint = arm.uart.kprint;
+const mmu = arm.mmu;
 
 pub fn UserPageAllocator(comptime mem_size: usize, comptime granule: board.boardConfig.GranuleParams) !type {
     const n_pages = try std.math.divExact(usize, mem_size, granule.page_size);
@@ -63,10 +64,10 @@ pub fn UserPageAllocator(comptime mem_size: usize, comptime granule: board.board
         }
 
         pub fn freeNPage(self: *Self, page_addr: *anyopaque, n: usize) !void {
-            if ((try std.math.mod(usize, @ptrToInt(page_addr), granule.page_size)) != 0) {
+            if ((try std.math.mod(usize, mmu.toUnsecure(usize, @ptrToInt(page_addr)), granule.page_size)) != 0)
                 return Error.PageAddrDoesNotAlign;
-            }
-            var offset: usize = std.math.sub(usize, @ptrToInt(page_addr), self.mem_start) catch {
+
+            var offset: usize = std.math.sub(usize, mmu.toUnsecure(usize, @ptrToInt(page_addr)), self.mem_start) catch {
                 return Error.AddrNotInMem;
             };
             // safe bc page_address is multiple of page_size
