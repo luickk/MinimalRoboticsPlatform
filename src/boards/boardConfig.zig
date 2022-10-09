@@ -47,12 +47,10 @@ pub const GranuleParams = struct {
 
 pub const RamMemLayout = struct {
     kernel_space_size: usize,
-    kernel_space_vs: usize,
     kernel_space_phys: usize,
     kernel_space_gran: GranuleParams,
 
     user_space_size: usize,
-    user_space_vs: usize,
     user_space_phys: usize,
     user_space_gran: GranuleParams,
 };

@@ -5,7 +5,7 @@ const os = @import("std").os;
 
 const Error = error{BlExceedsRomSize};
 
-const currBoard = @import("src/boards/raspi3b.zig");
+const currBoard = @import("src/boards/qemuVirt.zig");
 const kernel_bin_size: usize = 0x2000000;
 const bl_bin_size: usize = 0x2000000;
 
@@ -189,10 +189,12 @@ const UpdateLinkerScripts = struct {
                 var kernel_start_address: usize = self.board_config.mem.ram_start_addr;
                 if (self.board_config.mem.rom_start_addr == null)
                     kernel_start_address = bl_bin_size + (self.board_config.mem.bl_load_addr orelse 0);
+                std.debug.print("dsadasdasdasd: {d} \n", .{try currBoard.boardConfig.calcPageTableSizeTotal(currBoard.config.mem.ram_layout.kernel_space_gran, currBoard.config.mem.ram_size + (currBoard.config.mem.rom_size orelse 0))});
+                // todo => !! fix should be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
                 try writeVarsToLinkerScript(self.allocator, "src/kernel/linker.ld", self.temp_kernel_ld, .{
                     kernel_start_address,
                     self.board_config.mem.k_stack_size,
-                    null,
+                    try currBoard.boardConfig.calcPageTableSizeTotal(currBoard.config.mem.ram_layout.kernel_space_gran, currBoard.config.mem.ram_size + (currBoard.config.mem.rom_size orelse 0)),
                 });
             },
         }

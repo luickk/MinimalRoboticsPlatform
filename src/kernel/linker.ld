@@ -41,5 +41,7 @@ SECTIONS {
     
     .paging_tbl (NOLOAD) : ALIGN(0x00001000)  {
         _kernel_ttbr0 = .;
+        . = . + {@zig};
+        _kernel_ttbr1 = .;
     }
 }

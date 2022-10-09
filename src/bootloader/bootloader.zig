@@ -6,7 +6,7 @@ const arm = @import("arm");
 const periph = @import("periph");
 const board = @import("board");
 const b_options = @import("build_options");
-const proc = arm.processor.Proccessor(.ttbr0, .el1, false);
+const proc = arm.processor.ProccessorRegMap(.ttbr0, .el1, false);
 const mmu = arm.mmu;
 // .ttbr0 arg sets the addresses value to either or user_, kernel_space
 const PeriphConfig = board.PeriphConfig(.ttbr0);
@@ -27,7 +27,6 @@ const bl_bin_size = b_options.bl_bin_size;
 
 // todo => ttbr1 for kernel is ranging from 0x0-1g instead of _ramSize_ + _bl_load_addr-1g!. Alternatively link kernel with additional offset
 
-// for bootloder.zig...
 const ttbr0 align(4096) = blk: {
     @setEvalBranchQuota(1000000);
 
@@ -117,6 +116,8 @@ export fn bl_main() callconv(.Naked) noreturn {
         pl011.init();
     }
 
+    kprint("bl ttbr0: {*} \n", .{&ttbr1});
+    kprint("bl ttbr1: {*} \n", .{&ttbr0});
     // proc.exceptionSvc();
 
     // get address of external linker script variable which marks stack-top and kernel start
@@ -144,9 +145,9 @@ export fn bl_main() callconv(.Naked) noreturn {
     // t1sz: The size offset of the memory region addressed by TTBR1_EL1
     // tg0: Granule size for the TTBR0_EL1.
     // tg1 not required since it's sections
-    proc.tcr_el.setTcrEl(.el1, (mmu.TcrReg{ .t0sz = 16, .t1sz = 16, .tg1 = 2 }).asInt());
+    proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 16, .t1sz = 16 }).asInt());
     // attr0 is normal mem, not cachable
-    proc.mair_el.setMairEl(.el1, (mmu.MairReg{ .attr0 = 4, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
+    proc.MairReg.setMairEl(.el1, (proc.MairReg{ .attr0 = 4, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
 
     proc.invalidateMmuTlbEl1();
     proc.invalidateCache();

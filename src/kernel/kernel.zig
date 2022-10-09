@@ -15,7 +15,7 @@ const intHandle = @import("gicHandle.zig");
 const b_options = @import("build_options");
 const board = @import("board");
 
-const proc = arm.processor.Proccessor(.ttbr1, .el1, false);
+const proc = arm.processor.ProccessorRegMap(.ttbr1, .el1, false);
 const mmu = arm.mmu;
 
 // raspberry
@@ -77,7 +77,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
         const ttbr0 = blk: {
             // ttbr0 (rom) mapps both rom and ram
             // todo => !! fix should be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
-            comptime var ttbr0_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.Fourk, board.config.mem.ram_size + (board.config.mem.rom_size orelse 0)) catch |e| {
+            comptime var ttbr0_size = (board.boardConfig.calcPageTableSizeTotal(board.config.mem.ram_layout.user_space_gran, board.config.mem.ram_size + (board.config.mem.rom_size orelse 0)) catch |e| {
                 kprint("[panic] Page table size calc error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
             });
@@ -94,7 +94,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
                 .mem_size = board.config.mem.ram_size + (board.config.mem.rom_size orelse 0),
                 .phys_addr = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_size + board.config.mem.ram_layout.user_space_phys,
                 .granule = board.config.mem.ram_layout.user_space_gran,
-                .flags = null,
+                .flags = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block },
             };
             // identity mapped memory for bootloader and kernel contrtol handover!
             var ttbr0_write = (mmu.PageTable(user_space_mapping) catch |e| {
@@ -114,19 +114,16 @@ export fn kernel_main() callconv(.Naked) noreturn {
         // t0sz: The size offset of the memory region addressed by TTBR0_EL1 (64-48=16)
         // t1sz: The size offset of the memory region addressed by TTBR1_EL1
         // tg0: Granule size for the TTBR0_EL1.
-        proc.tcr_el.setTcrEl(.el1, (mmu.TcrReg{ .t0sz = 16, .t1sz = 16, .tg0 = 2 }).asInt());
-        proc.mair_el.setMairEl(.el1, (mmu.MairReg{ .attr0 = 0x00, .attr1 = 0x04, .attr2 = 0x0c, .attr3 = 0x44, .attr4 = 0xFF }).asInt());
+        proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 16, .t1sz = 16, .tg0 = 0 }).asInt());
+        proc.MairReg.setMairEl(.el1, (proc.MairReg{ .attr0 = 4, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
 
         proc.dsb();
         proc.isb();
-        brfn();
 
         // updating page dirs for kernel and user space
         // toUnse is bc we are in ttbr1 and can't change with page tables that are also in ttbr1
-        // kprint("text {x} \n", .{mmu.toSecure(usize, @ptrToInt(&ttbr1))});
         proc.setTTBR1(@ptrToInt(&ttbr1));
-        // kprint("ttbr0: {*} \n", .{&ttbr0});
-        proc.setTTBR0(@ptrToInt(&ttbr0));
+        proc.setTTBR0(@ptrToInt(ttbr0));
 
         proc.invalidateMmuTlbEl1();
         proc.invalidateCache();

@@ -69,68 +69,6 @@ pub const TableDescriptorAttr = packed struct {
     }
 };
 
-pub const MairReg = packed struct {
-    attr0: u8 = 0,
-    attr1: u8 = 0,
-    attr2: u8 = 0,
-    attr3: u8 = 0,
-    attr4: u8 = 0,
-    attr5: u8 = 0,
-    attr6: u8 = 0,
-    attr7: u8 = 0,
-
-    pub fn asInt(self: MairReg) usize {
-        return @bitCast(u64, self);
-    }
-};
-pub const TcrReg = packed struct {
-    t0sz: u6 = 0,
-    reserved0: bool = false,
-    epd0: bool = false,
-    irgno0: u2 = 0,
-    orgn0: u2 = 0,
-    sh0: u2 = 0,
-    tg0: u2 = 0,
-    t1sz: u6 = 0,
-    a1: bool = false,
-    epd1: bool = false,
-    irgn1: u2 = 0,
-    orgn1: u2 = 0,
-    sh1: u2 = 0,
-    tg1: u2 = 0,
-    ips: u3 = 0,
-    reserved1: bool = false,
-    as: bool = false,
-    tbi0: bool = false,
-    tbi1: bool = false,
-    ha: bool = false,
-    hd: bool = false,
-    hpd0: bool = false,
-    hpd1: bool = false,
-    hwu059: bool = false,
-    hwu060: bool = false,
-    hwu061: bool = false,
-    hwu062: bool = false,
-    hwu159: bool = false,
-    hwu160: bool = false,
-    hwu161: bool = false,
-    hwu162: bool = false,
-    tbid0: bool = false,
-    tbid1: bool = false,
-    nfd0: bool = false,
-    nfd1: bool = false,
-    e0pd0: bool = false,
-    e0pd1: bool = false,
-    tcma0: bool = false,
-    tcma1: bool = false,
-    ds: bool = false,
-    reserved2: u4 = 0,
-
-    pub fn asInt(self: TcrReg) usize {
-        return @bitCast(u64, self);
-    }
-};
-
 pub fn PageTable(mapping: Mapping) !type {
     const page_size = mapping.granule.page_size;
     const table_size = mapping.granule.table_size;

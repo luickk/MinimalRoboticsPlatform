@@ -1,16 +1,59 @@
 const board = @import("board");
 const AddrSpace = board.boardConfig.AddrSpace;
 
-// todo => put all reg maps off cpu regs here!
-
 pub const ExceptionLevels = enum { el0, el1, el2, el3 };
 
-pub fn Proccessor(curr_address_space: AddrSpace, curr_el: ExceptionLevels, curr_secure: bool) type {
+// todo => remove params and custom type
+pub fn ProccessorRegMap(curr_address_space: AddrSpace, curr_el: ExceptionLevels, curr_secure: bool) type {
     _ = curr_address_space;
-    _ = curr_el;
     _ = curr_secure;
     return struct {
-        pub const tcr_el = struct {
+        pub const TcrReg = packed struct {
+            t0sz: u6 = 0,
+            reserved0: bool = false,
+            epd0: bool = false,
+            irgno0: u2 = 0,
+            orgn0: u2 = 0,
+            sh0: u2 = 0,
+            tg0: u2 = 0,
+            t1sz: u6 = 0,
+            a1: bool = false,
+            epd1: bool = false,
+            irgn1: u2 = 0,
+            orgn1: u2 = 0,
+            sh1: u2 = 0,
+            tg1: u2 = 0,
+            ips: u3 = 0,
+            reserved1: bool = false,
+            as: bool = false,
+            tbi0: bool = false,
+            tbi1: bool = false,
+            ha: bool = false,
+            hd: bool = false,
+            hpd0: bool = false,
+            hpd1: bool = false,
+            hwu059: bool = false,
+            hwu060: bool = false,
+            hwu061: bool = false,
+            hwu062: bool = false,
+            hwu159: bool = false,
+            hwu160: bool = false,
+            hwu161: bool = false,
+            hwu162: bool = false,
+            tbid0: bool = false,
+            tbid1: bool = false,
+            nfd0: bool = false,
+            nfd1: bool = false,
+            e0pd0: bool = false,
+            e0pd1: bool = false,
+            tcma0: bool = false,
+            tcma1: bool = false,
+            ds: bool = false,
+            reserved2: u4 = 0,
+
+            pub fn asInt(self: TcrReg) usize {
+                return @bitCast(u64, self);
+            }
             pub inline fn setTcrEl(comptime el: ExceptionLevels, val: usize) void {
                 asm volatile ("msr tcr_" ++ @tagName(el) ++ ", %[val]"
                     :
@@ -24,7 +67,20 @@ pub fn Proccessor(curr_address_space: AddrSpace, curr_el: ExceptionLevels, curr_
                 return x;
             }
         };
-        pub const mair_el = struct {
+        pub const MairReg = packed struct {
+            attr0: u8 = 0,
+            attr1: u8 = 0,
+            attr2: u8 = 0,
+            attr3: u8 = 0,
+            attr4: u8 = 0,
+            attr5: u8 = 0,
+            attr6: u8 = 0,
+            attr7: u8 = 0,
+
+            pub fn asInt(self: MairReg) usize {
+                return @bitCast(u64, self);
+            }
+
             pub inline fn setMairEl(comptime el: ExceptionLevels, val: usize) void {
                 asm volatile ("msr mair_" ++ @tagName(el) ++ ", %[val]"
                     :
@@ -39,7 +95,7 @@ pub fn Proccessor(curr_address_space: AddrSpace, curr_el: ExceptionLevels, curr_
                 return x;
             }
         };
-        pub const sctlr_el = struct {
+        pub const SctlrEl = struct {
             pub inline fn setSctlrEl(comptime el: ExceptionLevels, val: usize) void {
                 asm volatile ("msr sctlr_" ++ @tagName(el) ++ ", %[val]"
                     :
@@ -57,16 +113,16 @@ pub fn Proccessor(curr_address_space: AddrSpace, curr_el: ExceptionLevels, curr_
 
         // enables for el0/1 for el1
         pub inline fn enableMmu(comptime el: ExceptionLevels) void {
-            var val = sctlr_el.readSctlrEl(el);
+            var val = SctlrEl.readSctlrEl(el);
             val |= 1 << 0;
-            sctlr_el.setSctlrEl(el, val);
+            SctlrEl.setSctlrEl(el, val);
             asm volatile ("isb");
         }
 
         pub inline fn disableMmu(comptime el: ExceptionLevels) void {
-            var val = sctlr_el.readSctlrEl(el);
+            var val = SctlrEl.readSctlrEl(el);
             val &= ~(1 << 0);
-            sctlr_el.setSctlrEl(el, val);
+            SctlrEl.setSctlrEl(el, val);
             asm volatile ("isb");
         }
 
@@ -129,6 +185,8 @@ pub fn Proccessor(curr_address_space: AddrSpace, curr_el: ExceptionLevels, curr_
 
         // has to happen at el3
         pub fn isSecState() bool {
+            if (curr_el != .elr)
+                @compileError("can only read security state in el3");
             // reading NS bit
             var x: usize = asm ("mrs %[curr], scr_el3"
                 : [curr] "=r" (-> usize),
