@@ -27,12 +27,12 @@ pub const config = boardConfig.BoardConfig{
             .kernel_space_size = 0x40000000,
             // !kernel_space_phys already includes the offset to the kernel space!
             .kernel_space_phys = 0,
-            .kernel_space_gran = boardConfig.Granule.Section,
+            .kernel_space_gran = boardConfig.Granule.FourkSection,
 
             .user_space_size = 0x40000000,
             // !user_space_phys already includes the offset to the user space!
             .user_space_phys = 0,
-            .user_space_gran = boardConfig.Granule.Fourk,
+            .user_space_gran = boardConfig.Granule.FourkSection,
         },
         .storage_start_addr = 0,
         .storage_size = 0,

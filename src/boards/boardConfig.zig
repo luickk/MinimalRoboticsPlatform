@@ -15,12 +15,12 @@ pub const AddrSpace = enum(u8) {
 };
 
 pub fn calctotalTablesReq(granule: GranuleParams, mem_size: usize) !usize {
-    const req_pages = try std.math.divExact(usize, mem_size, granule.page_size);
+    const req_descriptors = try std.math.divExact(usize, mem_size, granule.page_size);
 
     var req_table_total: usize = 0;
     var ci_lvl: usize = 1;
     while (ci_lvl <= @enumToInt(granule.lvls_required) + 1) : (ci_lvl += 1) {
-        req_table_total += try std.math.divCeil(usize, req_pages, std.math.pow(usize, granule.table_size, ci_lvl));
+        req_table_total += try std.math.divCeil(usize, req_descriptors, std.math.pow(usize, granule.table_size, ci_lvl));
     }
     return req_table_total;
 }
@@ -30,10 +30,11 @@ pub fn calcPageTableSizeTotal(gran: GranuleParams, mem_size: usize) !usize {
 }
 
 pub const Granule = struct {
+    // correct term for .page_size is .block_size
+    pub const FourkSection: GranuleParams = .{ .page_size = 262144, .table_size = 512, .lvls_required = .second_lvl };
     pub const Fourk: GranuleParams = .{ .page_size = 4096, .table_size = 512, .lvls_required = .third_lvl };
     pub const Sixteenk: GranuleParams = .{ .page_size = 16384, .table_size = 2048, .lvls_required = .third_lvl };
     pub const Sixtyfourk: GranuleParams = .{ .page_size = 65536, .table_size = 8192, .lvls_required = .second_lvl };
-    pub const Section: GranuleParams = .{ .page_size = 2097152, .table_size = 512, .lvls_required = .first_lvl };
 };
 
 pub const TransLvl = enum(usize) { first_lvl = 0, second_lvl = 1, third_lvl = 2 };

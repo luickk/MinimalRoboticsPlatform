@@ -22,36 +22,6 @@ const mmu = arm.mmu;
 const bcm2835IntController = arm.bcm2835IntController.InterruptController(.ttbr1);
 const timer = arm.timer;
 
-const ttbr1 align(4096) = blk: {
-    @setEvalBranchQuota(1000000);
-
-    // ttbr0 (rom) mapps both rom and ram
-    // todo => !! fix should be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
-    const ttbr1_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.Section, board.config.mem.ram_size + (board.config.mem.rom_size orelse 0)) catch |e| {
-        @compileError(@errorName(e));
-    });
-    var ttbr1_arr: [ttbr1_size]usize align(4096) = [_]usize{0} ** ttbr1_size;
-
-    // creating virtual address space for kernel
-    const kernel_space_mapping = mmu.Mapping{
-        // todo => !! fix should be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
-        .mem_size = board.config.mem.ram_size + (board.config.mem.rom_size orelse 0),
-        .phys_addr = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_phys,
-        .granule = board.config.mem.ram_layout.kernel_space_gran,
-        .flags = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block },
-    };
-    // mapping general kernel mem (inlcuding device base)
-    var ttbr1_write = (mmu.PageTable(kernel_space_mapping) catch |e| {
-        @compileError(@errorName(e));
-    }).init(&ttbr1_arr) catch |e| {
-        @compileError(@errorName(e));
-    };
-    ttbr1_write.mapMem() catch |e| {
-        @compileError(@errorName(e));
-    };
-    break :blk ttbr1_arr;
-};
-
 export fn kernel_main() callconv(.Naked) noreturn {
     const _stack_top: usize = @ptrToInt(@extern(?*u8, .{ .name = "_stack_top" }) orelse {
         kprint("error reading _stack_top label\n", .{});
@@ -64,13 +34,46 @@ export fn kernel_main() callconv(.Naked) noreturn {
     kprint("[kernel] kernel started! \n", .{});
     kprint("[kernel] configuring mmu... \n", .{});
 
-    const _kernel_ttbr0: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernel_ttbr0" }) orelse {
-        kprint("error reading _kernel_ttbr0 label\n", .{});
-        unreachable;
-    });
-
     // mmu config block
     {
+        const ttbr1 align(4096) = blk: {
+
+            // ttbr0 (rom) mapps both rom and ram
+            // todo => !! fix should be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
+            comptime var ttbr1_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.FourkSection, board.config.mem.ram_size + (board.config.mem.rom_size orelse 0)) catch |e| {
+                kprint("[panic] Page table size calc error: {s}\n", .{@errorName(e)});
+                k_utils.panic();
+            });
+            var ttbr1_arr: [ttbr1_size]usize align(4096) = [_]usize{0} ** ttbr1_size;
+
+            // creating virtual address space for kernel
+            const kernel_space_mapping = mmu.Mapping{
+                // todo => !! fix should be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
+                .mem_size = board.config.mem.ram_size + (board.config.mem.rom_size orelse 0),
+                .phys_addr = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_phys,
+                .granule = board.config.mem.ram_layout.kernel_space_gran,
+                .flags = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block },
+            };
+            // mapping general kernel mem (inlcuding device base)
+            var ttbr1_write = (mmu.PageTable(kernel_space_mapping) catch |e| {
+                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+                k_utils.panic();
+            }).init(&ttbr1_arr) catch |e| {
+                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+                k_utils.panic();
+            };
+            ttbr1_write.mapMem() catch |e| {
+                kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
+                k_utils.panic();
+            };
+            break :blk ttbr1_arr;
+        };
+
+        const _kernel_ttbr0: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernel_ttbr0" }) orelse {
+            kprint("error reading _kernel_ttbr0 label\n", .{});
+            unreachable;
+        });
+
         // user space is runtime evalua
         const ttbr0 = blk: {
             // ttbr0 (rom) mapps both rom and ram
@@ -151,24 +154,40 @@ export fn kernel_main() callconv(.Naked) noreturn {
     }
 
     kprint("[kernel] kernel boot complete \n", .{});
-    var page_alloc_start = utils.ceilRoundToMultiple((board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_size, board.config.mem.ram_layout.user_space_gran.page_size) catch |e| {
-        kprint("[panic] UserSpaceAllocator start addr calc err: {s}\n", .{@errorName(e)});
-        k_utils.panic();
-    };
 
-    var user_page_alloc = (UserPageAllocator(204800, board.config.mem.ram_layout.user_space_gran) catch |e| {
-        kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    }).init(page_alloc_start) catch |e| {
-        kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
+    // userspace page allocator test
+    {
+        var page_alloc_start = utils.ceilRoundToMultiple((board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_size, board.config.mem.ram_layout.user_space_gran.page_size) catch |e| {
+            kprint("[panic] UserSpaceAllocator start addr calc err: {s}\n", .{@errorName(e)});
+            k_utils.panic();
+        };
 
-    brfn();
-    tests.testKMalloc(&user_page_alloc) catch |e| {
-        kprint("[panic] UserSpaceAllocator test error: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
+        var user_page_alloc = (UserPageAllocator(204800, board.config.mem.ram_layout.user_space_gran) catch |e| {
+            kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
+            k_utils.panic();
+        }).init(page_alloc_start) catch |e| {
+            kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
+            k_utils.panic();
+        };
+        tests.testUserPageAlloc(&user_page_alloc) catch |e| {
+            kprint("[panic] UserSpaceAllocator test error: {s} \n", .{@errorName(e)});
+            k_utils.panic();
+        };
+    }
+
+    // kernelspace allocator test
+    {
+        var alloc_start = utils.ceilRoundToMultiple((board.config.mem.rom_size orelse 0), board.config.mem.ram_layout.kernel_space_gran.page_size) catch |e| {
+            kprint("[panic] KMalloc start addr calc err: {s}\n", .{@errorName(e)});
+            k_utils.panic();
+        };
+
+        var kernel_alloc = KernelAllocator(1024, 512).init(alloc_start);
+        tests.testKMalloc(&kernel_alloc) catch |e| {
+            kprint("[panic] KMalloc test error: {s} \n", .{@errorName(e)});
+            k_utils.panic();
+        };
+    }
 
     if (board.config.board == .raspi3b)
         tests.testUserSpaceMem(100);

@@ -32,6 +32,7 @@ pub fn build(b: *std.build.Builder) !void {
 
     // bootloader
     const bl_exe = b.addExecutable("bootloader", null);
+    bl_exe.code_model = .large;
     bl_exe.addPackage(arm);
     bl_exe.addPackage(utils);
     bl_exe.addPackage(board);
@@ -51,6 +52,7 @@ pub fn build(b: *std.build.Builder) !void {
 
     // kernel
     const kernel_exe = b.addExecutable("kernel", null);
+    kernel_exe.code_model = .large;
     kernel_exe.addPackage(arm);
     kernel_exe.addPackage(utils);
     kernel_exe.addPackage(board);

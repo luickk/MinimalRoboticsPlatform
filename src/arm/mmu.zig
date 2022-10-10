@@ -13,6 +13,30 @@ pub const Mapping = struct {
     // currently only supported for sections
     flags: ?TableDescriptorAttr,
 };
+pub const DirtyWriter = struct {
+    pub const Writer = std.io.Writer(*DirtyWriter, error{}, appendWrite);
+
+    pub fn writer(self: *DirtyWriter) Writer {
+        return .{ .context = self };
+    }
+
+    /// Same as `append` except it returns the number of bytes written, which is always the same
+    /// as `m.len`. The purpose of this function existing is to match `std.io.Writer` API.
+    fn appendWrite(self: *DirtyWriter, data: []const u8) error{}!usize {
+        _ = self;
+        for (data) |ch| {
+            @intToPtr(*u8, 0x9000000).* = ch;
+        }
+        return data.len;
+    }
+};
+
+pub fn dprint(comptime print_string: []const u8, args: anytype) void {
+    var tempW: DirtyWriter = undefined;
+    std.fmt.format(tempW.writer(), print_string, args) catch |err| {
+        @panic(err);
+    };
+}
 
 // In addition to an output address, a translation table descriptor that refers to a page or region of memory
 // includes fields that define properties of the target memory region. These fields can be classified as
@@ -108,16 +132,12 @@ pub fn PageTable(mapping: Mapping) !type {
 
             var i_lvl: usize = 0;
             while (i_lvl <= @enumToInt(self.max_lvl)) : (i_lvl += 1) {
-                switch (mapping.granule.page_size) {
-                    Granule.Section.page_size => {
-                        to_map_in_descriptors = try std.math.divExact(usize, mapping.mem_size, self.page_size);
-                        phys_count_flags = mapping.flags.?;
-                    },
-                    else => {
-                        to_map_in_descriptors = try std.math.divCeil(usize, self.mapping.mem_size, self.calcTransLvlDescriptorSize(@intToEnum(TransLvl, i_lvl)));
-                        phys_count_flags = TableDescriptorAttr{ .accessPerm = .read_write, .descType = .block };
-                    },
+                if (mapping.granule.page_size == Granule.FourkSection.page_size and mapping.granule.lvls_required == .second_lvl) {
+                    phys_count_flags = mapping.flags.?;
+                } else {
+                    phys_count_flags = TableDescriptorAttr{ .accessPerm = .read_write, .descType = .block };
                 }
+                to_map_in_descriptors = try std.math.divCeil(usize, self.mapping.mem_size, self.calcTransLvlDescriptorSize(@intToEnum(TransLvl, i_lvl)));
 
                 const to_map_in_tables = try std.math.divCeil(usize, to_map_in_descriptors, self.table_size);
                 const rest_to_map_in_descriptors = try std.math.mod(usize, to_map_in_descriptors, self.table_size);
@@ -142,6 +162,8 @@ pub fn PageTable(mapping: Mapping) !type {
                         } else {
                             // linking to next table...
                             // todo => is not relative but absolute address from table index 0
+                            // relative from curr descriptor: ((to_map_in_tables + i_descriptor) * self.table_size) - (i_descriptor + 1)
+                            // relative from ttbrx: (table_offset + to_map_in_tables + i_descriptor) * self.table_size
                             self.map_pg_dir[table_offset + i_table][i_descriptor] = @ptrToInt(&self.map_pg_dir[table_offset + to_map_in_tables + i_descriptor]);
                             if (i_lvl == @enumToInt(TransLvl.first_lvl))
                                 self.map_pg_dir[table_offset + i_table][i_descriptor] |= lvl_1_attr;
