@@ -1,6 +1,6 @@
 const std = @import("std");
 const board = @import("board");
-const kprint = @import("periph").uart.UartWriter(false).kprint;
+const kprint = @import("periph").uart.UartWriter(.ttbr0).kprint;
 
 const Granule = board.boardConfig.Granule;
 const GranuleParams = board.boardConfig.GranuleParams;
@@ -142,7 +142,7 @@ pub fn PageTable(mapping: Mapping) !type {
                 const to_map_in_tables = try std.math.divCeil(usize, to_map_in_descriptors, self.table_size);
                 const rest_to_map_in_descriptors = try std.math.mod(usize, to_map_in_descriptors, self.table_size);
                 // todo => should be .page, but does not work...
-                const lvl_1_attr = (TableDescriptorAttr{ .accessPerm = .read_write, .descType = .block }).asInt();
+                const lvl_1_attr = (TableDescriptorAttr{ .accessPerm = .read_write, .descType = .page }).asInt();
                 var phys_count = self.mapping.phys_addr | phys_count_flags.asInt();
                 var i_table: usize = 0;
                 var i_descriptor: usize = 0;
@@ -164,7 +164,11 @@ pub fn PageTable(mapping: Mapping) !type {
                             // todo => is not relative but absolute address from table index 0
                             // relative from curr descriptor: ((to_map_in_tables + i_descriptor) * self.table_size) - (i_descriptor + 1)
                             // relative from ttbrx: (table_offset + to_map_in_tables + i_descriptor) * self.table_size
-                            self.map_pg_dir[table_offset + i_table][i_descriptor] = @ptrToInt(&self.map_pg_dir[table_offset + to_map_in_tables + i_descriptor]);
+
+                            // dprint("to: {d}, it: {d}, id: {d} \n", .{ table_offset, i_table, i_descriptor });
+                            const val = @ptrToInt(&self.map_pg_dir[table_offset + to_map_in_tables + i_descriptor]);
+                            // dprint("val: {d} \n", .{val});
+                            self.map_pg_dir[table_offset + i_table][i_descriptor] = val;
                             if (i_lvl == @enumToInt(TransLvl.first_lvl))
                                 self.map_pg_dir[table_offset + i_table][i_descriptor] |= lvl_1_attr;
                         }

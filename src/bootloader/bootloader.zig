@@ -33,12 +33,45 @@ export fn bl_main() callconv(.Naked) noreturn {
     proc.setSp(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + board.config.mem.ram_layout.kernel_space_size + board.config.mem.bl_stack_size);
     // mmu configuration...
     {
+        const ttbr1 align(4096) = blk: {
+            // ttbr0 (rom) mapps both rom and ram
+            comptime var ttbr1_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.FourkSection, board.config.mem.ram_size) catch |e| {
+                kprint("[panic] Page table size calc error: {s}\n", .{@errorName(e)});
+                bl_utils.panic();
+            });
+
+            var ttbr1_arr: [ttbr1_size]usize align(4096) = [_]usize{0} ** ttbr1_size;
+
+            // creating virtual address space for kernel
+            const kernel_mapping = mmu.Mapping{
+                .mem_size = board.config.mem.ram_size,
+                .phys_addr = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0),
+                .granule = Granule.FourkSection,
+                // todo => .descType should be .page but does not work with raspberry board..
+                .flags = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
+            };
+            // mapping general kernel mem (inlcuding device base)
+            var ttbr1_write = (mmu.PageTable(kernel_mapping) catch |e| {
+                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+                bl_utils.panic();
+            }).init(&ttbr1_arr) catch |e| {
+                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+                bl_utils.panic();
+            };
+            ttbr1_write.mapMem() catch |e| {
+                kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
+                bl_utils.panic();
+            };
+            // @compileLog(ttbr1_arr);
+            break :blk &ttbr1_arr;
+        };
+
         // todo => ttbr1 for kernel is ranging from 0x0-1g instead of _ramSize_ + _bl_load_addr-1g!. Alternatively link kernel with additional offset
         const ttbr0 align(4096) = blk: {
             // in case there is no rom(rom_size is equal to zero) and the kernel(and bl) are directly loaded to memory by some rom bootloader
             // the ttbr0 memory is also identity mapped to the ram
             comptime var mapping_bl_phys_size: usize = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_size;
-            comptime var mapping_bl_phys_addr: usize = board.config.mem.rom_start_addr orelse 0;
+            comptime var mapping_bl_phys_addr: usize = (board.config.mem.bl_load_addr orelse 0);
             if (board.config.mem.rom_start_addr == null) {
                 mapping_bl_phys_size = board.config.mem.ram_size;
                 mapping_bl_phys_addr = board.config.mem.ram_start_addr;
@@ -75,47 +108,15 @@ export fn bl_main() callconv(.Naked) noreturn {
                 bl_utils.panic();
             };
 
-            break :blk ttbr0_arr;
+            break :blk &ttbr0_arr;
         };
-
-        const ttbr1 align(4096) = blk: {
-            // ttbr0 (rom) mapps both rom and ram
-            comptime var ttbr1_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.FourkSection, board.config.mem.ram_size) catch |e| {
-                kprint("[panic] Page table size calc error: {s}\n", .{@errorName(e)});
-                bl_utils.panic();
-            });
-
-            var ttbr1_arr: [ttbr1_size]usize align(4096) = [_]usize{0} ** ttbr1_size;
-
-            // creating virtual address space for kernel
-            const kernel_mapping = mmu.Mapping{
-                .mem_size = board.config.mem.ram_size,
-                .phys_addr = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0),
-                .granule = Granule.FourkSection,
-                // todo => .descType should be .page but does not work with raspberry board..
-                .flags = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
-            };
-            // mapping general kernel mem (inlcuding device base)
-            var ttbr1_write = (mmu.PageTable(kernel_mapping) catch |e| {
-                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
-                bl_utils.panic();
-            }).init(&ttbr1_arr) catch |e| {
-                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
-                bl_utils.panic();
-            };
-            ttbr1_write.mapMem() catch |e| {
-                kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
-                bl_utils.panic();
-            };
-            // @compileLog(ttbr1_arr);
-            break :blk ttbr1_arr;
-        };
-        kprint("{any} \n", .{ttbr0});
-        kprint("0: {x} 1: {x} \n", .{ @ptrToInt(&ttbr0), @ptrToInt(&ttbr1) });
-        brfn();
+        kprint("{any} \n", .{ttbr0.*});
+        kprint("{any} \n", .{ttbr1.*});
+        kprint("0: {x} 1: {x} \n", .{ @ptrToInt(ttbr0), @ptrToInt(ttbr1) });
+        kprint("0: {*} 1: {*} \n", .{ ttbr0, ttbr1 });
         // updating page dirs
-        proc.setTTBR1(@ptrToInt(&ttbr1));
-        proc.setTTBR0(@ptrToInt(&ttbr0));
+        proc.setTTBR1(@ptrToInt(ttbr1));
+        proc.setTTBR0(@ptrToInt(ttbr0));
 
         // t0sz: The size offset of the memory region addressed by TTBR0_EL1 (64-48=16)
         // t1sz: The size offset of the memory region addressed by TTBR1_EL1
@@ -130,6 +131,7 @@ export fn bl_main() callconv(.Naked) noreturn {
         proc.isb();
         proc.dsb();
         kprint("[bootloader] enabling mmu... \n", .{});
+        brfn();
         proc.enableMmu(.el1);
     }
     if (board.config.board == .raspi3b)

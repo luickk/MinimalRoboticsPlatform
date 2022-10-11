@@ -84,7 +84,7 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime chunk_size: usize) typ
                 }
                 if (continous_chunks >= req_chunks) {
                     var first_chunk: usize = (i + 1) - req_chunks;
-                    return .{ first_chunk, first_chunk + req_chunks };
+                    return null;
                 }
             }
             return null;
