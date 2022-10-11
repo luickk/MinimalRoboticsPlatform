@@ -69,13 +69,13 @@ export fn kernel_main() callconv(.Naked) noreturn {
             break :blk ttbr1_arr;
         };
 
-        const _kernel_ttbr0: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernel_ttbr0" }) orelse {
-            kprint("error reading _kernel_ttbr0 label\n", .{});
-            unreachable;
-        });
-
         // user space is runtime evalua
         const ttbr0 = blk: {
+            const _ttbr0: usize = @ptrToInt(@extern(?*u8, .{ .name = "_ttbr0" }) orelse {
+                kprint("error reading _ttbr0 label\n", .{});
+                unreachable;
+            });
+
             // ttbr0 (rom) mapps both rom and ram
             // todo => !! fix should be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
             comptime var ttbr0_size = (board.boardConfig.calcPageTableSizeTotal(board.config.mem.ram_layout.user_space_gran, board.config.mem.ram_size + (board.config.mem.rom_size orelse 0)) catch |e| {
@@ -84,7 +84,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
             });
 
             // todo => write proper kernel allocater and put it there
-            const ttbr0_arr = @intToPtr(*[ttbr0_size]usize, _kernel_ttbr0);
+            const ttbr0_arr = @intToPtr(*[ttbr0_size]usize, _ttbr0);
 
             // MMU page dir config
 

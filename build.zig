@@ -5,7 +5,7 @@ const os = @import("std").os;
 
 const Error = error{BlExceedsRomSize};
 
-const currBoard = @import("src/boards/qemuVirt.zig");
+const currBoard = @import("src/boards/raspi3b.zig");
 const kernel_bin_size: usize = 0x2000000;
 const bl_bin_size: usize = 0x2000000;
 
@@ -180,9 +180,19 @@ const UpdateLinkerScripts = struct {
                 var bl_start_address: usize = self.board_config.mem.rom_start_addr orelse 0;
                 if (self.board_config.mem.rom_start_addr == null)
                     bl_start_address = self.board_config.mem.bl_load_addr orelse 0;
+
+                // in case there is no rom(rom_size is equal to zero) and the kernel(and bl) are directly loaded to memory by some rom bootloader
+                // the ttbr0 memory is also identity mapped to the ram
+                var bl_pt_size_ttbr0: usize = (currBoard.config.mem.rom_size orelse 0) + currBoard.config.mem.ram_size;
+                if (currBoard.config.mem.rom_start_addr == null)
+                    bl_pt_size_ttbr0 = currBoard.config.mem.ram_size;
+
+                const ttbr0_size = (currBoard.boardConfig.calcPageTableSizeTotal(currBoard.boardConfig.Granule.FourkSection, bl_pt_size_ttbr0) catch {
+                    @panic("[panic] Page table size calc error\n");
+                });
                 try writeVarsToLinkerScript(self.allocator, "src/bootloader/linker.ld", self.temp_bl_ld, .{
                     bl_start_address,
-                    null,
+                    ttbr0_size,
                     null,
                 });
             },

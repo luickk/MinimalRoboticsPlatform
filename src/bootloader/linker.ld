@@ -36,8 +36,11 @@ SECTIONS {
         *(.data.*);
     }
     
-    .align : ALIGN(8) {
-        . = . + 16; 
+    .paging_tbl (NOLOAD) : ALIGN(0x00001000)  {
+        _ttbr0 = .;
+        . = . + {@zig};
+        _ttbr1 = .;
     }
     _kernelrom_start = .;
+
 }
