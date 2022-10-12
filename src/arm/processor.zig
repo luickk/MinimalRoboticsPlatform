@@ -183,6 +183,10 @@ pub fn ProccessorRegMap(curr_address_space: AddrSpace, curr_el: ExceptionLevels,
             return x >> 2;
         }
 
+        pub inline fn nop() void {
+            asm volatile ("nop");
+        }
+
         // has to happen at el3
         pub fn isSecState() bool {
             if (curr_el != .elr)

@@ -30,8 +30,9 @@ const bl_bin_size = b_options.bl_bin_size;
 // note: when bl_main gets too bit(instruction mem wise), the exception vector table could be pushed too far up and potentially not be read!
 export fn bl_main() callconv(.Naked) noreturn {
     // using userspace as stack, incase the bootloader is located in rom
-    var user_space_start = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + board.config.mem.ram_layout.kernel_space_size + board.config.mem.bl_stack_size;
+    var user_space_start = (board.config.mem.bl_load_addr orelse 0) + (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_size;
     proc.setSp(user_space_start + board.config.mem.bl_stack_size);
+    kprint("stack at: {x}  \n", .{user_space_start + board.config.mem.bl_stack_size});
     user_space_start = user_space_start + board.config.mem.bl_stack_size;
 
     // mmu configuration...
@@ -54,7 +55,7 @@ export fn bl_main() callconv(.Naked) noreturn {
                 bl_utils.panic();
             });
 
-            var ttbr1_arr = @intToPtr(*[ttbr1_size]usize, _ttbr1);
+            var ttbr1_arr = @intToPtr(*volatile [ttbr1_size]usize, _ttbr1);
 
             // creating virtual address space for kernel
             const kernel_mapping = mmu.Mapping{
@@ -97,7 +98,7 @@ export fn bl_main() callconv(.Naked) noreturn {
             });
 
             const _ttbr0 = blk_: {
-                var _ttbr0_dir = user_space_start + ttbr0_size;
+                var _ttbr0_dir = user_space_start + (ttbr1.*.len * @sizeOf(usize));
                 _ttbr0_dir = utils.ceilRoundToMultiple(_ttbr0_dir, Granule.Fourk.page_size) catch |e| {
                     kprint("[panic] Page table ttbr0 address alignment error: {s}\n", .{@errorName(e)});
                     bl_utils.panic();
@@ -105,7 +106,7 @@ export fn bl_main() callconv(.Naked) noreturn {
                 break :blk_ _ttbr0_dir;
             };
 
-            var ttbr0_arr = @intToPtr(*[ttbr0_size]usize, _ttbr0);
+            var ttbr0_arr = @intToPtr(*volatile [ttbr0_size]usize, _ttbr0);
 
             // MMU page dir config
 
@@ -132,9 +133,9 @@ export fn bl_main() callconv(.Naked) noreturn {
 
             break :blk ttbr0_arr;
         };
-        kprint("{any} \n", .{ttbr0.*});
-        kprint("{any} \n", .{ttbr1.*});
-        kprint("0: {x} 1: {x} \n", .{ @ptrToInt(ttbr0), @ptrToInt(ttbr1) });
+        // kprint("{any} \n", .{ttbr0.*});
+        // kprint("{any} \n", .{ttbr1.*});
+        // kprint("0: {x} 1: {x} \n", .{ @ptrToInt(ttbr0), @ptrToInt(ttbr1) });
         kprint("0: {*} 1: {*} \n", .{ ttbr0, ttbr1 });
         // updating page dirs
         proc.setTTBR1(@ptrToInt(ttbr1));
@@ -152,9 +153,11 @@ export fn bl_main() callconv(.Naked) noreturn {
         proc.invalidateCache();
         proc.isb();
         proc.dsb();
-        kprint("[bootloader] enabling mmu... \n", .{});
         brfn();
+        kprint("[bootloader] enabling mmu... \n", .{});
         proc.enableMmu(.el1);
+        proc.nop();
+        proc.nop();
     }
     if (board.config.board == .raspi3b)
         bcm2835IntController.init();
@@ -197,7 +200,6 @@ export fn bl_main() callconv(.Naked) noreturn {
         kernel_addr = mmu.toSecure(usize, board.config.mem.bl_load_addr.? + kernel_entry);
 
     kprint("[bootloader] jumping to kernel at 0x{x}\n", .{kernel_addr});
-
     proc.branchToAddr(kernel_addr);
 
     while (true) {}

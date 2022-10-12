@@ -22,6 +22,17 @@ const mmu = arm.mmu;
 const bcm2835IntController = arm.bcm2835IntController.InterruptController(.ttbr1);
 const timer = arm.timer;
 
+const ttbr1_arr align(4096) = blk: {
+    // ttbr0 (rom) mapps both rom and ram
+    // todo => !! fix should be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
+    comptime var ttbr1_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.FourkSection, board.config.mem.ram_size + (board.config.mem.rom_size orelse 0)) catch |e| {
+        kprint("[panic] Page table size calc error: {s}\n", .{@errorName(e)});
+        k_utils.panic();
+    });
+    var ttbr1: [ttbr1_size]usize align(4096) = [_]usize{0} ** ttbr1_size;
+    break :blk &ttbr1;
+};
+
 export fn kernel_main() callconv(.Naked) noreturn {
     const _stack_top: usize = @ptrToInt(@extern(?*u8, .{ .name = "_stack_top" }) orelse {
         kprint("error reading _stack_top label\n", .{});
@@ -37,15 +48,6 @@ export fn kernel_main() callconv(.Naked) noreturn {
     // mmu config block
     {
         const ttbr1 align(4096) = blk: {
-
-            // ttbr0 (rom) mapps both rom and ram
-            // todo => !! fix should be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
-            comptime var ttbr1_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.FourkSection, board.config.mem.ram_size + (board.config.mem.rom_size orelse 0)) catch |e| {
-                kprint("[panic] Page table size calc error: {s}\n", .{@errorName(e)});
-                k_utils.panic();
-            });
-            var ttbr1_arr: [ttbr1_size]usize align(4096) = [_]usize{0} ** ttbr1_size;
-
             // creating virtual address space for kernel
             const kernel_space_mapping = mmu.Mapping{
                 // todo => !! fix should be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
@@ -58,7 +60,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
             var ttbr1_write = (mmu.PageTable(kernel_space_mapping) catch |e| {
                 kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
-            }).init(&ttbr1_arr) catch |e| {
+            }).init(ttbr1_arr) catch |e| {
                 kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
             };
@@ -124,7 +126,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
 
         // updating page dirs for kernel and user space
         // toUnse is bc we are in ttbr1 and can't change with page tables that are also in ttbr1
-        proc.setTTBR1(@ptrToInt(&ttbr1));
+        proc.setTTBR1(@ptrToInt(ttbr1));
         proc.setTTBR0(@ptrToInt(ttbr0));
 
         proc.invalidateMmuTlbEl1();

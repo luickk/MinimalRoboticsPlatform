@@ -109,7 +109,7 @@ pub fn PageTable(mapping: Mapping) !type {
         max_lvl: TransLvl,
         map_pg_dir: *volatile [req_table_total][table_size]usize,
 
-        pub fn init(base_addr: *[req_table_total * table_size]usize) !Self {
+        pub fn init(base_addr: *volatile [req_table_total * table_size]usize) !Self {
             return Self{
                 // sizes
                 .page_size = page_size,
@@ -142,7 +142,7 @@ pub fn PageTable(mapping: Mapping) !type {
                 const to_map_in_tables = try std.math.divCeil(usize, to_map_in_descriptors, self.table_size);
                 const rest_to_map_in_descriptors = try std.math.mod(usize, to_map_in_descriptors, self.table_size);
                 // todo => should be .page, but does not work...
-                const lvl_1_attr = (TableDescriptorAttr{ .accessPerm = .read_write, .descType = .block }).asInt();
+                const lvl_1_attr = (TableDescriptorAttr{ .accessPerm = .read_write, .descType = .page }).asInt();
                 var phys_count = self.mapping.phys_addr | phys_count_flags.asInt();
                 var i_table: usize = 0;
                 var i_descriptor: usize = 0;
