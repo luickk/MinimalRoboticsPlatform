@@ -17,19 +17,19 @@ pub const config = boardConfig.BoardConfig{
         // according to qemu docs ram starts at 1gib
         .ram_start_addr = 0x40000000,
         // 0x100000000
-        .ram_size = 0x80000000,
+        .ram_size = 0x40000000,
 
         // since the bootloader is loaded at 0x no bl_load_addr is required
         // (currently only supported for boot without rom)
         .bl_load_addr = null,
 
         .ram_layout = .{
-            .kernel_space_size = 0x40000000,
+            .kernel_space_size = 0x20000000,
             // !kernel_space_phys already includes the offset to the kernel space!
             .kernel_space_phys = 0,
             .kernel_space_gran = boardConfig.Granule.FourkSection,
 
-            .user_space_size = 0x40000000,
+            .user_space_size = 0x20000000,
             // !user_space_phys already includes the offset to the user space!
             .user_space_phys = 0,
             .user_space_gran = boardConfig.Granule.FourkSection,

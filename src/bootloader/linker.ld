@@ -41,6 +41,7 @@ SECTIONS {
         . = . + {@zig};
         _ttbr1 = .;
     }
+    
     _kernelrom_start = .;
 
 }

@@ -22,17 +22,6 @@ const mmu = arm.mmu;
 const bcm2835IntController = arm.bcm2835IntController.InterruptController(.ttbr1);
 const timer = arm.timer;
 
-const ttbr1_arr align(4096) = blk: {
-    // ttbr0 (rom) mapps both rom and ram
-    // todo => !! fix should be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
-    comptime var ttbr1_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.FourkSection, board.config.mem.ram_size + (board.config.mem.rom_size orelse 0)) catch |e| {
-        kprint("[panic] Page table size calc error: {s}\n", .{@errorName(e)});
-        k_utils.panic();
-    });
-    var ttbr1: [ttbr1_size]usize align(4096) = [_]usize{0} ** ttbr1_size;
-    break :blk &ttbr1;
-};
-
 export fn kernel_main() callconv(.Naked) noreturn {
     const _stack_top: usize = @ptrToInt(@extern(?*u8, .{ .name = "_stack_top" }) orelse {
         kprint("error reading _stack_top label\n", .{});
@@ -48,13 +37,28 @@ export fn kernel_main() callconv(.Naked) noreturn {
     // mmu config block
     {
         const ttbr1 align(4096) = blk: {
+            // ttbr0 (rom) mapps both rom and ram
+            // todo => !! fix should be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
+            comptime var ttbr1_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.FourkSection, board.config.mem.ram_size + (board.config.mem.rom_size orelse 0)) catch |e| {
+                kprint("[panic] Page table size calc error: {s}\n", .{@errorName(e)});
+                k_utils.panic();
+            });
+            const _ttbr1: usize = @ptrToInt(@extern(?*u8, .{ .name = "_ttbr1" }) orelse {
+                kprint("error reading _ttbr1 label\n", .{});
+                unreachable;
+            });
+            // todo => write proper kernel allocater and put it there
+            const ttbr1_arr = @intToPtr(*volatile [ttbr1_size]usize, _ttbr1);
+
             // creating virtual address space for kernel
             const kernel_space_mapping = mmu.Mapping{
                 // todo => !! fix should be -> board.config.mem.ram_layout.kernel_space_size !! (this is due to phys_addr (mapping with offset) not working...)
                 .mem_size = board.config.mem.ram_size + (board.config.mem.rom_size orelse 0),
                 .phys_addr = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_phys,
                 .granule = board.config.mem.ram_layout.kernel_space_gran,
-                .flags = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block },
+                .addr_space = .ttbr1,
+                .flags_block = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
+                .flags_first_lvl = mmu.TableDescriptorAttr{ .accessPerm = .read_write, .descType = .page },
             };
             // mapping general kernel mem (inlcuding device base)
             var ttbr1_write = (mmu.PageTable(kernel_space_mapping) catch |e| {
@@ -86,7 +90,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
             });
 
             // todo => write proper kernel allocater and put it there
-            const ttbr0_arr = @intToPtr(*[ttbr0_size]usize, _ttbr0);
+            const ttbr0_arr = @intToPtr(*volatile [ttbr0_size]usize, _ttbr0);
 
             // MMU page dir config
 
@@ -97,7 +101,9 @@ export fn kernel_main() callconv(.Naked) noreturn {
                 .mem_size = board.config.mem.ram_size + (board.config.mem.rom_size orelse 0),
                 .phys_addr = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_size + board.config.mem.ram_layout.user_space_phys,
                 .granule = board.config.mem.ram_layout.user_space_gran,
-                .flags = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block },
+                .addr_space = .ttbr0,
+                .flags_block = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
+                .flags_first_lvl = mmu.TableDescriptorAttr{ .accessPerm = .read_write, .descType = .page },
             };
             // identity mapped memory for bootloader and kernel contrtol handover!
             var ttbr0_write = (mmu.PageTable(user_space_mapping) catch |e| {
@@ -118,12 +124,12 @@ export fn kernel_main() callconv(.Naked) noreturn {
         // t0sz: The size offset of the memory region addressed by TTBR0_EL1 (64-48=16)
         // t1sz: The size offset of the memory region addressed by TTBR1_EL1
         // tg0: Granule size for the TTBR0_EL1.
-        proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 16, .t1sz = 16, .tg0 = 0, .tg1 = 0 }).asInt());
+        proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 25, .t1sz = 25, .tg0 = 0, .tg1 = 0 }).asInt());
         proc.MairReg.setMairEl(.el1, (proc.MairReg{ .attr0 = 4, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
 
         proc.dsb();
         proc.isb();
-
+        brfn();
         // updating page dirs for kernel and user space
         // toUnse is bc we are in ttbr1 and can't change with page tables that are also in ttbr1
         proc.setTTBR1(@ptrToInt(ttbr1));

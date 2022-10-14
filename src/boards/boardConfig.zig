@@ -31,7 +31,7 @@ pub fn calcPageTableSizeTotal(gran: GranuleParams, mem_size: usize) !usize {
 
 pub const Granule = struct {
     // correct term for .page_size is .block_size
-    pub const FourkSection: GranuleParams = .{ .page_size = 262144, .table_size = 512, .lvls_required = .second_lvl };
+    pub const FourkSection: GranuleParams = .{ .page_size = 2097152, .table_size = 512, .lvls_required = .second_lvl };
     pub const Fourk: GranuleParams = .{ .page_size = 4096, .table_size = 512, .lvls_required = .third_lvl };
     pub const Sixteenk: GranuleParams = .{ .page_size = 16384, .table_size = 2048, .lvls_required = .third_lvl };
     pub const Sixtyfourk: GranuleParams = .{ .page_size = 65536, .table_size = 8192, .lvls_required = .second_lvl };

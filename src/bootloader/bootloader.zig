@@ -40,13 +40,9 @@ export fn bl_main() callconv(.Naked) noreturn {
         const ttbr1 = blk: {
             // writing page dirs to userspace in ram. Writing to userspace because it would be overwritten in kernel space, when copying
             // the kernel. Additionally, on mmu turn on, the mmu would try to read from the page tables without mmu kernel space identifier bits on
-            const _ttbr1 = blk_: {
-                var _ttbr1_dir = user_space_start;
-                _ttbr1_dir = utils.ceilRoundToMultiple(_ttbr1_dir, Granule.Fourk.page_size) catch |e| {
-                    kprint("[panic] Page table _ttbr1_dir alignment calc error: {s}\n", .{@errorName(e)});
-                    bl_utils.panic();
-                };
-                break :blk_ _ttbr1_dir;
+            var ttbr1_addr = utils.ceilRoundToMultiple(user_space_start, Granule.Fourk.page_size) catch |e| {
+                kprint("[panic] Page table _ttbr1_dir alignment calc error: {s}\n", .{@errorName(e)});
+                bl_utils.panic();
             };
 
             // ttbr0 (rom) mapps both rom and ram
@@ -55,15 +51,17 @@ export fn bl_main() callconv(.Naked) noreturn {
                 bl_utils.panic();
             });
 
-            var ttbr1_arr = @intToPtr(*volatile [ttbr1_size]usize, _ttbr1);
+            var ttbr1_arr = @intToPtr(*volatile [ttbr1_size]usize, ttbr1_addr);
 
             // creating virtual address space for kernel
             const kernel_mapping = mmu.Mapping{
                 .mem_size = board.config.mem.ram_size,
-                .phys_addr = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0),
+                .phys_addr = board.config.mem.ram_start_addr,
                 .granule = Granule.FourkSection,
+                .addr_space = .ttbr1,
                 // todo => .descType should be .page but does not work with raspberry board..
-                .flags = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
+                .flags_block = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
+                .flags_first_lvl = mmu.TableDescriptorAttr{ .accessPerm = .read_write, .descType = .page },
             };
             // mapping general kernel mem (inlcuding device base)
             var ttbr1_write = (mmu.PageTable(kernel_mapping) catch |e| {
@@ -97,16 +95,13 @@ export fn bl_main() callconv(.Naked) noreturn {
                 bl_utils.panic();
             });
 
-            const _ttbr0 = blk_: {
-                var _ttbr0_dir = user_space_start + (ttbr1.*.len * @sizeOf(usize));
-                _ttbr0_dir = utils.ceilRoundToMultiple(_ttbr0_dir, Granule.Fourk.page_size) catch |e| {
-                    kprint("[panic] Page table ttbr0 address alignment error: {s}\n", .{@errorName(e)});
-                    bl_utils.panic();
-                };
-                break :blk_ _ttbr0_dir;
+            var ttbr0_addr = user_space_start + (ttbr1.*.len * @sizeOf(usize));
+            ttbr0_addr = utils.ceilRoundToMultiple(ttbr0_addr, Granule.Fourk.page_size) catch |e| {
+                kprint("[panic] Page table ttbr0 address alignment error: {s}\n", .{@errorName(e)});
+                bl_utils.panic();
             };
 
-            var ttbr0_arr = @intToPtr(*volatile [ttbr0_size]usize, _ttbr0);
+            var ttbr0_arr = @intToPtr(*volatile [ttbr0_size]usize, ttbr0_addr);
 
             // MMU page dir config
 
@@ -116,7 +111,9 @@ export fn bl_main() callconv(.Naked) noreturn {
                 .mem_size = mapping_bl_phys_size,
                 .phys_addr = mapping_bl_phys_addr,
                 .granule = Granule.FourkSection,
-                .flags = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
+                .addr_space = .ttbr0,
+                .flags_block = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
+                .flags_first_lvl = mmu.TableDescriptorAttr{ .accessPerm = .read_write, .descType = .page },
             };
             // identity mapped memory for bootloader and kernel contrtol handover!
             var ttbr0_write = (mmu.PageTable(bootloader_mapping) catch |e| {
@@ -138,14 +135,15 @@ export fn bl_main() callconv(.Naked) noreturn {
         // kprint("0: {x} 1: {x} \n", .{ @ptrToInt(ttbr0), @ptrToInt(ttbr1) });
         kprint("0: {*} 1: {*} \n", .{ ttbr0, ttbr1 });
         // updating page dirs
-        proc.setTTBR1(@ptrToInt(ttbr1));
         proc.setTTBR0(@ptrToInt(ttbr0));
+        proc.setTTBR1(@ptrToInt(ttbr1));
 
         // t0sz: The size offset of the memory region addressed by TTBR0_EL1 (64-48=16)
         // t1sz: The size offset of the memory region addressed by TTBR1_EL1
         // tg0: Granule size for the TTBR0_EL1.
         // tg1 not required since it's sections
-        proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 16, .t1sz = 16, .tg0 = 0, .tg1 = 0 }).asInt());
+        // todo => t1sz has to be 16 -> why. should be 25 bc it's 4k?
+        proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = proc.TcrReg.calcTxSz(board.boardConfig.Granule.Fourk), .t1sz = 16, .tg0 = 0, .tg1 = 0 }).asInt());
         // attr0 is normal mem, not cachable
         proc.MairReg.setMairEl(.el1, (proc.MairReg{ .attr0 = 4, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
 
@@ -153,8 +151,8 @@ export fn bl_main() callconv(.Naked) noreturn {
         proc.invalidateCache();
         proc.isb();
         proc.dsb();
-        brfn();
         kprint("[bootloader] enabling mmu... \n", .{});
+
         proc.enableMmu(.el1);
         proc.nop();
         proc.nop();
@@ -180,7 +178,7 @@ export fn bl_main() callconv(.Naked) noreturn {
     kernel_bl.len = kernel_bin_size;
 
     var kernel_target_loc: []u8 = undefined;
-    kernel_target_loc.ptr = @intToPtr([*]u8, mmu.toSecure(usize, board.config.mem.ram_start_addr));
+    kernel_target_loc.ptr = @intToPtr([*]u8, mmu.toSecure(usize, 0));
     kernel_target_loc.len = kernel_bin_size;
 
     var current_el = proc.getCurrentEl();
@@ -200,6 +198,8 @@ export fn bl_main() callconv(.Naked) noreturn {
         kernel_addr = mmu.toSecure(usize, board.config.mem.bl_load_addr.? + kernel_entry);
 
     kprint("[bootloader] jumping to kernel at 0x{x}\n", .{kernel_addr});
+
+    brfn();
     proc.branchToAddr(kernel_addr);
 
     while (true) {}

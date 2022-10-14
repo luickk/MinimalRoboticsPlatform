@@ -197,11 +197,15 @@ const UpdateLinkerScripts = struct {
                 });
             },
             .kernel => {
-                // 0 because because ttdr1 begins at ram start, at which the kernels starts as well
-                var kernel_start_address: usize = self.board_config.mem.ram_start_addr;
-                if (self.board_config.mem.rom_start_addr == null)
-                    kernel_start_address = bl_bin_size + (self.board_config.mem.bl_load_addr orelse 0);
-                try writeVarsToLinkerScript(self.allocator, "src/kernel/linker.ld", self.temp_kernel_ld, .{ kernel_start_address, self.board_config.mem.k_stack_size, null });
+                // // 0 because because ttdr1 begins at ram start, at which the kernels starts as well
+                // var kernel_start_address: usize = self.board_config.mem.ram_start_addr;
+                // if (self.board_config.mem.rom_start_addr == null)
+                //     kernel_start_address = bl_bin_size + (self.board_config.mem.bl_load_addr orelse 0);
+
+                const ttbr1_size = (currBoard.boardConfig.calcPageTableSizeTotal(currBoard.config.mem.ram_layout.kernel_space_gran, currBoard.config.mem.ram_size + (currBoard.config.mem.rom_size orelse 0)) catch {
+                    @panic("[panic] Page table size calc error\n");
+                });
+                try writeVarsToLinkerScript(self.allocator, "src/kernel/linker.ld", self.temp_kernel_ld, .{ 0, self.board_config.mem.k_stack_size, ttbr1_size });
             },
         }
     }

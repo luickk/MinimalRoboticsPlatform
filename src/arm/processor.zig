@@ -1,4 +1,5 @@
 const board = @import("board");
+const std = @import("std");
 const AddrSpace = board.boardConfig.AddrSpace;
 
 pub const ExceptionLevels = enum { el0, el1, el2, el3 };
@@ -65,6 +66,14 @@ pub fn ProccessorRegMap(curr_address_space: AddrSpace, curr_el: ExceptionLevels,
                     : [curr] "=r" (-> usize),
                 );
                 return x;
+            }
+            pub fn calcTxSz(gran: board.boardConfig.GranuleParams) u6 {
+                // in bits
+                const addr_space_indicator = 12;
+                const addr_bsize = @bitSizeOf(usize);
+                const bits_per_level = std.math.log2(gran.table_size);
+                const n_lvl = @enumToInt(gran.lvls_required) + 1;
+                return @truncate(u6, addr_bsize - (addr_space_indicator + (n_lvl * bits_per_level)));
             }
         };
         pub const MairReg = packed struct {
