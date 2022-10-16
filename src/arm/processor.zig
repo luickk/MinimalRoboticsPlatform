@@ -122,8 +122,8 @@ pub fn ProccessorRegMap(curr_address_space: AddrSpace, curr_el: ExceptionLevels,
 
         // enables for el0/1 for el1
         pub inline fn enableMmu(comptime el: ExceptionLevels) void {
-            var val = SctlrEl.readSctlrEl(el);
-            val |= 1 << 0;
+            // var val = SctlrEl.readSctlrEl(el);
+            const val = 1 << 0;
             SctlrEl.setSctlrEl(el, val);
             asm volatile ("isb");
         }

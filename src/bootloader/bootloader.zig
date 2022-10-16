@@ -32,7 +32,6 @@ export fn bl_main() callconv(.Naked) noreturn {
     // using userspace as stack, incase the bootloader is located in rom
     var user_space_start = (board.config.mem.bl_load_addr orelse 0) + (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_size;
     proc.setSp(user_space_start + board.config.mem.bl_stack_size);
-    kprint("stack at: {x}  \n", .{user_space_start + board.config.mem.bl_stack_size});
     user_space_start = user_space_start + board.config.mem.bl_stack_size;
 
     // mmu configuration...
@@ -52,7 +51,6 @@ export fn bl_main() callconv(.Naked) noreturn {
             });
 
             var ttbr1_arr = @intToPtr(*volatile [ttbr1_size]usize, ttbr1_addr);
-
             // creating virtual address space for kernel
             const kernel_mapping = mmu.Mapping{
                 .mem_size = board.config.mem.ram_size,
@@ -61,7 +59,7 @@ export fn bl_main() callconv(.Naked) noreturn {
                 .addr_space = .ttbr1,
                 // todo => .descType should be .page but does not work with raspberry board..
                 .flags_block = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
-                .flags_first_lvl = mmu.TableDescriptorAttr{ .accessPerm = .read_write, .descType = .page },
+                .flags_first_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
             };
             // mapping general kernel mem (inlcuding device base)
             var ttbr1_write = (mmu.PageTable(kernel_mapping) catch |e| {
@@ -113,7 +111,7 @@ export fn bl_main() callconv(.Naked) noreturn {
                 .granule = Granule.FourkSection,
                 .addr_space = .ttbr0,
                 .flags_block = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
-                .flags_first_lvl = mmu.TableDescriptorAttr{ .accessPerm = .read_write, .descType = .page },
+                .flags_first_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
             };
             // identity mapped memory for bootloader and kernel contrtol handover!
             var ttbr0_write = (mmu.PageTable(bootloader_mapping) catch |e| {
@@ -130,10 +128,8 @@ export fn bl_main() callconv(.Naked) noreturn {
 
             break :blk ttbr0_arr;
         };
-        // kprint("{any} \n", .{ttbr0.*});
-        // kprint("{any} \n", .{ttbr1.*});
-        // kprint("0: {x} 1: {x} \n", .{ @ptrToInt(ttbr0), @ptrToInt(ttbr1) });
-        kprint("0: {*} 1: {*} \n", .{ ttbr0, ttbr1 });
+        // kprint("0: {*} 1: {*} \n", .{ ttbr0, ttbr1 });
+        // kprint("{x} \n", .{ttbr1.*});
         // updating page dirs
         proc.setTTBR0(@ptrToInt(ttbr0));
         proc.setTTBR1(@ptrToInt(ttbr1));
@@ -145,7 +141,7 @@ export fn bl_main() callconv(.Naked) noreturn {
         // todo => t1sz has to be 16 -> why. should be 25 bc it's 4k?
         proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = proc.TcrReg.calcTxSz(board.boardConfig.Granule.Fourk), .t1sz = 16, .tg0 = 0, .tg1 = 0 }).asInt());
         // attr0 is normal mem, not cachable
-        proc.MairReg.setMairEl(.el1, (proc.MairReg{ .attr0 = 4, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
+        proc.MairReg.setMairEl(.el1, (proc.MairReg{ .attr0 = 0xFF, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
 
         proc.invalidateMmuTlbEl1();
         proc.invalidateCache();
@@ -199,15 +195,11 @@ export fn bl_main() callconv(.Naked) noreturn {
 
     kprint("[bootloader] jumping to kernel at 0x{x}\n", .{kernel_addr});
 
-    brfn();
     proc.branchToAddr(kernel_addr);
 
     while (true) {}
 }
 
-pub fn brfn() void {
-    kprint("[kernel] gdb breakpoint function... \n", .{});
-}
 comptime {
     @export(intHandle.irqHandler, .{ .name = "irqHandler", .linkage = .Strong });
     @export(intHandle.irqElxSpx, .{ .name = "irqElxSpx", .linkage = .Strong });

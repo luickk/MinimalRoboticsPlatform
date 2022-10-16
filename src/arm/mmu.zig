@@ -40,6 +40,7 @@ pub const TableDescriptorAttr = packed struct {
     // identifies the descriptor type, and is encoded as:
     descType: DescType = .block,
 
+    // 4 following are onl important for block entries
     // https://armv8-ref.codingbelief.com/en/chapter_d4/d43_3_memory_attribute_fields_in_the_vmsav8-64_translation_table_formats_descriptors.html
     attrIndex: AttrIndex = .mair0,
     // For memory accesses from Secure state, specifies whether the output address is in the Secure or Non-secure address map
@@ -55,7 +56,7 @@ pub const TableDescriptorAttr = packed struct {
     notGlobal: bool = false,
 
     // upper attr following
-    _padding: u39 = 0,
+    address: u39 = 0,
 
     // indicating that the translation table descriptor is one of a contiguous set or descriptors, that might be cached in a single TLB descriptor
     contiguous: bool = false,
@@ -113,8 +114,6 @@ pub fn PageTable(mapping: Mapping) !type {
                 const to_map_in_tables = try std.math.divCeil(usize, to_map_in_descriptors, self.table_size);
                 const rest_to_map_in_descriptors = try std.math.mod(usize, to_map_in_descriptors, self.table_size);
                 var phys_count = self.mapping.phys_addr | self.mapping.flags_block.asInt();
-                if (self.mapping.addr_space == .ttbr1)
-                    phys_count = toSecure(usize, phys_count);
 
                 var i_table: usize = 0;
                 var i_descriptor: usize = 0;

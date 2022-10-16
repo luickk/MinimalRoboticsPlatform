@@ -5,7 +5,7 @@ const utils = @import("utils");
 const k_utils = @import("utils.zig");
 // const tests = @import("tests.zig");
 
-const kprint = periph.uart.UartWriter(.ttbr1).kprint;
+const kprint = periph.uart.UartWriter(.ttbr0).kprint;
 const gic = arm.gicv2.Gic(.ttbr1);
 
 // kernel services
@@ -23,6 +23,7 @@ const bcm2835IntController = arm.bcm2835IntController.InterruptController(.ttbr1
 const timer = arm.timer;
 
 export fn kernel_main() callconv(.Naked) noreturn {
+    brfn();
     const _stack_top: usize = @ptrToInt(@extern(?*u8, .{ .name = "_stack_top" }) orelse {
         kprint("error reading _stack_top label\n", .{});
         unreachable;
@@ -30,6 +31,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
 
     // setting stack back to linker section
     proc.setSp(mmu.toSecure(usize, _stack_top));
+    kprint("text \n", .{});
 
     kprint("[kernel] kernel started! \n", .{});
     kprint("[kernel] configuring mmu... \n", .{});
@@ -58,7 +60,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
                 .granule = board.config.mem.ram_layout.kernel_space_gran,
                 .addr_space = .ttbr1,
                 .flags_block = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
-                .flags_first_lvl = mmu.TableDescriptorAttr{ .accessPerm = .read_write, .descType = .page },
+                .flags_first_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
             };
             // mapping general kernel mem (inlcuding device base)
             var ttbr1_write = (mmu.PageTable(kernel_space_mapping) catch |e| {
@@ -103,7 +105,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
                 .granule = board.config.mem.ram_layout.user_space_gran,
                 .addr_space = .ttbr0,
                 .flags_block = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
-                .flags_first_lvl = mmu.TableDescriptorAttr{ .accessPerm = .read_write, .descType = .page },
+                .flags_first_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
             };
             // identity mapped memory for bootloader and kernel contrtol handover!
             var ttbr0_write = (mmu.PageTable(user_space_mapping) catch |e| {
@@ -124,8 +126,8 @@ export fn kernel_main() callconv(.Naked) noreturn {
         // t0sz: The size offset of the memory region addressed by TTBR0_EL1 (64-48=16)
         // t1sz: The size offset of the memory region addressed by TTBR1_EL1
         // tg0: Granule size for the TTBR0_EL1.
-        proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 25, .t1sz = 25, .tg0 = 0, .tg1 = 0 }).asInt());
-        proc.MairReg.setMairEl(.el1, (proc.MairReg{ .attr0 = 4, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
+        proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 25, .t1sz = 16, .tg0 = 0, .tg1 = 0 }).asInt());
+        proc.MairReg.setMairEl(.el1, (proc.MairReg{ .attr0 = 0xFF, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
 
         proc.dsb();
         proc.isb();
