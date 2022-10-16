@@ -1,10 +1,5 @@
 const std = @import("std");
 
-pub const SupportedBoards = enum {
-    raspi3b,
-    qemuVirt,
-};
-
 pub const AddrSpace = enum(u8) {
     ttbr1 = 1,
     ttbr0 = 0,
@@ -14,7 +9,21 @@ pub const AddrSpace = enum(u8) {
     }
 };
 
-pub fn calctotalTablesReq(granule: GranuleParams, mem_size: usize) !usize {
+pub const Granule = struct {
+    pub const GranuleParams = struct {
+        page_size: usize,
+        // not really neccessary but required to keep section size down
+        table_size: usize,
+        lvls_required: TransLvl,
+    };
+    // correct term for .page_size is .block_size
+    pub const FourkSection: GranuleParams = .{ .page_size = 2097152, .table_size = 512, .lvls_required = .second_lvl };
+    pub const Fourk: GranuleParams = .{ .page_size = 4096, .table_size = 512, .lvls_required = .third_lvl };
+    pub const Sixteenk: GranuleParams = .{ .page_size = 16384, .table_size = 2048, .lvls_required = .third_lvl };
+    pub const Sixtyfourk: GranuleParams = .{ .page_size = 65536, .table_size = 8192, .lvls_required = .second_lvl };
+};
+
+pub fn calctotalTablesReq(granule: Granule.GranuleParams, mem_size: usize) !usize {
     const req_descriptors = try std.math.divExact(usize, mem_size, granule.page_size);
 
     var req_table_total: usize = 0;
@@ -25,57 +34,46 @@ pub fn calctotalTablesReq(granule: GranuleParams, mem_size: usize) !usize {
     return req_table_total;
 }
 
-pub fn calcPageTableSizeTotal(gran: GranuleParams, mem_size: usize) !usize {
+pub fn calcPageTableSizeTotal(gran: Granule.GranuleParams, mem_size: usize) !usize {
     return (try calctotalTablesReq(gran, mem_size)) * gran.table_size;
 }
 
-pub const Granule = struct {
-    // correct term for .page_size is .block_size
-    pub const FourkSection: GranuleParams = .{ .page_size = 2097152, .table_size = 512, .lvls_required = .second_lvl };
-    pub const Fourk: GranuleParams = .{ .page_size = 4096, .table_size = 512, .lvls_required = .third_lvl };
-    pub const Sixteenk: GranuleParams = .{ .page_size = 16384, .table_size = 2048, .lvls_required = .third_lvl };
-    pub const Sixtyfourk: GranuleParams = .{ .page_size = 65536, .table_size = 8192, .lvls_required = .second_lvl };
-};
-
 pub const TransLvl = enum(usize) { first_lvl = 0, second_lvl = 1, third_lvl = 2 };
 
-pub const GranuleParams = struct {
-    page_size: usize,
-    // not really neccessary but required to keep section size down
-    table_size: usize,
-    lvls_required: TransLvl,
-};
-
-pub const RamMemLayout = struct {
-    kernel_space_size: usize,
-    kernel_space_phys: usize,
-    kernel_space_gran: GranuleParams,
-
-    user_space_size: usize,
-    user_space_phys: usize,
-    user_space_gran: GranuleParams,
-};
-
-pub const BoardMemLayout = struct {
-    va_start: usize,
-
-    bl_stack_size: usize,
-    k_stack_size: usize,
-
-    rom_start_addr: ?usize,
-    rom_size: ?usize,
-
-    ram_start_addr: usize,
-    ram_size: usize,
-    ram_layout: RamMemLayout,
-
-    bl_load_addr: ?usize,
-
-    storage_start_addr: usize,
-    storage_size: usize,
-};
-
 pub const BoardConfig = struct {
+    pub const SupportedBoards = enum {
+        raspi3b,
+        qemuVirt,
+    };
+
+    pub const BoardMemLayout = struct {
+        pub const RamMemLayout = struct {
+            kernel_space_size: usize,
+            kernel_space_phys: usize,
+            kernel_space_gran: Granule.GranuleParams,
+
+            user_space_size: usize,
+            user_space_phys: usize,
+            user_space_gran: Granule.GranuleParams,
+        };
+        va_start: usize,
+
+        bl_stack_size: usize,
+        k_stack_size: usize,
+
+        rom_start_addr: ?usize,
+        rom_size: ?usize,
+
+        ram_start_addr: usize,
+        ram_size: usize,
+        ram_layout: RamMemLayout,
+
+        bl_load_addr: ?usize,
+
+        storage_start_addr: usize,
+        storage_size: usize,
+    };
+
     board: SupportedBoards,
     mem: BoardMemLayout,
     qemu_launch_command: []const []const u8,

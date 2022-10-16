@@ -5,7 +5,7 @@ pub const boardConfig = @import("boardConfig.zig");
 const vaStart: usize = 0xffff000000000000;
 pub const config = boardConfig.BoardConfig{
     .board = .qemuVirt,
-    .mem = boardConfig.BoardMemLayout{
+    .mem = boardConfig.BoardConfig.BoardMemLayout{
         .va_start = vaStart,
 
         .bl_stack_size = 0x1000,
@@ -43,13 +43,13 @@ pub const config = boardConfig.BoardConfig{
 
 pub fn PeriphConfig(addr_space: boardConfig.AddrSpace) type {
     // ! = 0 !
-    comptime var device_base: usize = 0;
+    comptime var device_base: usize = 0x8000000;
     if (addr_space.isKernelSpace())
         device_base += config.mem.va_start;
 
     return struct {
         pub const Pl011 = struct {
-            pub const base_address: u64 = device_base + 0x9000000;
+            pub const base_address: u64 = device_base + 0x1000000;
 
             pub const base_clock: u64 = 0x16e3600;
             // 9600 slower baud
@@ -58,7 +58,7 @@ pub fn PeriphConfig(addr_space: boardConfig.AddrSpace) type {
             pub const stop_bits: u32 = 1;
         };
         pub const GicV2 = struct {
-            pub const base_address: u64 = device_base + 0x08000000;
+            pub const base_address: u64 = device_base + 0;
 
             pub const intMax: usize = 64;
             pub const intNoPpi0: usize = 32;

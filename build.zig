@@ -189,7 +189,7 @@ const UpdateLinkerScripts = struct {
 
                 const ttbr0_size = (currBoard.boardConfig.calcPageTableSizeTotal(currBoard.boardConfig.Granule.FourkSection, bl_pt_size_ttbr0) catch {
                     @panic("[panic] Page table size calc error\n");
-                });
+                }) * @sizeOf(usize);
                 try writeVarsToLinkerScript(self.allocator, "src/bootloader/linker.ld", self.temp_bl_ld, .{
                     bl_start_address,
                     ttbr0_size,
@@ -197,9 +197,9 @@ const UpdateLinkerScripts = struct {
                 });
             },
             .kernel => {
-                const ttbr1_size = (currBoard.boardConfig.calcPageTableSizeTotal(currBoard.config.mem.ram_layout.kernel_space_gran, currBoard.config.mem.ram_size + (currBoard.config.mem.rom_size orelse 0)) catch {
+                const ttbr1_size = (currBoard.boardConfig.calcPageTableSizeTotal(currBoard.config.mem.ram_layout.kernel_space_gran, currBoard.config.mem.ram_layout.kernel_space_size) catch {
                     @panic("[panic] Page table size calc error\n");
-                });
+                }) * @sizeOf(usize);
                 try writeVarsToLinkerScript(self.allocator, "src/kernel/linker.ld", self.temp_kernel_ld, .{
                     self.board_config.mem.k_stack_size,
                     ttbr1_size,

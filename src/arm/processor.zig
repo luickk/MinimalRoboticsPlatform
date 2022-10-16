@@ -67,7 +67,7 @@ pub fn ProccessorRegMap(curr_address_space: AddrSpace, curr_el: ExceptionLevels,
                 );
                 return x;
             }
-            pub fn calcTxSz(gran: board.boardConfig.GranuleParams) u6 {
+            pub fn calcTxSz(gran: board.boardConfig.Granule.GranuleParams) u6 {
                 // in bits
                 const addr_space_indicator = 12;
                 const addr_bsize = @bitSizeOf(usize);

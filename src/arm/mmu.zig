@@ -3,7 +3,7 @@ const board = @import("board");
 const kprint = @import("periph").uart.UartWriter(.ttbr0).kprint;
 
 const Granule = board.boardConfig.Granule;
-const GranuleParams = board.boardConfig.GranuleParams;
+const GranuleParams = board.boardConfig.Granule.GranuleParams;
 const TransLvl = board.boardConfig.TransLvl;
 
 pub const Mapping = struct {

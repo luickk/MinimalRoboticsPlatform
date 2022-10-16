@@ -27,7 +27,7 @@ const bl_bin_size = b_options.bl_bin_size;
 
 // todo => replace if(rom_size == null) with explicit if (no_rom)...
 
-// note: when bl_main gets too bit(instruction mem wise), the exception vector table could be pushed too far up and potentially not be read!
+// note: when bl_main gets too big(instruction mem wise), the exception vector table could be pushed too far up and potentially not be read!
 export fn bl_main() callconv(.Naked) noreturn {
     // using userspace as stack, incase the bootloader is located in rom
     var user_space_start = (board.config.mem.bl_load_addr orelse 0) + (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_size;
@@ -54,7 +54,7 @@ export fn bl_main() callconv(.Naked) noreturn {
             // creating virtual address space for kernel
             const kernel_mapping = mmu.Mapping{
                 .mem_size = board.config.mem.ram_size,
-                .phys_addr = board.config.mem.ram_start_addr,
+                .phys_addr = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0),
                 .granule = Granule.FourkSection,
                 .addr_space = .ttbr1,
                 // todo => .descType should be .page but does not work with raspberry board..
@@ -76,7 +76,6 @@ export fn bl_main() callconv(.Naked) noreturn {
             // @compileLog(ttbr1_arr);
             break :blk ttbr1_arr;
         };
-        // todo => ttbr1 for kernel is ranging from 0x0-1g instead of _ramSize_ + _bl_load_addr-1g!. Alternatively link kernel with additional offset
         const ttbr0 = blk: {
             // in case there is no rom(rom_size is equal to zero) and the kernel(and bl) are directly loaded to memory by some rom bootloader
             // the ttbr0 memory is also identity mapped to the ram
@@ -128,16 +127,11 @@ export fn bl_main() callconv(.Naked) noreturn {
 
             break :blk ttbr0_arr;
         };
-        // kprint("0: {*} 1: {*} \n", .{ ttbr0, ttbr1 });
-        // kprint("{x} \n", .{ttbr1.*});
+
         // updating page dirs
         proc.setTTBR0(@ptrToInt(ttbr0));
         proc.setTTBR1(@ptrToInt(ttbr1));
 
-        // t0sz: The size offset of the memory region addressed by TTBR0_EL1 (64-48=16)
-        // t1sz: The size offset of the memory region addressed by TTBR1_EL1
-        // tg0: Granule size for the TTBR0_EL1.
-        // tg1 not required since it's sections
         // todo => t1sz has to be 16 -> why. should be 25 bc it's 4k?
         proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = proc.TcrReg.calcTxSz(board.boardConfig.Granule.Fourk), .t1sz = 16, .tg0 = 0, .tg1 = 0 }).asInt());
         // attr0 is normal mem, not cachable
