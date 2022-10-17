@@ -42,12 +42,14 @@ pub const config = boardConfig.BoardConfig{
 };
 
 pub fn PeriphConfig(addr_space: boardConfig.AddrSpace) type {
-    // ! = 0 !
-    comptime var device_base: usize = 0x8000000;
+    comptime var device_base_: usize = 0x8000000;
+
     if (addr_space.isKernelSpace())
-        device_base += config.mem.va_start;
+        device_base_ += config.mem.va_start;
 
     return struct {
+        pub const device_base_size: usize = 0x2000000;
+        pub const device_base: usize = 0x8000000;
         pub const Pl011 = struct {
             pub const base_address: u64 = device_base + 0x1000000;
 

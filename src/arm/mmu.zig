@@ -8,7 +8,8 @@ const TransLvl = board.boardConfig.TransLvl;
 
 pub const Mapping = struct {
     mem_size: usize,
-    phys_addr: usize,
+    pointing_addr_start: usize,
+    virt_addr_start: usize,
     granule: GranuleParams,
     addr_space: board.boardConfig.AddrSpace,
     // currently only supported for sections
@@ -112,13 +113,17 @@ pub fn PageTable(mapping: Mapping) !type {
 
             var i_lvl: usize = 0;
             while (i_lvl <= @enumToInt(self.max_lvl)) : (i_lvl += 1) {
+                const offset_in_descriptors = try std.math.divCeil(usize, self.mapping.virt_addr_start, self.calcTransLvlDescriptorSize(@intToEnum(TransLvl, i_lvl)));
+                const offset_in_tables = try std.math.divCeil(usize, offset_in_descriptors, self.table_size);
+                const rest_offset_in_descriptors = try std.math.mod(usize, offset_in_descriptors, self.table_size);
+
                 to_map_in_descriptors = try std.math.divCeil(usize, self.mapping.mem_size, self.calcTransLvlDescriptorSize(@intToEnum(TransLvl, i_lvl)));
                 const to_map_in_tables = try std.math.divCeil(usize, to_map_in_descriptors, self.table_size);
                 const rest_to_map_in_descriptors = try std.math.mod(usize, to_map_in_descriptors, self.table_size);
-                var phys_count = (self.mapping.phys_addr + self.lma_offset) | self.mapping.flags_last_lvl.asInt();
+                var phys_count = (self.mapping.pointing_addr_start + self.lma_offset) | self.mapping.flags_last_lvl.asInt();
 
-                var i_table: usize = 0;
-                var i_descriptor: usize = 0;
+                var i_table: usize = offset_in_tables;
+                var i_descriptor: usize = rest_offset_in_descriptors;
                 var left_descriptors: usize = 0;
                 while (i_table < to_map_in_tables) : (i_table += 1) {
                     // if last table is reached, only write the rest_to_map_in_descriptors

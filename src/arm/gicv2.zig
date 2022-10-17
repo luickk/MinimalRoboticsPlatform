@@ -71,8 +71,8 @@ pub fn Gic(addr_space: AddrSpace) type {
             pub const sgir = @intToPtr(*volatile u32, 0xf00);
 
             // from the gicv2 docs: "The number of implemented GICD_ICACTIVER<n> registers is (GICD_TYPER.ITLinesNumber+1). Registers are numbered from 0"
-            pub fn calcReg(offset: *volatile u32, n: usize) *volatile u32 {
-                return @intToPtr(*volatile u32, @ptrToInt(offset) + (n * 4));
+            pub fn calcReg(pointing_addr_start: *volatile u32, n: usize) *volatile u32 {
+                return @intToPtr(*volatile u32, @ptrToInt(pointing_addr_start) + (n * 4));
             }
         };
 

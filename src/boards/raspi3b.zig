@@ -39,7 +39,7 @@ pub const config = boardConfig.BoardConfig{
 };
 
 pub fn PeriphConfig(addr_space: boardConfig.AddrSpace) type {
-    comptime var device_base: usize = 0x3f000000;
+    const device_base: usize = 0x3f000000;
     if (addr_space.isKernelSpace())
         device_base += config.mem.va_start;
 

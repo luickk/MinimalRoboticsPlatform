@@ -69,11 +69,11 @@ pub fn UserPageAllocator(comptime mem_size: usize, comptime granule: board.board
             if ((try std.math.mod(usize, mmu.toUnsecure(usize, @ptrToInt(page_addr)), granule.page_size)) != 0)
                 return Error.PageAddrDoesNotAlign;
 
-            var offset: usize = std.math.sub(usize, mmu.toUnsecure(usize, @ptrToInt(page_addr)), self.mem_start) catch {
+            var pointing_addr_start: usize = std.math.sub(usize, mmu.toUnsecure(usize, @ptrToInt(page_addr)), self.mem_start) catch {
                 return Error.AddrNotInMem;
             };
             // safe bc page_address is multiple of page_size
-            var n_page = offset / self.granule.page_size;
+            var n_page = pointing_addr_start / self.granule.page_size;
             for (self.kernel_mem[n_page .. n_page + n]) |*page| {
                 page.* = false;
             }

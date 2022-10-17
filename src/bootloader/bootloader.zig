@@ -54,7 +54,8 @@ export fn bl_main() callconv(.Naked) noreturn {
             // creating virtual address space for kernel
             const kernel_mapping = mmu.Mapping{
                 .mem_size = board.config.mem.ram_size,
-                .phys_addr = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0),
+                .pointing_addr_start = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0),
+                .virt_addr_start = 0,
                 .granule = Granule.FourkSection,
                 .addr_space = .ttbr1,
                 // todo => .descType should be .page but does not work with raspberry board..
@@ -80,10 +81,10 @@ export fn bl_main() callconv(.Naked) noreturn {
             // in case there is no rom(rom_size is equal to zero) and the kernel(and bl) are directly loaded to memory by some rom bootloader
             // the ttbr0 memory is also identity mapped to the ram
             comptime var mapping_bl_phys_size: usize = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_size;
-            comptime var mapping_bl_phys_addr: usize = (board.config.mem.bl_load_addr orelse 0);
+            comptime var mapping_bl_offset: usize = (board.config.mem.bl_load_addr orelse 0);
             if (board.config.mem.rom_start_addr == null) {
                 mapping_bl_phys_size = board.config.mem.ram_size;
-                mapping_bl_phys_addr = board.config.mem.ram_start_addr;
+                mapping_bl_offset = board.config.mem.ram_start_addr;
             }
 
             // ttbr0 (rom) mapps both rom and ram
@@ -106,7 +107,8 @@ export fn bl_main() callconv(.Naked) noreturn {
             // identity mapped memory for bootloader to kernel transfer
             const bootloader_mapping = mmu.Mapping{
                 .mem_size = mapping_bl_phys_size,
-                .phys_addr = mapping_bl_phys_addr,
+                .pointing_addr_start = mapping_bl_offset,
+                .virt_addr_start = 0,
                 .granule = Granule.FourkSection,
                 .addr_space = .ttbr0,
                 .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
