@@ -58,14 +58,14 @@ export fn bl_main() callconv(.Naked) noreturn {
                 .granule = Granule.FourkSection,
                 .addr_space = .ttbr1,
                 // todo => .descType should be .page but does not work with raspberry board..
-                .flags_block = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
-                .flags_first_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
+                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
+                .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
             };
             // mapping general kernel mem (inlcuding device base)
             var ttbr1_write = (mmu.PageTable(kernel_mapping) catch |e| {
                 kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 bl_utils.panic();
-            }).init(ttbr1_arr) catch |e| {
+            }).init(ttbr1_arr, 0) catch |e| {
                 kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 bl_utils.panic();
             };
@@ -109,14 +109,14 @@ export fn bl_main() callconv(.Naked) noreturn {
                 .phys_addr = mapping_bl_phys_addr,
                 .granule = Granule.FourkSection,
                 .addr_space = .ttbr0,
-                .flags_block = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
-                .flags_first_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
+                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
+                .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
             };
             // identity mapped memory for bootloader and kernel contrtol handover!
             var ttbr0_write = (mmu.PageTable(bootloader_mapping) catch |e| {
                 kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 bl_utils.panic();
-            }).init(ttbr0_arr) catch |e| {
+            }).init(ttbr0_arr, 0) catch |e| {
                 kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 bl_utils.panic();
             };

@@ -5,7 +5,7 @@ const utils = @import("utils");
 const k_utils = @import("utils.zig");
 // const tests = @import("tests.zig");
 
-const kprint = periph.uart.UartWriter(.ttbr1).kprint;
+const kprint = periph.uart.UartWriter(.ttbr0).kprint;
 const gic = arm.gicv2.Gic(.ttbr1);
 
 // kernel services
@@ -54,14 +54,14 @@ export fn kernel_main() callconv(.Naked) noreturn {
                 .phys_addr = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0),
                 .granule = board.config.mem.ram_layout.kernel_space_gran,
                 .addr_space = .ttbr1,
-                .flags_block = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
-                .flags_first_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
+                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
+                .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
             };
             // mapping general kernel mem (inlcuding device base)
             var ttbr1_write = (mmu.PageTable(kernel_space_mapping) catch |e| {
                 kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
-            }).init(ttbr1_arr) catch |e| {
+            }).init(ttbr1_arr, board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0)) catch |e| {
                 kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
             };
@@ -96,14 +96,14 @@ export fn kernel_main() callconv(.Naked) noreturn {
                 .phys_addr = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_size + board.config.mem.ram_layout.user_space_phys,
                 .granule = board.config.mem.ram_layout.user_space_gran,
                 .addr_space = .ttbr0,
-                .flags_block = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
-                .flags_first_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
+                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page, .attrIndex = .mair0 },
+                .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
             };
             // identity mapped memory for bootloader and kernel contrtol handover!
             var ttbr0_write = (mmu.PageTable(user_space_mapping) catch |e| {
                 kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
-            }).init(ttbr0_arr) catch |e| {
+            }).init(ttbr0_arr, board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0)) catch |e| {
                 kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
             };
@@ -113,7 +113,6 @@ export fn kernel_main() callconv(.Naked) noreturn {
             };
             break :blk ttbr0_arr;
         };
-
         kprint("[kernel] changing to kernel page tables.. \n", .{});
         // t0sz: The size offset of the memory region addressed by TTBR0_EL1 (64-48=16)
         // t1sz: The size offset of the memory region addressed by TTBR1_EL1
@@ -123,38 +122,39 @@ export fn kernel_main() callconv(.Naked) noreturn {
 
         proc.dsb();
         proc.isb();
+        kprint("0: {*} 1: {*} \n", .{ ttbr0, ttbr1 });
 
         // updating page dirs for kernel and user space
         // toUnse is bc we are in ttbr1 and can't change with page tables that are also in ttbr1
-        brfn();
-        proc.setTTBR1(@ptrToInt(ttbr1));
-        proc.setTTBR0(@ptrToInt(ttbr0));
+        proc.setTTBR1(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + mmu.toUnsecure(usize, @ptrToInt(ttbr1)));
+        proc.setTTBR0(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + mmu.toUnsecure(usize, @ptrToInt(ttbr0)));
 
-        proc.invalidateMmuTlbEl1();
+        // proc.invalidateMmuTlbEl1();
         proc.invalidateCache();
 
         proc.dsb();
         proc.isb();
     }
+    brfn();
 
     var current_el = proc.getCurrentEl();
     if (current_el != 1) {
         kprint("[panic] el must be 1! (it is: {d})\n", .{current_el});
         proc.panic();
     }
-    if (board.config.board == .qemuVirt) {
-        gic.init() catch |e| {
-            kprint("[panic] Page table ttbr0 address calc error: {s}\n", .{@errorName(e)});
-            k_utils.panic();
-        };
-    }
-    if (board.config.board == .raspi3b) {
-        timer.initTimer();
-        kprint("[kernel] timer inited \n", .{});
+    // if (board.config.board == .qemuVirt) {
+    //     gic.init() catch |e| {
+    //         kprint("[panic] Page table ttbr0 address calc error: {s}\n", .{@errorName(e)});
+    //         k_utils.panic();
+    //     };
+    // }
+    // if (board.config.board == .raspi3b) {
+    //     timer.initTimer();
+    //     kprint("[kernel] timer inited \n", .{});
 
-        bcm2835IntController.init();
-        kprint("[kernel] ic inited \n", .{});
-    }
+    //     bcm2835IntController.init();
+    //     kprint("[kernel] ic inited \n", .{});
+    // }
 
     kprint("[kernel] kernel boot complete \n", .{});
 

@@ -12,8 +12,8 @@ pub const Mapping = struct {
     granule: GranuleParams,
     addr_space: board.boardConfig.AddrSpace,
     // currently only supported for sections
-    flags_block: TableDescriptorAttr,
-    flags_first_lvl: TableDescriptorAttr,
+    flags_last_lvl: TableDescriptorAttr,
+    flags_non_last_lvl: TableDescriptorAttr,
 };
 
 // In addition to an output address, a translation table descriptor that refers to a page or region of memory
@@ -85,10 +85,11 @@ pub fn PageTable(mapping: Mapping) !type {
         table_size: usize,
 
         mapping: Mapping,
+        lma_offset: usize,
         max_lvl: TransLvl,
         map_pg_dir: *volatile [req_table_total][table_size]usize,
 
-        pub fn init(base_addr: *volatile [req_table_total * table_size]usize) !Self {
+        pub fn init(base_addr: *volatile [req_table_total * table_size]usize, lma_offset: usize) !Self {
             return Self{
                 // sizes
                 .page_size = page_size,
@@ -96,6 +97,7 @@ pub fn PageTable(mapping: Mapping) !type {
 
                 .max_lvl = max_lvl_gran,
                 .mapping = mapping,
+                .lma_offset = lma_offset,
                 .map_pg_dir = @ptrCast(*volatile [req_table_total][table_size]usize, base_addr),
             };
         }
@@ -113,7 +115,7 @@ pub fn PageTable(mapping: Mapping) !type {
                 to_map_in_descriptors = try std.math.divCeil(usize, self.mapping.mem_size, self.calcTransLvlDescriptorSize(@intToEnum(TransLvl, i_lvl)));
                 const to_map_in_tables = try std.math.divCeil(usize, to_map_in_descriptors, self.table_size);
                 const rest_to_map_in_descriptors = try std.math.mod(usize, to_map_in_descriptors, self.table_size);
-                var phys_count = self.mapping.phys_addr | self.mapping.flags_block.asInt();
+                var phys_count = (self.mapping.phys_addr + self.lma_offset) | self.mapping.flags_last_lvl.asInt();
 
                 var i_table: usize = 0;
                 var i_descriptor: usize = 0;
@@ -131,9 +133,9 @@ pub fn PageTable(mapping: Mapping) !type {
                             self.map_pg_dir[table_offset + i_table][i_descriptor] = phys_count;
                             phys_count += self.mapping.granule.page_size;
                         } else {
-                            var val = @ptrToInt(&self.map_pg_dir[table_offset + to_map_in_tables + i_descriptor]);
-                            if (i_lvl == @enumToInt(TransLvl.first_lvl))
-                                val |= self.mapping.flags_first_lvl.asInt();
+                            var val = toUnsecure(usize, @ptrToInt(&self.map_pg_dir[table_offset + to_map_in_tables + i_descriptor])) + self.lma_offset;
+                            if (i_lvl == @enumToInt(TransLvl.first_lvl) or i_lvl == @enumToInt(TransLvl.second_lvl))
+                                val |= self.mapping.flags_non_last_lvl.asInt();
                             self.map_pg_dir[table_offset + i_table][i_descriptor] = val;
                         }
                     }

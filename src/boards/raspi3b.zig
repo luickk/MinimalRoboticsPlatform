@@ -3,7 +3,7 @@ pub const boardConfig = @import("boardConfig.zig");
 const vaStart: usize = 0xffff000000000000;
 pub const config = boardConfig.BoardConfig{
     .board = .raspi3b,
-    .mem = boardConfig.BoardMemLayout{
+    .mem = boardConfig.BoardConfig.BoardMemLayout{
         .va_start = vaStart,
 
         .bl_stack_size = 0x1000,
