@@ -42,16 +42,16 @@ pub const config = boardConfig.BoardConfig{
 };
 
 pub fn PeriphConfig(addr_space: boardConfig.AddrSpace) type {
-    comptime var device_base_: usize = 0x8000000;
+    comptime var device_base_tmp: usize = 0x8000000;
 
     if (addr_space.isKernelSpace())
-        device_base_ += config.mem.va_start;
+        device_base_tmp += config.mem.va_start + 0x40000000 - 0x8000000;
 
     return struct {
-        pub const device_base_size: usize = 0x2000000;
-        pub const device_base: usize = 0x8000000;
+        pub const device_base_size: usize = 0xA000000;
+        pub const device_base: usize = device_base_tmp;
         pub const Pl011 = struct {
-            pub const base_address: u64 = device_base + 0x1000000;
+            pub const base_address: u64 = device_base_tmp + 0x1000000;
 
             pub const base_clock: u64 = 0x16e3600;
             // 9600 slower baud
@@ -60,7 +60,7 @@ pub fn PeriphConfig(addr_space: boardConfig.AddrSpace) type {
             pub const stop_bits: u32 = 1;
         };
         pub const GicV2 = struct {
-            pub const base_address: u64 = device_base + 0;
+            pub const base_address: u64 = device_base_tmp + 0;
 
             pub const intMax: usize = 64;
             pub const intNoPpi0: usize = 32;

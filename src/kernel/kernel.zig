@@ -3,7 +3,6 @@ const arm = @import("arm");
 const periph = @import("periph");
 const utils = @import("utils");
 const k_utils = @import("utils.zig");
-// const tests = @import("tests.zig");
 
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 const gic = arm.gicv2.Gic(.ttbr1);
@@ -37,7 +36,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
     // mmu config block
     {
         const ttbr1 align(4096) = blk: {
-            comptime var ttbr1_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.FourkSection, board.config.mem.ram_layout.kernel_space_size) catch |e| {
+            comptime var ttbr1_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.FourkSection, board.config.mem.ram_layout.kernel_space_size + 0x40000000 + board.PeriphConfig(.ttbr0).device_base_size) catch |e| {
                 kprint("[panic] Page table size calc error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
             });
@@ -74,8 +73,9 @@ export fn kernel_main() callconv(.Naked) noreturn {
             // creating virtual address space for kernel
             const periph_mapping = mmu.Mapping{
                 .mem_size = board.PeriphConfig(.ttbr0).device_base_size,
-                .pointing_addr_start = board.PeriphConfig(.ttbr0).device_base,
-                .virt_addr_start = board.PeriphConfig(.ttbr0).device_base_size,
+                .pointing_addr_start = 0,
+                // todo => fix rounding issue
+                .virt_addr_start = 0x40000001,
                 .granule = board.config.mem.ram_layout.kernel_space_gran,
                 .addr_space = .ttbr1,
                 .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
@@ -99,6 +99,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
 
         // user space is runtime evalua
         const ttbr0 = blk: {
+            // todo => write proper allocator for kernel (has dynamic size!!)
             const _ttbr0: usize = @ptrToInt(@extern(?*u8, .{ .name = "_ttbr0" }) orelse {
                 kprint("error reading _ttbr0 label\n", .{});
                 unreachable;
@@ -139,16 +140,15 @@ export fn kernel_main() callconv(.Naked) noreturn {
             };
             break :blk ttbr0_arr;
         };
-        kprint("[kernel] changing to kernel page tables.. \n", .{});
-        // t0sz: The size pointing_addr_start of the memory region addressed by TTBR0_EL1 (64-48=16)
-        // t1sz: The size pointing_addr_start of the memory region addressed by TTBR1_EL1
-        // tg0: Granule size for the TTBR0_EL1.
+        // kprint("[kernel] changing to kernel page tables.. \n", .{});
+        // kprint("0: {*} 1: {*} \n", .{ ttbr0, ttbr1 });
+        // kprint("{any} \n", .{ttbr1.*});
+        brfn();
         proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 25, .t1sz = 16, .tg0 = 0, .tg1 = 0 }).asInt());
         proc.MairReg.setMairEl(.el1, (proc.MairReg{ .attr0 = 0xFF, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
 
         proc.dsb();
         proc.isb();
-        kprint("0: {*} 1: {*} \n", .{ ttbr0, ttbr1 });
 
         // updating page dirs for kernel and user space
         // toUnse is bc we are in ttbr1 and can't change with page tables that are also in ttbr1
@@ -160,8 +160,10 @@ export fn kernel_main() callconv(.Naked) noreturn {
 
         proc.dsb();
         proc.isb();
+        proc.nop();
+        proc.nop();
     }
-    brfn();
+    kprint("[kernel] page tables updated! \n", .{});
 
     var current_el = proc.getCurrentEl();
     if (current_el != 1) {

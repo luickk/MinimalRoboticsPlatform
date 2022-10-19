@@ -90,7 +90,8 @@ pub fn PageTable(mapping: Mapping) !type {
         max_lvl: TransLvl,
         map_pg_dir: *volatile [req_table_total][table_size]usize,
 
-        pub fn init(base_addr: *volatile [req_table_total * table_size]usize, lma_offset: usize) !Self {
+        // pub fn init(page_tables: *volatile [req_table_total * table_size]usize, lma_offset: usize) !Self {
+        pub fn init(page_tables: []usize, lma_offset: usize) !Self {
             return Self{
                 // sizes
                 .page_size = page_size,
@@ -99,7 +100,7 @@ pub fn PageTable(mapping: Mapping) !type {
                 .max_lvl = max_lvl_gran,
                 .mapping = mapping,
                 .lma_offset = lma_offset,
-                .map_pg_dir = @ptrCast(*volatile [req_table_total][table_size]usize, base_addr),
+                .map_pg_dir = @ptrCast(*volatile [req_table_total][table_size]usize, page_tables.ptr),
             };
         }
 
@@ -113,14 +114,19 @@ pub fn PageTable(mapping: Mapping) !type {
 
             var i_lvl: usize = 0;
             while (i_lvl <= @enumToInt(self.max_lvl)) : (i_lvl += 1) {
-                const offset_in_descriptors = try std.math.divCeil(usize, self.mapping.virt_addr_start, self.calcTransLvlDescriptorSize(@intToEnum(TransLvl, i_lvl)));
-                const offset_in_tables = try std.math.divCeil(usize, offset_in_descriptors, self.table_size);
-                const rest_offset_in_descriptors = try std.math.mod(usize, offset_in_descriptors, self.table_size);
+                const curr_lvl_desc_map_size = self.calcTransLvlDescriptorSize(@intToEnum(TransLvl, i_lvl));
+                const offset_in_descriptors = try std.math.divCeil(usize, self.mapping.virt_addr_start, curr_lvl_desc_map_size);
+                var offset_in_tables = try std.math.divCeil(usize, offset_in_descriptors, self.table_size);
+                if (offset_in_tables >= 1)
+                    offset_in_tables -= 1;
+                var rest_offset_in_descriptors = try std.math.mod(usize, offset_in_descriptors, self.table_size);
+                if (rest_offset_in_descriptors >= 1)
+                    rest_offset_in_descriptors -= 1;
 
-                to_map_in_descriptors = try std.math.divCeil(usize, self.mapping.mem_size, self.calcTransLvlDescriptorSize(@intToEnum(TransLvl, i_lvl)));
+                to_map_in_descriptors = try std.math.divCeil(usize, self.mapping.mem_size + self.mapping.virt_addr_start, curr_lvl_desc_map_size);
                 const to_map_in_tables = try std.math.divCeil(usize, to_map_in_descriptors, self.table_size);
                 const rest_to_map_in_descriptors = try std.math.mod(usize, to_map_in_descriptors, self.table_size);
-                var phys_count = (self.mapping.pointing_addr_start + self.lma_offset) | self.mapping.flags_last_lvl.asInt();
+                var phys_count = self.mapping.pointing_addr_start | self.mapping.flags_last_lvl.asInt();
 
                 var i_table: usize = offset_in_tables;
                 var i_descriptor: usize = rest_offset_in_descriptors;
