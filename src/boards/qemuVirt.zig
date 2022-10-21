@@ -11,17 +11,18 @@ pub const config = boardConfig.BoardConfig{
         .bl_stack_size = 0x1000,
         .k_stack_size = 0x1000,
 
+        .has_rom = true,
         // qemus machine has a rom with 1 gb size
         .rom_start_addr = 0,
         .rom_size = 0x40000000,
+        // since the bootloader is loaded at 0x no bl_load_addr is required
+        // (currently only supported for boot without rom)
+        .bl_load_addr = null,
+
         // according to qemu docs ram starts at 1gib
         .ram_start_addr = 0x40000000,
         // 0x100000000
         .ram_size = 0x40000000,
-
-        // since the bootloader is loaded at 0x no bl_load_addr is required
-        // (currently only supported for boot without rom)
-        .bl_load_addr = null,
 
         .ram_layout = .{
             .kernel_space_size = 0x20000000,
@@ -45,13 +46,13 @@ pub fn PeriphConfig(addr_space: boardConfig.AddrSpace) type {
     comptime var device_base_tmp: usize = 0x8000000;
 
     if (addr_space.isKernelSpace())
-        device_base_tmp += config.mem.va_start + 0x40000000 - 0x8000000;
+        device_base_tmp += config.mem.va_start + 0x40000000;
 
     return struct {
         pub const device_base_size: usize = 0xA000000;
         pub const device_base: usize = device_base_tmp;
         pub const Pl011 = struct {
-            pub const base_address: u64 = device_base_tmp + 0x1000000;
+            pub const base_address: u64 = device_base + 0x1000000;
 
             pub const base_clock: u64 = 0x16e3600;
             // 9600 slower baud
@@ -60,7 +61,7 @@ pub fn PeriphConfig(addr_space: boardConfig.AddrSpace) type {
             pub const stop_bits: u32 = 1;
         };
         pub const GicV2 = struct {
-            pub const base_address: u64 = device_base_tmp + 0;
+            pub const base_address: u64 = device_base + 0;
 
             pub const intMax: usize = 64;
             pub const intNoPpi0: usize = 32;

@@ -178,13 +178,13 @@ const UpdateLinkerScripts = struct {
         switch (self.to_update) {
             .bootloader => {
                 var bl_start_address: usize = self.board_config.mem.rom_start_addr orelse 0;
-                if (self.board_config.mem.rom_start_addr == null)
+                if (!self.board_config.mem.has_rom)
                     bl_start_address = self.board_config.mem.bl_load_addr orelse 0;
 
                 // in case there is no rom(rom_size is equal to zero) and the kernel(and bl) are directly loaded to memory by some rom bootloader
                 // the ttbr0 memory is also identity mapped to the ram
                 var bl_pt_size_ttbr0: usize = (currBoard.config.mem.rom_size orelse 0) + currBoard.config.mem.ram_size;
-                if (currBoard.config.mem.rom_start_addr == null)
+                if (!currBoard.config.mem.has_rom)
                     bl_pt_size_ttbr0 = currBoard.config.mem.ram_size;
 
                 const ttbr0_size = (currBoard.boardConfig.calcPageTableSizeTotal(currBoard.boardConfig.Granule.FourkSection, bl_pt_size_ttbr0) catch {

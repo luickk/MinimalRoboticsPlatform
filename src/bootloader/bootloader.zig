@@ -25,8 +25,6 @@ const TransLvl = board.boardConfig.TransLvl;
 const kernel_bin_size = b_options.kernel_bin_size;
 const bl_bin_size = b_options.bl_bin_size;
 
-// todo => replace if(rom_size == null) with explicit if (no_rom)...
-
 // note: when bl_main gets too big(instruction mem wise), the exception vector table could be pushed too far up and potentially not be read!
 export fn bl_main() callconv(.Naked) noreturn {
     // using userspace as stack, incase the bootloader is located in rom
@@ -58,7 +56,6 @@ export fn bl_main() callconv(.Naked) noreturn {
                 .virt_addr_start = 0,
                 .granule = Granule.FourkSection,
                 .addr_space = .ttbr1,
-                // todo => .descType should be .page but does not work with raspberry board..
                 .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
                 .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
             };
@@ -82,7 +79,7 @@ export fn bl_main() callconv(.Naked) noreturn {
             // the ttbr0 memory is also identity mapped to the ram
             comptime var mapping_bl_phys_size: usize = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_size;
             comptime var mapping_bl_offset: usize = (board.config.mem.bl_load_addr orelse 0);
-            if (board.config.mem.rom_start_addr == null) {
+            if (!board.config.mem.has_rom) {
                 mapping_bl_phys_size = board.config.mem.ram_size;
                 mapping_bl_offset = board.config.mem.ram_start_addr;
             }
@@ -135,7 +132,8 @@ export fn bl_main() callconv(.Naked) noreturn {
         proc.setTTBR1(@ptrToInt(ttbr1));
 
         // todo => t1sz has to be 16 -> why. should be 25 bc it's 4k?
-        proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = proc.TcrReg.calcTxSz(board.boardConfig.Granule.Fourk), .t1sz = 16, .tg0 = 0, .tg1 = 0 }).asInt());
+        proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 29, .t1sz = 16, .tg0 = 0, .tg1 = 0 }).asInt());
+
         // attr0 is normal mem, not cachable
         proc.MairReg.setMairEl(.el1, (proc.MairReg{ .attr0 = 0xFF, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
 
@@ -179,21 +177,24 @@ export fn bl_main() callconv(.Naked) noreturn {
         bl_utils.panic();
     }
 
-    if (board.config.mem.rom_start_addr != null) {
+    if (board.config.mem.has_rom) {
         kprint("[bootloader] setup mmu, el1, exc table. \n", .{});
         kprint("[bootloader] Copying kernel to addr_space: 0x{x}, with size: {d} \n", .{ @ptrToInt(kernel_target_loc.ptr), kernel_target_loc.len });
         std.mem.copy(u8, kernel_target_loc, kernel_bl);
         kprint("[bootloader] kernel copied \n", .{});
     }
     var kernel_addr = @ptrToInt(kernel_target_loc.ptr);
-    if (board.config.mem.rom_start_addr == null)
+    if (!board.config.mem.has_rom)
         kernel_addr = mmu.toSecure(usize, board.config.mem.bl_load_addr.? + kernel_entry);
-
+    brfn();
     kprint("[bootloader] jumping to kernel at 0x{x}\n", .{kernel_addr});
 
     proc.branchToAddr(kernel_addr);
 
     while (true) {}
+}
+pub fn brfn() void {
+    kprint("[kernel] gdb breakpoint function... \n", .{});
 }
 
 comptime {

@@ -9,17 +9,17 @@ pub const config = boardConfig.BoardConfig{
         .bl_stack_size = 0x1000,
         .k_stack_size = 0x1000,
 
+        .has_rom = false,
         // the kernel is loaded by into 0x8000 ram by the gpu, so no relocation (or rom) required
         .rom_start_addr = null,
         .rom_size = null,
+        // address to which the bl is loaded if there is NO rom(which is the case for the raspberry 3b)!
+        // if there is rom, the bootloader must be loaded to 0x0 (and bl_load_addr = null!)
+        .bl_load_addr = 0x80000,
 
         // the raspberries addressable memory is all ram
         .ram_start_addr = 0,
         .ram_size = 0x40000000,
-
-        // address to which the bl is loaded if there is NO rom(which is the case for the raspberry 3b)!
-        // if there is rom, the bootloader must be loaded to 0x0 (and bl_load_addr = null!)
-        .bl_load_addr = 0x80000,
 
         .ram_layout = .{
             .kernel_space_size = 0x30000000,

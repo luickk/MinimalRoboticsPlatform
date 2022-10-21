@@ -56,19 +56,20 @@ pub const BoardConfig = struct {
             user_space_phys: usize,
             user_space_gran: Granule.GranuleParams,
         };
+
         va_start: usize,
 
         bl_stack_size: usize,
         k_stack_size: usize,
 
+        has_rom: bool,
         rom_start_addr: ?usize,
         rom_size: ?usize,
+        bl_load_addr: ?usize,
 
         ram_start_addr: usize,
         ram_size: usize,
         ram_layout: RamMemLayout,
-
-        bl_load_addr: ?usize,
 
         storage_start_addr: usize,
         storage_size: usize,
@@ -78,15 +79,15 @@ pub const BoardConfig = struct {
     mem: BoardMemLayout,
     qemu_launch_command: []const []const u8,
 
-    pub fn checkConfig(cfg: BoardConfig) void {
-        if (cfg.mem.rom_start_addr == null and cfg.mem.bl_load_addr == null)
+    pub fn checkConfig(self: BoardConfig) void {
+        if (!self.mem.has_rom and self.mem.rom_start_addr == null and self.mem.bl_load_addr == null)
             @panic("if there is no rom, a boot loader start (or entry) address is required! \n");
-        if (cfg.mem.rom_start_addr != null and cfg.mem.bl_load_addr != null)
+        if (!self.mem.has_rom and self.mem.rom_start_addr != null and self.mem.bl_load_addr != null)
             @panic("if there is rom, no boot loader start (or entry) address is supported at the moment! \n");
-        if (cfg.mem.ram_layout.kernel_space_size + cfg.mem.ram_layout.user_space_size > cfg.mem.ram_size)
+        if (self.mem.ram_layout.kernel_space_size + self.mem.ram_layout.user_space_size > self.mem.ram_size)
             @panic("since no swapping is supported, user/kernel space cannot exceed ram size \n");
         // optional does does not support equal operator..
-        if ((cfg.mem.rom_size == null and cfg.mem.rom_start_addr != null) or (cfg.mem.rom_size != null and cfg.mem.rom_start_addr == null))
+        if ((!self.mem.has_rom and self.mem.rom_size == null and self.mem.rom_start_addr != null) or (self.mem.rom_size != null and self.mem.rom_start_addr == null))
             @panic("if rom is disabled, both rom addr and len have to be null \n");
     }
 };

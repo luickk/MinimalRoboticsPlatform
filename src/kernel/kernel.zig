@@ -3,12 +3,13 @@ const arm = @import("arm");
 const periph = @import("periph");
 const utils = @import("utils");
 const k_utils = @import("utils.zig");
+const tests = @import("tests.zig");
 
-const kprint = periph.uart.UartWriter(.ttbr1).kprint;
+const kprint = periph.uart.UartWriter(.ttbr0).kprint;
 const gic = arm.gicv2.Gic(.ttbr1);
 
 // kernel services
-// const KernelAllocator = @import("KernelAllocator.zig").KernelAllocator;
+const KernelAllocator = @import("KernelAllocator.zig").KernelAllocator;
 // const UserPageAllocator = @import("UserPageAllocator.zig").UserPageAllocator;
 const intHandle = @import("gicHandle.zig");
 const b_options = @import("build_options");
@@ -143,8 +144,8 @@ export fn kernel_main() callconv(.Naked) noreturn {
         // kprint("[kernel] changing to kernel page tables.. \n", .{});
         // kprint("0: {*} 1: {*} \n", .{ ttbr0, ttbr1 });
         // kprint("{any} \n", .{ttbr1.*});
-        brfn();
-        proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 25, .t1sz = 16, .tg0 = 0, .tg1 = 0 }).asInt());
+
+        proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 29, .t1sz = 16, .tg0 = 0, .tg1 = 0 }).asInt());
         proc.MairReg.setMairEl(.el1, (proc.MairReg{ .attr0 = 0xFF, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
 
         proc.dsb();
@@ -152,8 +153,11 @@ export fn kernel_main() callconv(.Naked) noreturn {
 
         // updating page dirs for kernel and user space
         // toUnse is bc we are in ttbr1 and can't change with page tables that are also in ttbr1
-        proc.setTTBR1(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + mmu.toUnsecure(usize, @ptrToInt(ttbr1)));
-        proc.setTTBR0(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + mmu.toUnsecure(usize, @ptrToInt(ttbr0)));
+        // proc.setTTBR1(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + mmu.toUnsecure(usize, @ptrToInt(ttbr1)));
+        // proc.setTTBR0(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + mmu.toUnsecure(usize, @ptrToInt(ttbr0)));
+        _ = ttbr0;
+        _ = ttbr1;
+        // todo => enable kernel mapping!...
 
         // proc.invalidateMmuTlbEl1();
         proc.invalidateCache();
@@ -164,6 +168,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
         proc.nop();
     }
     kprint("[kernel] page tables updated! \n", .{});
+    brfn();
 
     var current_el = proc.getCurrentEl();
     if (current_el != 1) {
@@ -206,19 +211,20 @@ export fn kernel_main() callconv(.Naked) noreturn {
     //     };
     // }
 
-    // // kernelspace allocator test
-    // {
-    //     var alloc_start = utils.ceilRoundToMultiple((board.config.mem.rom_size orelse 0), board.config.mem.ram_layout.kernel_space_gran.page_size) catch |e| {
-    //         kprint("[panic] KMalloc start addr calc err: {s}\n", .{@errorName(e)});
-    //         k_utils.panic();
-    //     };
+    // kernelspace allocator test
+    {
+        var alloc_start = utils.ceilRoundToMultiple((board.config.mem.rom_size orelse 0), board.config.mem.ram_layout.kernel_space_gran.page_size) catch |e| {
+            kprint("[panic] KMalloc start addr calc err: {s}\n", .{@errorName(e)});
+            k_utils.panic();
+        };
 
-    //     var kernel_alloc = KernelAllocator(1024, 512).init(alloc_start);
-    //     tests.testKMalloc(&kernel_alloc) catch |e| {
-    //         kprint("[panic] KMalloc test error: {s} \n", .{@errorName(e)});
-    //         k_utils.panic();
-    //     };
-    // }
+        var kernel_alloc = KernelAllocator(1024, 512).init(alloc_start);
+        tests.testKMalloc(&kernel_alloc) catch |e| {
+            kprint("[panic] KMalloc test error: {s} \n", .{@errorName(e)});
+            k_utils.panic();
+        };
+    }
+    kprint("tests complete \n", .{});
 
     // if (board.config.board == .raspi3b)
     //     tests.testUserSpaceMem(100);

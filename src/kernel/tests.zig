@@ -1,5 +1,5 @@
 const UserSpaceAllocator = @import("KernelAllocator.zig").UserSpaceAllocator;
-const kprint = @import("periph").uart.UartWriter(.ttbr1).kprint;
+const kprint = @import("periph").uart.UartWriter(.ttbr0).kprint;
 
 pub fn testUserPageAlloc(alloc: anytype) !void {
     var p1 = try alloc.allocNPage(10);
@@ -27,9 +27,13 @@ pub fn testUserSpaceMem(addr: usize) void {
 }
 
 pub fn testKMalloc(alloc: anytype) !void {
+    kprint("{any} \n", .{alloc.kernel_mem});
     var alloced_obj = try alloc.alloc(usize, 10);
+    kprint("{any} \n", .{alloc.kernel_mem});
     alloced_obj[1] = 100;
     alloced_obj[9] = 900;
+    try alloc.free(alloced_obj);
+    kprint("{any} \n", .{alloc.kernel_mem});
 
     kprint("[kTEST] kernel alloc test successfull \n", .{});
 }

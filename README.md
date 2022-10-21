@@ -23,7 +23,7 @@ The bootloader is really custom and does a few things differently. One of the pr
 
 ## MMU
 
-I wrote a mmu "composer" with which one can simply configure and then generate/ write the pagetables. The page table generation supports 3 lvls and 4-16k granule. 64 bit is also possible but another level has to be added to the `TransLvl` enum in `src/board/boardConfig.zig` and it's not fully tested yet.
+I wrote a mmu "composer" with which one can simply configure and then generate/ write the pagetables. The page table generation supports 3 lvls and 4-16k granule. 64k is also possible but another level has to be added to the `TransLvl` enum in `src/board/boardConfig.zig` and it's not fully tested yet.
 Ideally I wanted the page tables to be generated at comptime, but in order to have multiple translation levels, the mmu needs absolute physical addresses, which cannot be known at compile time(only relative addresses). Alternative the memory can be statically reserved and written at runtime, which is not an option for the bootloader though because it is possibly located in rom, and cannot write to statically reserved memory, leaving the only option, allocating the bootloader page table on the ram (together with the stack). The kernel on the other hand could reserve at least the kernel space page tables, since they are static in size, but for consistency reasons kernel and userspace have linker-reserved memory.
 
 ### Qemu Testing

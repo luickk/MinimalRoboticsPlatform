@@ -6,8 +6,6 @@ const kprint = @import("periph").uart.UartWriter(.ttbr1).kprint;
 
 const mmu = arm.mmu;
 
-// todo => alignment
-
 pub fn UserPageAllocator(comptime mem_size: usize, comptime granule: board.boardConfig.GranuleParams) !type {
     const n_pages = try std.math.divExact(usize, mem_size, granule.page_size);
     const gran = granule;
