@@ -1,9 +1,9 @@
 const std = @import("std");
-const periph = @import("peripherals");
+const periph = @import("periph");
 const utils = @import("utils");
 const arm = @import("arm");
 
-const kprint = periph.serial.kprint;
+const kprint = periph.uart.UartWriter(.ttbr0).kprint;
 const addr = periph.rbAddr;
 const mmu = arm.mmu;
 
@@ -17,13 +17,16 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime chunk_size: usize) typ
             OutOfMem,
             AddrNotInMem,
             AddrNotValid,
+            MemBaseNotAligned,
         };
 
         mem_base: usize,
         kernel_mem: [max_chunks]bool,
         used_chunks: usize,
 
-        pub fn init(mem_base: usize) Self {
+        pub fn init(mem_base: usize) !Self {
+            if (mem_base % 8 != 0) return Error.MemBaseNotAligned;
+
             var ka = Self{
                 .kernel_mem = [_]bool{false} ** max_chunks,
                 // can currently only increase and indicates at which point findFree() is required
@@ -33,7 +36,10 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime chunk_size: usize) typ
             return ka;
         }
 
-        pub fn alloc(self: *Self, comptime T: type, n: usize) ![]T {
+        pub fn alloc(self: *Self, comptime T: type, n: usize, alignment: ?usize) ![]T {
+            var alignm: usize = @alignOf(T);
+            if (alignment) |a| alignm = a;
+
             var size = @sizeOf(T) * n;
             var req_chunks = try std.math.divCeil(usize, size, chunk_size);
             if (self.used_chunks + req_chunks > max_chunks) {
@@ -42,7 +48,7 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime chunk_size: usize) typ
                         chunk.* = true;
                     }
                     var alloc_addr = self.mem_base + (free_mem_first_chunk * chunk_size);
-                    var aligned_alloc_slice = @intToPtr([*]T, try utils.ceilRoundToMultiple(alloc_addr, @alignOf(T)));
+                    var aligned_alloc_slice = @intToPtr([*]T, try utils.ceilRoundToMultiple(alloc_addr, alignm));
                     return aligned_alloc_slice[0 .. n - 1];
                 }
                 return Error.OutOfMem;
@@ -56,7 +62,7 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime chunk_size: usize) typ
                 chunk.* = true;
             }
             var alloc_addr = self.mem_base + (first_chunk * chunk_size);
-            var aligned_alloc_slice = @intToPtr([*]T, try utils.ceilRoundToMultiple(alloc_addr, @alignOf(T)));
+            var aligned_alloc_slice = @intToPtr([*]T, try utils.ceilRoundToMultiple(alloc_addr, alignm));
             return aligned_alloc_slice[0 .. n - 1];
         }
 
@@ -87,20 +93,22 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime chunk_size: usize) typ
             const byte_slice = std.mem.sliceAsBytes(to_free);
             const size = byte_slice.len + if (Slice.sentinel != null) @sizeOf(Slice.child) else 0;
             if (size == 0) return;
+            const unsec_addr = mmu.toUnsecure(usize, @ptrToInt(byte_slice.ptr));
 
             // compensating for alignment
-            const addr_unaligned = byte_slice.ptr - ((try utils.ceilRoundToMultiple(chunk_size, @alignOf(@TypeOf(to_free)))) - chunk_size);
-
-            if (@ptrToInt(addr_unaligned) > (self.mem_base + (max_chunks * chunk_size)))
+            const addr_unaligned = unsec_addr - (try std.math.mod(usize, unsec_addr, chunk_size));
+            if (addr_unaligned > (self.mem_base + (max_chunks * chunk_size)))
                 return Error.AddrNotInMem;
 
-            var n_chunk_to_free: usize = std.math.sub(usize, @ptrToInt(addr_unaligned), self.mem_base) catch {
+            kprint("-----: {d} - {d} \n", .{ addr_unaligned, mmu.toUnsecure(usize, self.mem_base) });
+            kprint("-----: {d} \n", .{try std.math.sub(usize, addr_unaligned, mmu.toUnsecure(usize, self.mem_base))});
+            var i_chunk_to_free: usize = try std.math.divCeil(usize, std.math.sub(usize, addr_unaligned, mmu.toUnsecure(usize, self.mem_base)) catch {
                 return Error.AddrNotInMem;
-            };
+            }, chunk_size);
 
-            var first_chunk_to_free: usize = n_chunk_to_free - (try std.math.divFloor(usize, size, chunk_size));
-
-            for (self.kernel_mem[first_chunk_to_free .. first_chunk_to_free + n_chunk_to_free]) |*chunk| {
+            var n_chunks_to_free: usize = try std.math.divCeil(usize, size, chunk_size);
+            kprint("{d} {d} \n", .{ i_chunk_to_free, n_chunks_to_free });
+            for (self.kernel_mem[i_chunk_to_free .. i_chunk_to_free + n_chunks_to_free]) |*chunk| {
                 chunk.* = false;
             }
         }

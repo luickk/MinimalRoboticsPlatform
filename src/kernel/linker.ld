@@ -39,9 +39,14 @@ SECTIONS {
         _stack_top = .;
     }
     
+    # todo => remove...
     .paging_tbl (NOLOAD) : ALIGN(0x00001000)  {
-        _ttbr1 = .;
+        _deprecated_ttbr1 = .;
         . = . + {@zig};
-        _ttbr0 = .;
+        _deprecated_ttbr0 = .;
     }
+    .kernel_space (NOLOAD) : ALIGN(8)  {
+        _kernel_space_start = .;
+    }
+
 }
