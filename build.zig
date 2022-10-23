@@ -197,12 +197,9 @@ const UpdateLinkerScripts = struct {
                 });
             },
             .kernel => {
-                const ttbr1_size = (currBoard.boardConfig.calcPageTableSizeTotal(currBoard.config.mem.ram_layout.kernel_space_gran, currBoard.config.mem.ram_layout.kernel_space_size + 0x40000000 + currBoard.PeriphConfig(.ttbr0).device_base_size) catch {
-                    @panic("[panic] Page table size calc error\n");
-                }) * @sizeOf(usize);
                 try writeVarsToLinkerScript(self.allocator, "src/kernel/linker.ld", self.temp_kernel_ld, .{
                     self.board_config.mem.k_stack_size,
-                    ttbr1_size,
+                    null,
                     null,
                 });
             },

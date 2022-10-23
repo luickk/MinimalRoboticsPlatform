@@ -131,8 +131,7 @@ export fn bl_main() callconv(.Naked) noreturn {
         proc.setTTBR0(@ptrToInt(ttbr0));
         proc.setTTBR1(@ptrToInt(ttbr1));
 
-        // todo => t1sz has to be 16 -> why. should be 25 bc it's 4k?
-        proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 29, .t1sz = 16, .tg0 = 0, .tg1 = 0 }).asInt());
+        proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 25, .t1sz = 16, .tg0 = 0, .tg1 = 0 }).asInt());
 
         // attr0 is normal mem, not cachable
         proc.MairReg.setMairEl(.el1, (proc.MairReg{ .attr0 = 0xFF, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());

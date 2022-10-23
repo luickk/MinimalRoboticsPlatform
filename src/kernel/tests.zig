@@ -27,13 +27,29 @@ pub fn testUserSpaceMem(addr: usize) void {
 }
 
 pub fn testKMalloc(alloc: anytype) !void {
-    kprint("1---: {any} \n", .{alloc.kernel_mem[0..20].*});
     var alloced_obj = try alloc.alloc(usize, 10, null);
-    kprint("2---: {any} \n", .{alloc.kernel_mem[0..20].*});
+
     alloced_obj[1] = 100;
     alloced_obj[9] = 900;
+    var alloced_obj2 = try alloc.alloc(usize, 102, null);
     try alloc.free(alloced_obj);
-    kprint("3---: {any} \n", .{alloc.kernel_mem[0..20].*});
+    alloced_obj2[33] = 3;
+    try alloc.free(alloced_obj2);
 
+    var alloced_obj3 = try alloc.alloc(u8, 102400 * 1.5, null);
+    alloced_obj3[30] = 0xff;
+    var alloced_obj4 = try alloc.alloc(u8, 102400 * 1.5, null);
+    alloced_obj4[30] = 0xff;
+    var alloced_obj5 = try alloc.alloc(u8, 102400 * 1.5, null);
+    alloced_obj5[30] = 0xff;
+
+    try alloc.free(alloced_obj4);
+
+    var alloced_obj6 = try alloc.alloc(u8, 102400 * 1.5, null);
+    alloced_obj6[30] = 0xff;
+
+    try alloc.free(alloced_obj5);
+    try alloc.free(alloced_obj3);
+    try alloc.free(alloced_obj6);
     kprint("[kTEST] kernel alloc test successfull \n", .{});
 }
