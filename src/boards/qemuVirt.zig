@@ -2,7 +2,8 @@ pub const boardConfig = @import("boardConfig.zig");
 
 // todo => fix exception/ interrupt handling
 
-const vaStart: usize = 0xffff000000000000;
+// mmu starts at lvl1 for which 0xFFFFFF8000000000 is the lowest possible va
+const vaStart: usize = 0xFFFFFF8000000000;
 pub const config = boardConfig.BoardConfig{
     .board = .qemuVirt,
     .mem = boardConfig.BoardConfig.BoardMemLayout{

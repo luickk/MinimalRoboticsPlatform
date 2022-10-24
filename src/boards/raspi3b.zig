@@ -1,6 +1,7 @@
 pub const boardConfig = @import("boardConfig.zig");
 
-const vaStart: usize = 0xffff000000000000;
+// mmu starts at lvl1 for which 0xFFFFFF8000000000 is the lowest possible va
+const vaStart: usize = 0xFFFFFF8000000000;
 pub const config = boardConfig.BoardConfig{
     .board = .raspi3b,
     .mem = boardConfig.BoardConfig.BoardMemLayout{
@@ -39,11 +40,15 @@ pub const config = boardConfig.BoardConfig{
 };
 
 pub fn PeriphConfig(addr_space: boardConfig.AddrSpace) type {
-    const device_base: usize = 0x3f000000;
+    comptime var device_base_tmp: usize = 0x3f000000;
+
     if (addr_space.isKernelSpace())
-        device_base += config.mem.va_start;
+        device_base_tmp += config.mem.va_start + 0x40000000;
 
     return struct {
+        pub const device_base_size: usize = 0xA000000;
+        pub const device_base: usize = device_base_tmp;
+
         pub const Pl011 = struct {
             pub const base_address: u64 = device_base + 0x201000;
 

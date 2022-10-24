@@ -26,6 +26,14 @@ The bootloader is really custom and does a few things differently. One of the pr
 I wrote a mmu "composer" with which one can simply configure and then generate/ write the pagetables. The page table generation supports 3 lvls and 4-16k granule. 64k is also possible but another level has to be added to the `TransLvl` enum in `src/board/boardConfig.zig` and it's not fully tested yet.
 Ideally I wanted the page tables to be generated at comptime, but in order to have multiple translation levels, the mmu needs absolute physical addresses, which cannot be known at compile time(only relative addresses). Alternative the memory can be statically reserved and written at runtime, which is not an option for the bootloader though because it is possibly located in rom, and cannot write to statically reserved memory, leaving the only option, allocating the bootloader page table on the ram (together with the stack). The kernel on the other hand could reserve at least the kernel space page tables, since they are static in size, but for consistency reasons kernel and userspace have linker-reserved memory.
 
+### Addresses
+
+The Arm mmu is really powerful and complex in order to be flexible. For this project the mmu is not required to be flexible, but safe and simple. For an embedded robotics platform it's neither required to have a lot of storage, nor to control the granularity in an extremely fine scope since most of the memory is static anyways.
+
+Additionally devices as for example the Raspberry Pi forbid Lvl 0 translation at all since it's 512gb at 4k granule which is unnecessary for such a device.
+
+With those constraints in place, this project only supports translation tables beginning at lvl 1, which is also why, `vaStart` is `0xFFFFFF8000000000`, since that's the lowest possible virtual address in lvl 1.
+
 ### Qemu Testing
 
 In order to test the bootloader/ kernel, qemu offers `-kernel` but that includes a number of abstractions that are not wanted since I want to keep the development at least somewhat close to a real board. Instead, the booloader (which includes the kernel) is loaded with `-device loader`.

@@ -88,7 +88,7 @@ pub fn PageTable(mapping: Mapping) !type {
         mapping: Mapping,
         lma_offset: usize,
         max_lvl: TransLvl,
-        map_pg_dir: *volatile [req_table_total][table_size]usize,
+        page_table: *volatile [req_table_total][table_size]usize,
 
         // pub fn init(page_tables: *volatile [req_table_total * table_size]usize, lma_offset: usize) !Self {
         pub fn init(page_tables: []usize, lma_offset: usize) !Self {
@@ -100,7 +100,7 @@ pub fn PageTable(mapping: Mapping) !type {
                 .max_lvl = max_lvl_gran,
                 .mapping = mapping,
                 .lma_offset = lma_offset,
-                .map_pg_dir = @ptrCast(*volatile [req_table_total][table_size]usize, page_tables.ptr),
+                .page_table = @ptrCast(*volatile [req_table_total][table_size]usize, page_tables.ptr),
             };
         }
 
@@ -115,7 +115,7 @@ pub fn PageTable(mapping: Mapping) !type {
             var i_lvl: usize = 0;
             while (i_lvl <= @enumToInt(self.max_lvl)) : (i_lvl += 1) {
                 const curr_lvl_desc_map_size = self.calcTransLvlDescriptorSize(@intToEnum(TransLvl, i_lvl));
-                const offset_in_descriptors = try std.math.divCeil(usize, self.mapping.virt_addr_start, curr_lvl_desc_map_size);
+                const offset_in_descriptors = try std.math.divCeil(usize, self.mapping.virt_addr_start + 1, curr_lvl_desc_map_size);
                 var offset_in_tables = try std.math.divCeil(usize, offset_in_descriptors, self.table_size);
                 if (offset_in_tables >= 1) offset_in_tables -= 1;
 
@@ -140,13 +140,13 @@ pub fn PageTable(mapping: Mapping) !type {
                     while (i_descriptor < left_descriptors) : (i_descriptor += 1) {
                         // last lvl translation links to physical mem
                         if (i_lvl == @enumToInt(self.max_lvl)) {
-                            self.map_pg_dir[table_offset + i_table][i_descriptor] = phys_count;
+                            self.page_table[table_offset + i_table][i_descriptor] = phys_count;
                             phys_count += self.mapping.granule.page_size;
                         } else {
-                            var val = toUnsecure(usize, @ptrToInt(&self.map_pg_dir[table_offset + to_map_in_tables + i_descriptor])) + self.lma_offset;
+                            var val = toUnsecure(usize, @ptrToInt(&self.page_table[table_offset + to_map_in_tables + i_descriptor])) + self.lma_offset;
                             if (i_lvl == @enumToInt(TransLvl.first_lvl) or i_lvl == @enumToInt(TransLvl.second_lvl))
                                 val |= self.mapping.flags_non_last_lvl.asInt();
-                            self.map_pg_dir[table_offset + i_table][i_descriptor] = val;
+                            self.page_table[table_offset + i_table][i_descriptor] = val;
                         }
                     }
                     i_descriptor = 0;

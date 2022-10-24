@@ -1,7 +1,8 @@
 ENTRY(kernel_main)
 
 SECTIONS {
-    . = 0xffff000000000000;
+    # exaplatnation as to why this exact address can be found in the readme under mmu
+    . = 0xFFFFFF8000000000;
 
     .text : ALIGN(16) {
         *(.text.kernel_main);

@@ -171,6 +171,23 @@ pub fn ProccessorRegMap(curr_address_space: AddrSpace, curr_el: ExceptionLevels,
         pub fn invalidateCache() void {
             asm volatile ("IC IALLUIS");
         }
+        pub fn invalidateOldPageTableEntries() void {
+            var ttbr1: usize = asm ("mrs %[curr], ttbr1_el1"
+                : [curr] "=r" (-> usize),
+            );
+            var ttbr0: usize = asm ("mrs %[curr], ttbr0_el1"
+                : [curr] "=r" (-> usize),
+            );
+
+            asm volatile ("dc civac, %[addr]"
+                :
+                : [addr] "rax" (ttbr0),
+            );
+            asm volatile ("dc civac, %[addr]"
+                :
+                : [addr] "rax" (ttbr1),
+            );
+        }
 
         pub inline fn isb() void {
             asm volatile ("isb");

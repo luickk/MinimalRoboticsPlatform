@@ -131,7 +131,7 @@ export fn bl_main() callconv(.Naked) noreturn {
         proc.setTTBR0(@ptrToInt(ttbr0));
         proc.setTTBR1(@ptrToInt(ttbr1));
 
-        proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 25, .t1sz = 16, .tg0 = 0, .tg1 = 0 }).asInt());
+        proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 25, .t1sz = 25, .tg0 = 0, .tg1 = 0 }).asInt());
 
         // attr0 is normal mem, not cachable
         proc.MairReg.setMairEl(.el1, (proc.MairReg{ .attr0 = 0xFF, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
@@ -167,7 +167,7 @@ export fn bl_main() callconv(.Naked) noreturn {
     kernel_bl.len = kernel_bin_size;
 
     var kernel_target_loc: []u8 = undefined;
-    kernel_target_loc.ptr = @intToPtr([*]u8, mmu.toSecure(usize, 0));
+    kernel_target_loc.ptr = @intToPtr([*]u8, 0xFFFFFF8000000000);
     kernel_target_loc.len = kernel_bin_size;
 
     var current_el = proc.getCurrentEl();
