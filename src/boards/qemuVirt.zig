@@ -46,8 +46,9 @@ pub const config = boardConfig.BoardConfig{
 pub fn PeriphConfig(addr_space: boardConfig.AddrSpace) type {
     comptime var device_base_tmp: usize = 0x8000000;
 
-    if (addr_space.isKernelSpace())
-        device_base_tmp += config.mem.va_start + 0x40000000;
+    // todo => set 0x40000000 to variable
+    // in ttbr1 all periph base is mapped to 0x40000000
+    if (addr_space.isKernelSpace()) device_base_tmp = config.mem.va_start + 0x40000000;
 
     return struct {
         pub const device_base_size: usize = 0xA000000;

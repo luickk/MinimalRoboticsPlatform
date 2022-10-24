@@ -101,7 +101,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
             // creating virtual address space for kernel
             const periph_mapping = mmu.Mapping{
                 .mem_size = board.PeriphConfig(.ttbr0).device_base_size,
-                .pointing_addr_start = 0,
+                .pointing_addr_start = board.PeriphConfig(.ttbr0).device_base,
                 .virt_addr_start = 0x40000000,
                 .granule = board.config.mem.ram_layout.kernel_space_gran,
                 .addr_space = .ttbr1,
