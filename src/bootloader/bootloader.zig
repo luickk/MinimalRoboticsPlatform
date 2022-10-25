@@ -43,20 +43,23 @@ export fn bl_main() callconv(.Naked) noreturn {
             };
 
             // ttbr0 (rom) mapps both rom and ram
-            comptime var ttbr1_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.FourkSection, board.config.mem.ram_size) catch |e| {
+            comptime var ttbr1_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.Fourk, board.config.mem.ram_size) catch |e| {
                 kprint("[panic] Page table size calc error: {s}\n", .{@errorName(e)});
                 bl_utils.panic();
             });
+
+            comptime var no_rom_bl_bin_offset = 0;
+            if (!board.config.mem.has_rom) no_rom_bl_bin_offset = bl_bin_size;
 
             var ttbr1_arr = @intToPtr(*volatile [ttbr1_size]usize, ttbr1_addr);
             // creating virtual address space for kernel
             const kernel_mapping = mmu.Mapping{
                 .mem_size = board.config.mem.ram_size,
-                .pointing_addr_start = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0),
+                .pointing_addr_start = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset,
                 .virt_addr_start = 0,
-                .granule = Granule.FourkSection,
+                .granule = Granule.Fourk,
                 .addr_space = .ttbr1,
-                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
+                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page, .attrIndex = .mair0 },
                 .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
             };
             // mapping general kernel mem (inlcuding device base)
@@ -126,7 +129,7 @@ export fn bl_main() callconv(.Naked) noreturn {
 
             break :blk ttbr0_arr;
         };
-
+        kprint("text: {x} \n", .{@ptrToInt(ttbr1)});
         // updating page dirs
         proc.setTTBR0(@ptrToInt(ttbr0));
         proc.setTTBR1(@ptrToInt(ttbr1));
@@ -182,12 +185,11 @@ export fn bl_main() callconv(.Naked) noreturn {
         std.mem.copy(u8, kernel_target_loc, kernel_bl);
         kprint("[bootloader] kernel copied \n", .{});
     }
-    var kernel_addr = @ptrToInt(kernel_target_loc.ptr);
-    if (!board.config.mem.has_rom)
-        kernel_addr = mmu.toSecure(usize, board.config.mem.bl_load_addr.? + kernel_entry);
-    brfn();
-    kprint("[bootloader] jumping to kernel at 0x{x}\n", .{kernel_addr});
 
+    brfn();
+    var kernel_addr = @ptrToInt(kernel_target_loc.ptr);
+
+    kprint("[bootloader] jumping to kernel at 0x{x}\n", .{kernel_addr});
     proc.branchToAddr(kernel_addr);
 
     while (true) {}

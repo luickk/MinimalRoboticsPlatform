@@ -113,6 +113,7 @@ pub fn PageTable(mapping: Mapping) !type {
             var table_offset: usize = 0;
 
             var i_lvl: usize = 0;
+            var phys_count = self.mapping.pointing_addr_start | self.mapping.flags_last_lvl.asInt();
             while (i_lvl <= @enumToInt(self.max_lvl)) : (i_lvl += 1) {
                 const curr_lvl_desc_map_size = self.calcTransLvlDescriptorSize(@intToEnum(TransLvl, i_lvl));
                 const offset_in_descriptors = try std.math.divCeil(usize, self.mapping.virt_addr_start + 1, curr_lvl_desc_map_size);
@@ -125,7 +126,6 @@ pub fn PageTable(mapping: Mapping) !type {
                 to_map_in_descriptors = try std.math.divCeil(usize, self.mapping.mem_size + self.mapping.virt_addr_start, curr_lvl_desc_map_size);
                 const to_map_in_tables = try std.math.divCeil(usize, to_map_in_descriptors, self.table_size);
                 const rest_to_map_in_descriptors = try std.math.mod(usize, to_map_in_descriptors, self.table_size);
-                var phys_count = self.mapping.pointing_addr_start | self.mapping.flags_last_lvl.asInt();
 
                 var i_table: usize = offset_in_tables;
                 var i_descriptor: usize = rest_offset_in_descriptors;

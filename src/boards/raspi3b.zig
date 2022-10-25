@@ -23,12 +23,12 @@ pub const config = boardConfig.BoardConfig{
         .ram_size = 0x40000000,
 
         .ram_layout = .{
-            .kernel_space_size = 0x30000000,
+            .kernel_space_size = 0x20000000,
             // !kernel_space_phys already includes the offset to the kernel space!
             .kernel_space_phys = 0,
             .kernel_space_gran = boardConfig.Granule.FourkSection,
 
-            .user_space_size = 0x10000000,
+            .user_space_size = 0x20000000,
             // !user_space_phys already includes the offset to the user space!
             .user_space_phys = 0,
             .user_space_gran = boardConfig.Granule.Fourk,
@@ -43,10 +43,10 @@ pub fn PeriphConfig(addr_space: boardConfig.AddrSpace) type {
     comptime var device_base_tmp: usize = 0x3f000000;
 
     if (addr_space.isKernelSpace())
-        device_base_tmp += config.mem.va_start + 0x40000000;
+        device_base_tmp = config.mem.va_start + 0x40000000;
 
     return struct {
-        pub const device_base_size: usize = 0xA000000;
+        pub const device_base_size: usize = 0x400000;
         pub const device_base: usize = device_base_tmp;
 
         pub const Pl011 = struct {
