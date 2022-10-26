@@ -129,7 +129,7 @@ export fn bl_main() callconv(.Naked) noreturn {
 
             break :blk ttbr0_arr;
         };
-        kprint("text: {x} \n", .{@ptrToInt(ttbr1)});
+
         // updating page dirs
         proc.setTTBR0(@ptrToInt(ttbr0));
         proc.setTTBR1(@ptrToInt(ttbr1));

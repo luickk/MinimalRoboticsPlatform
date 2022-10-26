@@ -79,7 +79,8 @@ pub fn PageTable(mapping: Mapping) !type {
     const max_lvl_gran = mapping.granule.lvls_required;
 
     comptime var req_table_total = try board.boardConfig.calctotalTablesReq(mapping.granule, mapping.mem_size);
-
+    if (std.meta.eql(mapping.granule, board.boardConfig.Granule.FourkSection) and mapping.flags_last_lvl.descType != .block) @compileError("flags_last_lvl in mapping.flags has to be block desc_type for section");
+    if (std.meta.eql(mapping.granule, board.boardConfig.Granule.Fourk) and mapping.flags_last_lvl.descType != .page) @compileError("flags_last_lvl in mapping.flags has to be page desc_type for section");
     return struct {
         const Self = @This();
         page_size: usize,
