@@ -127,8 +127,8 @@ pub fn Gic(addr_space: AddrSpace) type {
         pub const GiccRegValues = struct {
             // gicc..
             // 8.13.14 gicc_pmr, cpu interface priority mask register
-            pub const giccPmrPrioMin = @truncate(u32, mmu.toUnsecure(usize, GiccRegMap.giccBase + 0xff)); // the lowest level mask
-            pub const giccPmrPrioHigh = @truncate(u32, mmu.toUnsecure(usize, GiccRegMap.giccBase + 0x0)); // the highest level mask
+            pub const giccPmrPrioMin = @truncate(u32, mmu.toTtbr0(usize, GiccRegMap.giccBase + 0xff)); // the lowest level mask
+            pub const giccPmrPrioHigh = @truncate(u32, mmu.toTtbr0(usize, GiccRegMap.giccBase + 0x0)); // the highest level mask
             // 8.13.7 gicc_ctlr, cpu interface control register
             pub const giccCtlrEnable = 0x1; // enable gicc
             pub const giccCtlrDisable = 0x0; // disable gicc

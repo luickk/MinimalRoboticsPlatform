@@ -63,7 +63,7 @@ export fn bl_main() callconv(.Naked) noreturn {
                 .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
             };
             // mapping general kernel mem (inlcuding device base)
-            var ttbr1_write = (mmu.PageTable(kernel_mapping) catch |e| {
+            var ttbr1_write = (mmu.PageTable(kernel_mapping, board.config.mem.ram_size) catch |e| {
                 kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 bl_utils.panic();
             }).init(ttbr1_arr, 0) catch |e| {
@@ -115,7 +115,7 @@ export fn bl_main() callconv(.Naked) noreturn {
                 .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
             };
             // identity mapped memory for bootloader and kernel contrtol handover!
-            var ttbr0_write = (mmu.PageTable(bootloader_mapping) catch |e| {
+            var ttbr0_write = (mmu.PageTable(bootloader_mapping, mapping_bl_phys_size) catch |e| {
                 kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 bl_utils.panic();
             }).init(ttbr0_arr, 0) catch |e| {
@@ -130,6 +130,7 @@ export fn bl_main() callconv(.Naked) noreturn {
             break :blk ttbr0_arr;
         };
 
+        kprint("ttbr1: {d} \n", .{@ptrToInt(ttbr1)});
         // updating page dirs
         proc.setTTBR0(@ptrToInt(ttbr0));
         proc.setTTBR1(@ptrToInt(ttbr1));

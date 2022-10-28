@@ -8,7 +8,7 @@ const tests = @import("tests.zig");
 // pre_kernel_page_table_init_kprint...
 // uses userspace addresses(ttbr0), since those are still identity mapped
 // to access peripherals
-const pkpti_kprint = periph.uart.UartWriter(.ttbr0).kprint;
+const old_mapping_kprint = periph.uart.UartWriter(.ttbr0).kprint;
 
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 const gic = arm.gicv2.Gic(.ttbr1);
@@ -34,7 +34,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
     // setting stack pointer to writable memory (ram (userspace))
     {
         const _stack_top: usize = @ptrToInt(@extern(?*u8, .{ .name = "_stack_bottom" }) orelse {
-            kprint("error reading _stack_top label\n", .{});
+            old_mapping_kprint("error reading _stack_top label\n", .{});
             unreachable;
         });
 
@@ -42,17 +42,17 @@ export fn kernel_main() callconv(.Naked) noreturn {
         proc.setSp(_stack_top);
     }
 
-    pkpti_kprint("[kernel] kernel started! \n", .{});
+    old_mapping_kprint("[kernel] kernel started! \n", .{});
 
     // kernelspace allocator test
     var kspace_alloc = blk: {
         const _kernel_space_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernel_space_start" }) orelse {
-            kprint("[panic] error reading _kernel_space_start label\n", .{});
+            old_mapping_kprint("[panic] error reading _kernel_space_start label\n", .{});
             k_utils.panic();
         });
         // kprint("kss: {x} \n", .{_kernel_space_start});
         var kernel_alloc = KernelAllocator(board.config.mem.ram_layout.kernel_space_size - kernel_bin_size, 102400).init(_kernel_space_start) catch |e| {
-            kprint("[panic] KernelAllocator init error: {s}\n", .{@errorName(e)});
+            old_mapping_kprint("[panic] KernelAllocator init error: {s}\n", .{@errorName(e)});
             k_utils.panic();
         };
         break :blk kernel_alloc;
@@ -69,15 +69,15 @@ export fn kernel_main() callconv(.Naked) noreturn {
             };
 
             // const _ttbr1: usize = @ptrToInt(@extern(?*u8, .{ .name = "_deprecated_ttbr1" }) orelse {
-            //     kprint("[panic] error reading _ttbr1 label\n", .{});
+            //     old_mapping_kprint("[panic] error reading _ttbr1 label\n", .{});
             //     unreachable;
             // });
             // const ttbr1_arr = @intToPtr(*volatile [ttbr1_size]usize, _ttbr1);
             const ttbr1_arr = @ptrCast(*volatile [ttbr1_size]usize, (kspace_alloc.alloc(usize, ttbr1_size, 4096) catch |e| {
-                kprint("[panic] Page table kalloc error: {s}\n", .{@errorName(e)});
+                old_mapping_kprint("[panic] Page table kalloc error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
             }).ptr);
-            // kprint("ttbr1 addr: {*} \n", .{&ttbr1_arr[0]});
+            // old_mapping_kprint("ttbr1 addr: {*} \n", .{&ttbr1_arr[0]});
 
             // creating virtual address space for kernel
             const kernel_space_mapping = mmu.Mapping{
@@ -86,19 +86,19 @@ export fn kernel_main() callconv(.Naked) noreturn {
                 .virt_addr_start = 0,
                 .granule = board.config.mem.ram_layout.kernel_space_gran,
                 .addr_space = .ttbr1,
-                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
+                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page, .attrIndex = .mair0 },
                 .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
             };
             // mapping general kernel mem (inlcuding device base)
-            var ttbr1_write = (mmu.PageTable(kernel_space_mapping) catch |e| {
-                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+            var ttbr1_write = (mmu.PageTable(kernel_space_mapping, 0x80000000) catch |e| {
+                old_mapping_kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
             }).init(ttbr1_arr, board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset) catch |e| {
-                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+                old_mapping_kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
             };
             ttbr1_write.mapMem() catch |e| {
-                kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
+                old_mapping_kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
             };
 
@@ -109,19 +109,19 @@ export fn kernel_main() callconv(.Naked) noreturn {
                 .virt_addr_start = 0x40000000,
                 .granule = board.config.mem.ram_layout.kernel_space_gran,
                 .addr_space = .ttbr1,
-                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
+                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page, .attrIndex = .mair0 },
                 .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
             };
             // mapping general kernel mem (inlcuding device base)
-            var ttbr1_periph_write = (mmu.PageTable(periph_mapping) catch |e| {
-                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+            var ttbr1_periph_write = (mmu.PageTable(periph_mapping, 0x80000000) catch |e| {
+                old_mapping_kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
-            }).init(ttbr1_arr, board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0)) catch |e| {
-                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+            }).init(ttbr1_arr, board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset) catch |e| {
+                old_mapping_kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
             };
             ttbr1_periph_write.mapMem() catch |e| {
-                kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
+                old_mapping_kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
             };
 
@@ -135,50 +135,50 @@ export fn kernel_main() callconv(.Naked) noreturn {
             });
 
             // const _ttbr0: usize = @ptrToInt(@extern(?*u8, .{ .name = "_deprecated_ttbr0" }) orelse {
-            //     kprint("error reading _ttbr0 label\n", .{});
+            //     old_mapping_kprint("error reading _ttbr0 label\n", .{});
             //     unreachable;
             // });
             // const ttbr0_arr = @intToPtr(*volatile [ttbr0_size]usize, _ttbr0);
             // _ = kspace_alloc;
 
             const ttbr0_arr = @ptrCast(*volatile [ttbr0_size]usize, (kspace_alloc.alloc(usize, ttbr0_size, 4096) catch |e| {
-                kprint("[panic] Page table kalloc error: {s}\n", .{@errorName(e)});
+                old_mapping_kprint("[panic] sPage table kalloc error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
             }).ptr);
-            // kprint("ttbr0 addr: {*} \n", .{&ttbr0_arr[0]});
+            // old_mapping_kprint("ttbr0 addr: {*} \n", .{&ttbr0_arr[0]});
 
             // MMU page dir config
 
             // writing to _id_mapped_dir(label) page table and creating new
             // identity mapped memory for bootloader to kernel transfer
-            const user_space_mapping = mmu.Mapping{
-                .mem_size = board.config.mem.ram_layout.user_space_size,
-                .pointing_addr_start = (board.config.mem.rom_size orelse 0) + no_rom_bl_bin_offset + board.config.mem.ram_layout.kernel_space_size + board.config.mem.ram_layout.user_space_phys,
-                .virt_addr_start = 0,
-                .granule = board.config.mem.ram_layout.user_space_gran,
-                .addr_space = .ttbr0,
-                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page, .attrIndex = .mair0 },
-                .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
-            };
-            // identity mapped memory for bootloader and kernel contrtol handover!
-            var ttbr0_write = (mmu.PageTable(user_space_mapping) catch |e| {
-                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
-                k_utils.panic();
-            }).init(ttbr0_arr, board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset) catch |e| {
-                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
-                k_utils.panic();
-            };
-            ttbr0_write.mapMem() catch |e| {
-                kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
-                k_utils.panic();
-            };
+            // const user_space_mapping = mmu.Mapping{
+            //     .mem_size = board.config.mem.ram_layout.user_space_size,
+            //     .pointing_addr_start = (board.config.mem.rom_size orelse 0) + no_rom_bl_bin_offset + board.config.mem.ram_layout.kernel_space_size + board.config.mem.ram_layout.user_space_phys,
+            //     .virt_addr_start = 0,
+            //     .granule = board.config.mem.ram_layout.user_space_gran,
+            //     .addr_space = .ttbr0,
+            //     .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page, .attrIndex = .mair0 },
+            //     .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
+            // };
+            // // identity mapped memory for bootloader and kernel contrtol handover!
+            // var ttbr0_write = (mmu.PageTable(user_space_mapping) catch |e| {
+            //     old_mapping_kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+            //     k_utils.panic();
+            // }).init(ttbr0_arr, board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset) catch |e| {
+            //     old_mapping_kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+            //     k_utils.panic();
+            // };
+            // ttbr0_write.mapMem() catch |e| {
+            //     old_mapping_kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
+            //     k_utils.panic();
+            // };
             break :blk ttbr0_arr;
         };
 
-        // kprint("[kernel] changing to kernel page tables.. \n", .{});
-        // pkpti_kprint("0: {*} 1: {*} \n", .{ ttbr0, ttbr1 });
-        // kprint("{any} \n", .{ttbr1.*});
-        // brfn();
+        // old_mapping_kprint("[kernel] changing to kernel page tables.. \n", .{});
+        old_mapping_kprint("0: {*} 1: {*} \n", .{ ttbr0, ttbr1 });
+        // old_mapping_kprint("{any} \n", .{ttbr1.*});
+        brfn();
 
         proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 25, .t1sz = 25, .tg0 = 0, .tg1 = 0 }).asInt());
         proc.MairReg.setMairEl(.el1, (proc.MairReg{ .attr0 = 0xFF, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
@@ -190,8 +190,8 @@ export fn kernel_main() callconv(.Naked) noreturn {
 
         // updating page dirs for kernel and user space
         // toUnse is bc we are in ttbr1 and can't change with page tables that are also in ttbr1
-        proc.setTTBR1(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset + mmu.toUnsecure(usize, @ptrToInt(ttbr1)));
-        // proc.setTTBR0(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + mmu.toUnsecure(usize, @ptrToInt(ttbr0)));
+        proc.setTTBR1(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset + mmu.toTtbr0(usize, @ptrToInt(ttbr1)));
+        // proc.setTTBR0(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + mmu.toTtbr0(usize, @ptrToInt(ttbr0)));
         _ = ttbr0;
 
         // proc.invalidateMmuTlbEl1();
@@ -246,12 +246,12 @@ export fn kernel_main() callconv(.Naked) noreturn {
     // }
 
     // kernel alloc test
-    {
-        tests.testKMalloc(&kspace_alloc) catch |e| {
-            kprint("[panic] KMalloc test error: {s} \n", .{@errorName(e)});
-            k_utils.panic();
-        };
-    }
+    // {
+    //     tests.testKMalloc(&kspace_alloc) catch |e| {
+    //         kprint("[panic] KMalloc test error: {s} \n", .{@errorName(e)});
+    //         k_utils.panic();
+    //     };
+    // }
 
     kprint("tests complete \n", .{});
 
@@ -265,7 +265,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
 }
 
 pub fn brfn() void {
-    kprint("[kernel] gdb breakpoint function... \n", .{});
+    old_mapping_kprint("[kernel] gdb breakpoint function... \n", .{});
 }
 
 comptime {

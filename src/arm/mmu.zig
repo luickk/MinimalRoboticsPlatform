@@ -73,18 +73,17 @@ pub const TableDescriptorAttr = packed struct {
     }
 };
 
-pub fn PageTable(mapping: Mapping) !type {
+pub fn PageTable(mapping: Mapping, total_mem_size: usize) !type {
     const page_size = mapping.granule.page_size;
     const table_size = mapping.granule.table_size;
     const max_lvl_gran = mapping.granule.lvls_required;
 
-    comptime var req_table_total = try board.boardConfig.calctotalTablesReq(mapping.granule, mapping.mem_size);
+    comptime var req_table_total = try board.boardConfig.calctotalTablesReq(mapping.granule, total_mem_size);
     if (std.meta.eql(mapping.granule, board.boardConfig.Granule.FourkSection) and mapping.flags_last_lvl.descType != .block) @compileError("flags_last_lvl in mapping.flags has to be block desc_type for section");
     if (std.meta.eql(mapping.granule, board.boardConfig.Granule.Fourk) and mapping.flags_last_lvl.descType != .page) @compileError("flags_last_lvl in mapping.flags has to be page desc_type for section");
     return struct {
         const Self = @This();
         page_size: usize,
-        table_size: usize,
 
         mapping: Mapping,
         lma_offset: usize,
@@ -96,7 +95,6 @@ pub fn PageTable(mapping: Mapping) !type {
             return Self{
                 // sizes
                 .page_size = page_size,
-                .table_size = table_size,
 
                 .max_lvl = max_lvl_gran,
                 .mapping = mapping,
@@ -106,37 +104,37 @@ pub fn PageTable(mapping: Mapping) !type {
         }
 
         fn calcTransLvlDescriptorSize(self: *Self, lvl: TransLvl) usize {
-            return std.math.pow(usize, self.table_size, @enumToInt(self.max_lvl) - @enumToInt(lvl)) * self.page_size;
+            return std.math.pow(usize, table_size, @enumToInt(self.max_lvl) - @enumToInt(lvl)) * self.page_size;
         }
 
         pub fn mapMem(self: *Self) !void {
-            var to_map_in_descriptors: usize = 0;
             var table_offset: usize = 0;
-
             var i_lvl: usize = 0;
             var phys_count = self.mapping.pointing_addr_start | self.mapping.flags_last_lvl.asInt();
+
             while (i_lvl <= @enumToInt(self.max_lvl)) : (i_lvl += 1) {
-                const curr_lvl_desc_map_size = self.calcTransLvlDescriptorSize(@intToEnum(TransLvl, i_lvl));
-                const offset_in_descriptors = try std.math.divCeil(usize, self.mapping.virt_addr_start + 1, curr_lvl_desc_map_size);
-                var offset_in_tables = try std.math.divCeil(usize, offset_in_descriptors, self.table_size);
-                if (offset_in_tables >= 1) offset_in_tables -= 1;
+                const curr_lvl_desc_size = self.calcTransLvlDescriptorSize(@intToEnum(TransLvl, i_lvl));
 
-                var rest_offset_in_descriptors = try std.math.mod(usize, offset_in_descriptors, self.table_size);
-                if (rest_offset_in_descriptors >= 1) rest_offset_in_descriptors -= 1;
+                const vas_offset_in_descriptors = try std.math.divExact(usize, self.mapping.virt_addr_start, curr_lvl_desc_size);
+                const vas_offset_in_tables = try std.math.divFloor(usize, vas_offset_in_descriptors, table_size);
+                const vas_offset_in_descriptors_rest = try std.math.mod(usize, vas_offset_in_descriptors, table_size);
 
-                to_map_in_descriptors = try std.math.divCeil(usize, self.mapping.mem_size + self.mapping.virt_addr_start, curr_lvl_desc_map_size);
-                const to_map_in_tables = try std.math.divCeil(usize, to_map_in_descriptors, self.table_size);
-                const rest_to_map_in_descriptors = try std.math.mod(usize, to_map_in_descriptors, self.table_size);
+                const to_map_in_descriptors = try std.math.divCeil(usize, self.mapping.mem_size + self.mapping.virt_addr_start, curr_lvl_desc_size);
+                const to_map_in_tables = try std.math.divCeil(usize, to_map_in_descriptors, table_size);
+                const to_map_in_descriptors_rest = try std.math.mod(usize, to_map_in_descriptors, table_size);
 
-                var i_table: usize = offset_in_tables;
-                var i_descriptor: usize = rest_offset_in_descriptors;
+                const total_mem_size_padding_in_descriptors = try std.math.divExact(usize, total_mem_size, curr_lvl_desc_size);
+                const total_mem_size_padding_in_tables = (try std.math.divFloor(usize, total_mem_size_padding_in_descriptors, table_size));
+
+                var i_table: usize = vas_offset_in_tables;
+                var i_descriptor: usize = vas_offset_in_descriptors_rest;
                 var left_descriptors: usize = 0;
                 while (i_table < to_map_in_tables) : (i_table += 1) {
-                    // if last table is reached, only write the rest_to_map_in_descriptors
-                    left_descriptors = self.table_size;
+                    // if last table is reached, only write the to_map_in_descriptors_rest
+                    left_descriptors = table_size;
                     // explicitely casting to signed bc substraction could result in negative num.
-                    if (i_table == @as(i128, to_map_in_tables - 1) and rest_to_map_in_descriptors != 0)
-                        left_descriptors = rest_to_map_in_descriptors;
+                    if (i_table == @as(i128, to_map_in_tables - 1) and to_map_in_descriptors_rest != 0)
+                        left_descriptors = to_map_in_descriptors_rest;
 
                     while (i_descriptor < left_descriptors) : (i_descriptor += 1) {
                         // last lvl translation links to physical mem
@@ -144,21 +142,21 @@ pub fn PageTable(mapping: Mapping) !type {
                             self.page_table[table_offset + i_table][i_descriptor] = phys_count;
                             phys_count += self.mapping.granule.page_size;
                         } else {
-                            var val = toUnsecure(usize, @ptrToInt(&self.page_table[table_offset + to_map_in_tables + i_descriptor])) + self.lma_offset;
+                            var link_to_table_addr = toTtbr0(usize, @ptrToInt(&self.page_table[table_offset + to_map_in_tables + i_descriptor + total_mem_size_padding_in_tables])) + self.lma_offset;
                             if (i_lvl == @enumToInt(TransLvl.first_lvl) or i_lvl == @enumToInt(TransLvl.second_lvl))
-                                val |= self.mapping.flags_non_last_lvl.asInt();
-                            self.page_table[table_offset + i_table][i_descriptor] = val;
+                                link_to_table_addr |= self.mapping.flags_non_last_lvl.asInt();
+                            self.page_table[table_offset + i_table][i_descriptor] = link_to_table_addr;
                         }
                     }
                     i_descriptor = 0;
                 }
-                table_offset += i_table;
+                table_offset += i_table + total_mem_size_padding_in_tables;
             }
         }
     };
 }
 
-pub inline fn toSecure(comptime T: type, inp: T) T {
+pub inline fn toTtbr1(comptime T: type, inp: T) T {
     switch (@typeInfo(T)) {
         .Pointer => {
             return @intToPtr(T, @ptrToInt(inp) | board.config.mem.va_start);
@@ -170,7 +168,7 @@ pub inline fn toSecure(comptime T: type, inp: T) T {
     }
 }
 
-pub inline fn toUnsecure(comptime T: type, inp: T) T {
+pub inline fn toTtbr0(comptime T: type, inp: T) T {
     switch (@typeInfo(T)) {
         .Pointer => {
             return @intToPtr(T, @ptrToInt(inp) & ~(board.config.mem.va_start));

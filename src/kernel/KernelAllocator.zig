@@ -48,7 +48,7 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime chunk_size: usize) typ
                     chunk.* = true;
                 }
                 var alloc_addr = self.mem_base + (free_mem_first_chunk * chunk_size);
-                var aligned_alloc_slice = @intToPtr([*]T, mmu.toSecure(usize, try utils.ceilRoundToMultiple(alloc_addr, alignm)));
+                var aligned_alloc_slice = @intToPtr([*]T, mmu.toTtbr1(usize, try utils.ceilRoundToMultiple(alloc_addr, alignm)));
                 return aligned_alloc_slice[0 .. n - 1];
             } else if (self.used_chunks + req_chunks > max_chunks) {
                 return Error.OutOfMem;
@@ -61,7 +61,7 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime chunk_size: usize) typ
                 chunk.* = true;
             }
             var alloc_addr = self.mem_base + (first_chunk * chunk_size);
-            var aligned_alloc_slice = @intToPtr([*]T, mmu.toSecure(usize, try utils.ceilRoundToMultiple(alloc_addr, alignm)));
+            var aligned_alloc_slice = @intToPtr([*]T, mmu.toTtbr1(usize, try utils.ceilRoundToMultiple(alloc_addr, alignm)));
             return aligned_alloc_slice[0 .. n - 1];
         }
 
@@ -93,15 +93,15 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime chunk_size: usize) typ
             const byte_slice = std.mem.sliceAsBytes(to_free);
             const size = byte_slice.len + if (Slice.sentinel != null) @sizeOf(Slice.child) else 0;
             if (size == 0) return;
-            const unsec_addr = mmu.toUnsecure(usize, @ptrToInt(byte_slice.ptr));
+            const unsec_addr = mmu.toTtbr0(usize, @ptrToInt(byte_slice.ptr));
 
             // compensating for alignment
             var addr_unaligned = unsec_addr;
-            if (addr_unaligned == mmu.toUnsecure(usize, self.mem_base)) addr_unaligned -= (try std.math.mod(usize, unsec_addr, chunk_size));
+            if (addr_unaligned == mmu.toTtbr0(usize, self.mem_base)) addr_unaligned -= (try std.math.mod(usize, unsec_addr, chunk_size));
             if (addr_unaligned > (self.mem_base + (max_chunks * chunk_size)))
                 return Error.AddrNotInMem;
 
-            var i_chunk_to_free: usize = (try std.math.divCeil(usize, std.math.sub(usize, addr_unaligned, mmu.toUnsecure(usize, self.mem_base)) catch {
+            var i_chunk_to_free: usize = (try std.math.divCeil(usize, std.math.sub(usize, addr_unaligned, mmu.toTtbr0(usize, self.mem_base)) catch {
                 return Error.AddrNotInMem;
             }, chunk_size)) - 1;
 
