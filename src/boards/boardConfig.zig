@@ -47,14 +47,14 @@ pub const BoardConfig = struct {
     };
 
     pub const BoardMemLayout = struct {
-        pub const RamMemLayout = struct {
-            kernel_space_size: usize,
-            kernel_space_phys: usize,
-            kernel_space_gran: Granule.GranuleParams,
+        pub const VaMemLayout = struct {
+            va_kernel_space_size: usize,
+            va_kernel_space_phys: usize,
+            va_kernel_space_gran: Granule.GranuleParams,
 
-            user_space_size: usize,
-            user_space_phys: usize,
-            user_space_gran: Granule.GranuleParams,
+            va_user_space_size: usize,
+            va_user_space_phys: usize,
+            va_user_space_gran: Granule.GranuleParams,
         };
 
         va_start: usize,
@@ -69,7 +69,9 @@ pub const BoardConfig = struct {
 
         ram_start_addr: usize,
         ram_size: usize,
-        ram_layout: RamMemLayout,
+        va_layout: VaMemLayout,
+        kernel_space_size: usize,
+        user_space_size: usize,
 
         storage_start_addr: usize,
         storage_size: usize,
@@ -84,7 +86,7 @@ pub const BoardConfig = struct {
             @panic("if there is no rom, a boot loader start (or entry) address is required! \n");
         if (!self.mem.has_rom and self.mem.rom_start_addr != null and self.mem.bl_load_addr != null)
             @panic("if there is rom, no boot loader start (or entry) address is supported at the moment! \n");
-        if (self.mem.ram_layout.kernel_space_size + self.mem.ram_layout.user_space_size > self.mem.ram_size)
+        if (self.mem.kernel_space_size + self.mem.user_space_size > self.mem.ram_size)
             @panic("since no swapping is supported, user/kernel space cannot exceed ram size \n");
         // optional does does not support equal operator..
         if ((!self.mem.has_rom and self.mem.rom_size == null and self.mem.rom_start_addr != null) or (self.mem.rom_size != null and self.mem.rom_start_addr == null))

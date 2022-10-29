@@ -21,18 +21,20 @@ pub const config = boardConfig.BoardConfig{
         // the raspberries addressable memory is all ram
         .ram_start_addr = 0,
         .ram_size = 0x40000000,
+        .kernel_space_size = 0x20000000,
+        .user_space_size = 0x20000000,
 
-        .ram_layout = .{
-            .kernel_space_size = 0x20000000,
+        .va_layout = .{
+            .va_kernel_space_size = 0x80000000,
             // !kernel_space_phys already includes the offset to the kernel space!
-            .kernel_space_phys = 0,
+            .va_kernel_space_phys = 0,
             // has to be Fourk since without a rom the kernel is positioned at a (addr % 2mb) != 0, so a 4kb granule is required
-            .kernel_space_gran = boardConfig.Granule.Fourk,
+            .va_kernel_space_gran = boardConfig.Granule.Fourk,
 
-            .user_space_size = 0x20000000,
+            .va_user_space_size = 0x80000000,
             // !user_space_phys already includes the offset to the user space!
-            .user_space_phys = 0,
-            .user_space_gran = boardConfig.Granule.Fourk,
+            .va_user_space_phys = 0,
+            .va_user_space_gran = boardConfig.Granule.Fourk,
         },
         .storage_start_addr = 0,
         .storage_size = 0,

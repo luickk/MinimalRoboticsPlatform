@@ -5,7 +5,7 @@ const os = @import("std").os;
 
 const Error = error{BlExceedsRomSize};
 
-const currBoard = @import("src/boards/raspi3b.zig");
+const currBoard = @import("src/boards/qemuVirt.zig");
 
 // both binaries are padded to that size and zig throws an exception if too small.
 const kernel_bin_size: usize = 0x2000000;

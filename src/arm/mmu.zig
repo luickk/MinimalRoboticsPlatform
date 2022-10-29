@@ -17,6 +17,11 @@ pub const Mapping = struct {
     flags_non_last_lvl: TableDescriptorAttr,
 };
 
+const Error = error{
+    FlagConfigErr,
+    PageTableConfigErr,
+};
+
 // In addition to an output address, a translation table descriptor that refers to a page or region of memory
 // includes fields that define properties of the target memory region. These fields can be classified as
 // address map control, access control, and region attribute fields.
@@ -73,78 +78,71 @@ pub const TableDescriptorAttr = packed struct {
     }
 };
 
-pub fn PageTable(mapping: Mapping, total_mem_size: usize) !type {
-    const page_size = mapping.granule.page_size;
-    const table_size = mapping.granule.table_size;
-    const max_lvl_gran = mapping.granule.lvls_required;
-
-    comptime var req_table_total = try board.boardConfig.calctotalTablesReq(mapping.granule, total_mem_size);
-    if (std.meta.eql(mapping.granule, board.boardConfig.Granule.FourkSection) and mapping.flags_last_lvl.descType != .block) @compileError("flags_last_lvl in mapping.flags has to be block desc_type for section");
-    if (std.meta.eql(mapping.granule, board.boardConfig.Granule.Fourk) and mapping.flags_last_lvl.descType != .page) @compileError("flags_last_lvl in mapping.flags has to be page desc_type for section");
+pub fn PageTable(total_mem_size: usize, gran: GranuleParams) !type {
+    comptime var req_table_total = try board.boardConfig.calctotalTablesReq(gran, total_mem_size);
     return struct {
         const Self = @This();
-        page_size: usize,
-
-        mapping: Mapping,
         lma_offset: usize,
-        max_lvl: TransLvl,
-        page_table: *volatile [req_table_total][table_size]usize,
+        total_size: usize,
+        page_table_gran: GranuleParams,
+        page_table: *volatile [req_table_total][gran.table_size]usize,
 
-        // pub fn init(page_tables: *volatile [req_table_total * table_size]usize, lma_offset: usize) !Self {
         pub fn init(page_tables: []usize, lma_offset: usize) !Self {
             return Self{
-                // sizes
-                .page_size = page_size,
-
-                .max_lvl = max_lvl_gran,
-                .mapping = mapping,
                 .lma_offset = lma_offset,
-                .page_table = @ptrCast(*volatile [req_table_total][table_size]usize, page_tables.ptr),
+                .total_size = total_mem_size,
+                .page_table_gran = gran,
+                .page_table = @ptrCast(*volatile [req_table_total][gran.table_size]usize, page_tables.ptr),
             };
         }
 
-        fn calcTransLvlDescriptorSize(self: *Self, lvl: TransLvl) usize {
-            return std.math.pow(usize, table_size, @enumToInt(self.max_lvl) - @enumToInt(lvl)) * self.page_size;
+        fn calcTransLvlDescriptorSize(mapping: Mapping, lvl: TransLvl) usize {
+            return std.math.pow(usize, mapping.granule.table_size, @enumToInt(mapping.granule.lvls_required) - @enumToInt(lvl)) * mapping.granule.page_size;
         }
 
-        pub fn mapMem(self: *Self) !void {
+        pub fn mapMem(self: *Self, mapping: Mapping) !void {
+            if (std.meta.eql(mapping.granule, board.boardConfig.Granule.FourkSection) and mapping.flags_last_lvl.descType != .block) return Error.FlagConfigErr;
+            if (std.meta.eql(mapping.granule, board.boardConfig.Granule.Fourk) and mapping.flags_last_lvl.descType != .page) return Error.FlagConfigErr;
+            if (!std.meta.eql(mapping.granule, gran)) return Error.PageTableConfigErr;
+
             var table_offset: usize = 0;
             var i_lvl: usize = 0;
-            var phys_count = self.mapping.pointing_addr_start | self.mapping.flags_last_lvl.asInt();
+            var phys_count = mapping.pointing_addr_start | mapping.flags_last_lvl.asInt();
 
-            while (i_lvl <= @enumToInt(self.max_lvl)) : (i_lvl += 1) {
-                const curr_lvl_desc_size = self.calcTransLvlDescriptorSize(@intToEnum(TransLvl, i_lvl));
+            while (i_lvl <= @enumToInt(mapping.granule.lvls_required)) : (i_lvl += 1) {
+                const curr_lvl_desc_size = calcTransLvlDescriptorSize(mapping, @intToEnum(TransLvl, i_lvl));
 
-                const vas_offset_in_descriptors = try std.math.divExact(usize, self.mapping.virt_addr_start, curr_lvl_desc_size);
-                const vas_offset_in_tables = try std.math.divFloor(usize, vas_offset_in_descriptors, table_size);
-                const vas_offset_in_descriptors_rest = try std.math.mod(usize, vas_offset_in_descriptors, table_size);
+                const vas_offset_in_descriptors = try std.math.divExact(usize, mapping.virt_addr_start, curr_lvl_desc_size);
+                const vas_offset_in_tables = try std.math.divFloor(usize, vas_offset_in_descriptors, mapping.granule.table_size);
+                const vas_offset_in_descriptors_rest = try std.math.mod(usize, vas_offset_in_descriptors, mapping.granule.table_size);
 
-                const to_map_in_descriptors = try std.math.divCeil(usize, self.mapping.mem_size + self.mapping.virt_addr_start, curr_lvl_desc_size);
-                const to_map_in_tables = try std.math.divCeil(usize, to_map_in_descriptors, table_size);
-                const to_map_in_descriptors_rest = try std.math.mod(usize, to_map_in_descriptors, table_size);
+                const to_map_in_descriptors = try std.math.divCeil(usize, mapping.mem_size + mapping.virt_addr_start, curr_lvl_desc_size);
+                const to_map_in_tables = try std.math.divCeil(usize, to_map_in_descriptors, mapping.granule.table_size);
+                const to_map_in_descriptors_rest = try std.math.mod(usize, to_map_in_descriptors, mapping.granule.table_size);
 
                 const total_mem_size_padding_in_descriptors = try std.math.divExact(usize, total_mem_size, curr_lvl_desc_size);
-                const total_mem_size_padding_in_tables = (try std.math.divFloor(usize, total_mem_size_padding_in_descriptors, table_size));
+                var total_mem_size_padding_in_tables = try std.math.divFloor(usize, total_mem_size_padding_in_descriptors, mapping.granule.table_size);
+                if (total_mem_size_padding_in_tables >= to_map_in_tables) total_mem_size_padding_in_tables -= to_map_in_tables;
 
                 var i_table: usize = vas_offset_in_tables;
                 var i_descriptor: usize = vas_offset_in_descriptors_rest;
                 var left_descriptors: usize = 0;
                 while (i_table < to_map_in_tables) : (i_table += 1) {
                     // if last table is reached, only write the to_map_in_descriptors_rest
-                    left_descriptors = table_size;
+                    left_descriptors = mapping.granule.table_size;
                     // explicitely casting to signed bc substraction could result in negative num.
                     if (i_table == @as(i128, to_map_in_tables - 1) and to_map_in_descriptors_rest != 0)
                         left_descriptors = to_map_in_descriptors_rest;
 
                     while (i_descriptor < left_descriptors) : (i_descriptor += 1) {
                         // last lvl translation links to physical mem
-                        if (i_lvl == @enumToInt(self.max_lvl)) {
+                        if (i_lvl == @enumToInt(mapping.granule.lvls_required)) {
                             self.page_table[table_offset + i_table][i_descriptor] = phys_count;
-                            phys_count += self.mapping.granule.page_size;
+                            phys_count += mapping.granule.page_size;
                         } else {
                             var link_to_table_addr = toTtbr0(usize, @ptrToInt(&self.page_table[table_offset + to_map_in_tables + i_descriptor + total_mem_size_padding_in_tables])) + self.lma_offset;
                             if (i_lvl == @enumToInt(TransLvl.first_lvl) or i_lvl == @enumToInt(TransLvl.second_lvl))
-                                link_to_table_addr |= self.mapping.flags_non_last_lvl.asInt();
+                                link_to_table_addr |= mapping.flags_non_last_lvl.asInt();
                             self.page_table[table_offset + i_table][i_descriptor] = link_to_table_addr;
                         }
                     }

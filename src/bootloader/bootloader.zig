@@ -28,7 +28,7 @@ const bl_bin_size = b_options.bl_bin_size;
 // note: when bl_main gets too big(instruction mem wise), the exception vector table could be pushed too far up and potentially not be read!
 export fn bl_main() callconv(.Naked) noreturn {
     // using userspace as stack, incase the bootloader is located in rom
-    var user_space_start = (board.config.mem.bl_load_addr orelse 0) + (board.config.mem.rom_size orelse 0) + board.config.mem.ram_layout.kernel_space_size;
+    var user_space_start = (board.config.mem.bl_load_addr orelse 0) + (board.config.mem.rom_size orelse 0) + board.config.mem.kernel_space_size;
     proc.setSp(user_space_start + board.config.mem.bl_stack_size);
     user_space_start = user_space_start + board.config.mem.bl_stack_size;
 
@@ -52,6 +52,16 @@ export fn bl_main() callconv(.Naked) noreturn {
             if (!board.config.mem.has_rom) no_rom_bl_bin_offset = bl_bin_size;
 
             var ttbr1_arr = @intToPtr(*volatile [ttbr1_size]usize, ttbr1_addr);
+
+            // mapping general kernel mem (inlcuding device base)
+            var ttbr1_write = (mmu.PageTable(board.config.mem.va_layout.va_kernel_space_size, Granule.Fourk) catch |e| {
+                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+                bl_utils.panic();
+            }).init(ttbr1_arr, 0) catch |e| {
+                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+                bl_utils.panic();
+            };
+
             // creating virtual address space for kernel
             const kernel_mapping = mmu.Mapping{
                 .mem_size = board.config.mem.ram_size,
@@ -62,15 +72,7 @@ export fn bl_main() callconv(.Naked) noreturn {
                 .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page, .attrIndex = .mair0 },
                 .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
             };
-            // mapping general kernel mem (inlcuding device base)
-            var ttbr1_write = (mmu.PageTable(kernel_mapping, board.config.mem.ram_size) catch |e| {
-                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
-                bl_utils.panic();
-            }).init(ttbr1_arr, 0) catch |e| {
-                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
-                bl_utils.panic();
-            };
-            ttbr1_write.mapMem() catch |e| {
+            ttbr1_write.mapMem(kernel_mapping) catch |e| {
                 kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
                 bl_utils.panic();
             };
@@ -103,6 +105,15 @@ export fn bl_main() callconv(.Naked) noreturn {
 
             // MMU page dir config
 
+            // identity mapped memory for bootloader and kernel contrtol handover!
+            var ttbr0_write = (mmu.PageTable(board.config.mem.va_layout.va_user_space_size, Granule.FourkSection) catch |e| {
+                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+                bl_utils.panic();
+            }).init(ttbr0_arr, 0) catch |e| {
+                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+                bl_utils.panic();
+            };
+
             // writing to _id_mapped_dir(label) page table and creating new
             // identity mapped memory for bootloader to kernel transfer
             const bootloader_mapping = mmu.Mapping{
@@ -114,15 +125,7 @@ export fn bl_main() callconv(.Naked) noreturn {
                 .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
                 .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
             };
-            // identity mapped memory for bootloader and kernel contrtol handover!
-            var ttbr0_write = (mmu.PageTable(bootloader_mapping, mapping_bl_phys_size) catch |e| {
-                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
-                bl_utils.panic();
-            }).init(ttbr0_arr, 0) catch |e| {
-                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
-                bl_utils.panic();
-            };
-            ttbr0_write.mapMem() catch |e| {
+            ttbr0_write.mapMem(bootloader_mapping) catch |e| {
                 kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
                 bl_utils.panic();
             };
@@ -130,7 +133,6 @@ export fn bl_main() callconv(.Naked) noreturn {
             break :blk ttbr0_arr;
         };
 
-        kprint("ttbr1: {d} \n", .{@ptrToInt(ttbr1)});
         // updating page dirs
         proc.setTTBR0(@ptrToInt(ttbr0));
         proc.setTTBR1(@ptrToInt(ttbr1));
@@ -171,7 +173,7 @@ export fn bl_main() callconv(.Naked) noreturn {
     kernel_bl.len = kernel_bin_size;
 
     var kernel_target_loc: []u8 = undefined;
-    kernel_target_loc.ptr = @intToPtr([*]u8, 0xFFFFFF8000000000);
+    kernel_target_loc.ptr = @intToPtr([*]u8, board.config.mem.va_start);
     kernel_target_loc.len = kernel_bin_size;
 
     var current_el = proc.getCurrentEl();
