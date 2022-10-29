@@ -27,31 +27,38 @@ const bl_bin_size = b_options.bl_bin_size;
 
 // note: when bl_main gets too big(instruction mem wise), the exception vector table could be pushed too far up and potentially not be read!
 export fn bl_main() callconv(.Naked) noreturn {
+
+    // setting stack pointer to writable memory (ram (userspace))
     // using userspace as stack, incase the bootloader is located in rom
-    var user_space_start = (board.config.mem.bl_load_addr orelse 0) + (board.config.mem.rom_size orelse 0) + board.config.mem.kernel_space_size;
-    proc.setSp(user_space_start + board.config.mem.bl_stack_size);
-    user_space_start = user_space_start + board.config.mem.bl_stack_size;
+    var user_space_start = blk: {
+        var user_space_start = (board.config.mem.bl_load_addr orelse 0) + (board.config.mem.rom_size orelse 0) + board.config.mem.kernel_space_size;
+        proc.setSp(user_space_start + board.config.mem.bl_stack_size);
+        // increasing user_space_start by stack_size so that later writes to the user_space don't overwrite the bl's stack
+        break :blk (user_space_start + board.config.mem.bl_stack_size);
+    };
 
     // mmu configuration...
     {
         const ttbr1 = blk: {
-            // writing page dirs to userspace in ram. Writing to userspace because it would be overwritten in kernel space, when copying
-            // the kernel. Additionally, on mmu turn on, the mmu would try to read from the page tables without mmu kernel space identifier bits on
-            var ttbr1_addr = utils.ceilRoundToMultiple(user_space_start, Granule.Fourk.page_size) catch |e| {
-                kprint("[panic] Page table _ttbr1_dir alignment calc error: {s}\n", .{@errorName(e)});
-                bl_utils.panic();
-            };
-
-            // ttbr0 (rom) mapps both rom and ram
-            comptime var ttbr1_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.Fourk, board.config.mem.ram_size) catch |e| {
-                kprint("[panic] Page table size calc error: {s}\n", .{@errorName(e)});
-                bl_utils.panic();
-            });
-
             comptime var no_rom_bl_bin_offset = 0;
             if (!board.config.mem.has_rom) no_rom_bl_bin_offset = bl_bin_size;
 
-            var ttbr1_arr = @intToPtr(*volatile [ttbr1_size]usize, ttbr1_addr);
+            var ttbr1_arr = blk_arr: {
+                // writing page dirs to userspace in ram. Writing to userspace because it would be overwritten in kernel space, when copying
+                // the kernel. Additionally, on mmu turn on, the mmu would try to read from the page tables without mmu kernel space identifier bits on
+                var ttbr1_addr = utils.ceilRoundToMultiple(user_space_start, Granule.Fourk.page_size) catch |e| {
+                    kprint("[panic] Page table _ttbr1_dir alignment calc error: {s}\n", .{@errorName(e)});
+                    bl_utils.panic();
+                };
+
+                // ttbr0 (rom) mapps both rom and ram
+                comptime var ttbr1_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.Fourk, board.config.mem.ram_size) catch |e| {
+                    kprint("[panic] Page table size calc error: {s}\n", .{@errorName(e)});
+                    bl_utils.panic();
+                });
+
+                break :blk_arr @intToPtr(*volatile [ttbr1_size]usize, ttbr1_addr);
+            };
 
             // mapping general kernel mem (inlcuding device base)
             var ttbr1_write = (mmu.PageTable(board.config.mem.va_layout.va_kernel_space_size, Granule.Fourk) catch |e| {
@@ -76,7 +83,6 @@ export fn bl_main() callconv(.Naked) noreturn {
                 kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
                 bl_utils.panic();
             };
-            // @compileLog(ttbr1_arr);
             break :blk ttbr1_arr;
         };
         const ttbr0 = blk: {
@@ -89,19 +95,21 @@ export fn bl_main() callconv(.Naked) noreturn {
                 mapping_bl_offset = board.config.mem.ram_start_addr;
             }
 
-            // ttbr0 (rom) mapps both rom and ram
-            comptime var ttbr0_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.FourkSection, mapping_bl_phys_size) catch |e| {
-                kprint("[panic] Page table size calc error: {s}\n", .{@errorName(e)});
-                bl_utils.panic();
-            });
+            var ttbr0_arr = blk_arr: {
+                // ttbr0 (rom) mapps both rom and ram
+                comptime var ttbr0_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.FourkSection, mapping_bl_phys_size) catch |e| {
+                    kprint("[panic] Page table size calc error: {s}\n", .{@errorName(e)});
+                    bl_utils.panic();
+                });
 
-            var ttbr0_addr = user_space_start + (ttbr1.*.len * @sizeOf(usize));
-            ttbr0_addr = utils.ceilRoundToMultiple(ttbr0_addr, Granule.Fourk.page_size) catch |e| {
-                kprint("[panic] Page table ttbr0 address alignment error: {s}\n", .{@errorName(e)});
-                bl_utils.panic();
+                var ttbr0_addr = user_space_start + (ttbr1.*.len * @sizeOf(usize));
+                ttbr0_addr = utils.ceilRoundToMultiple(ttbr0_addr, Granule.Fourk.page_size) catch |e| {
+                    kprint("[panic] Page table ttbr0 address alignment error: {s}\n", .{@errorName(e)});
+                    bl_utils.panic();
+                };
+
+                break :blk_arr @intToPtr(*volatile [ttbr0_size]usize, ttbr0_addr);
             };
-
-            var ttbr0_arr = @intToPtr(*volatile [ttbr0_size]usize, ttbr0_addr);
 
             // MMU page dir config
 

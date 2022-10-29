@@ -200,8 +200,8 @@ const UpdateLinkerScripts = struct {
             },
             .kernel => {
                 try writeVarsToLinkerScript(self.allocator, "src/kernel/linker.ld", self.temp_kernel_ld, .{
+                    currBoard.config.mem.va_start,
                     self.board_config.mem.k_stack_size,
-                    null,
                     null,
                 });
             },

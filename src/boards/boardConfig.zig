@@ -49,11 +49,9 @@ pub const BoardConfig = struct {
     pub const BoardMemLayout = struct {
         pub const VaMemLayout = struct {
             va_kernel_space_size: usize,
-            va_kernel_space_phys: usize,
             va_kernel_space_gran: Granule.GranuleParams,
 
             va_user_space_size: usize,
-            va_user_space_phys: usize,
             va_user_space_gran: Granule.GranuleParams,
         };
 

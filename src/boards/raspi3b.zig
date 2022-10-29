@@ -26,14 +26,10 @@ pub const config = boardConfig.BoardConfig{
 
         .va_layout = .{
             .va_kernel_space_size = 0x80000000,
-            // !kernel_space_phys already includes the offset to the kernel space!
-            .va_kernel_space_phys = 0,
             // has to be Fourk since without a rom the kernel is positioned at a (addr % 2mb) != 0, so a 4kb granule is required
             .va_kernel_space_gran = boardConfig.Granule.Fourk,
 
             .va_user_space_size = 0x80000000,
-            // !user_space_phys already includes the offset to the user space!
-            .va_user_space_phys = 0,
             .va_user_space_gran = boardConfig.Granule.Fourk,
         },
         .storage_start_addr = 0,
@@ -43,10 +39,11 @@ pub const config = boardConfig.BoardConfig{
 };
 
 pub fn PeriphConfig(addr_space: boardConfig.AddrSpace) type {
+    const new_ttbr1_device_base = 0x40000000;
     comptime var device_base_tmp: usize = 0x3f000000;
 
     if (addr_space.isKernelSpace())
-        device_base_tmp = config.mem.va_start + 0x40000000;
+        device_base_tmp = config.mem.va_start + new_ttbr1_device_base;
 
     return struct {
         pub const device_base_size: usize = 0xA000000;

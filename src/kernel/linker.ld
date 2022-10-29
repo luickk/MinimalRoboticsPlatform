@@ -2,7 +2,7 @@ ENTRY(kernel_main)
 
 SECTIONS {
     # exaplatnation as to why this exact address can be found in the readme under mmu
-    . = 0xFFFFFF8000000000;
+    . = {@zig};
 
     .text : ALIGN(16) {
         *(.text.kernel_main);
