@@ -123,12 +123,14 @@ const ConcateBinsStep = struct {
     fn doStep(step: *std.build.Step) !void {
         const self = @fieldParentPtr(ConcateBinsStep, "step", step);
         var f1_opened = try std.fs.cwd().openFile(self.f1_path, .{});
-        var in_stream_1 = std.io.bufferedReader(f1_opened.reader()).reader();
+        var in_stream_1_ = std.io.bufferedReader(f1_opened.reader());
+        var in_stream_1 = in_stream_1_.reader();
         defer f1_opened.close();
         // std.debug.print("bootloader size: {d} \n", .{(try f1_opened.stat()).size});
 
         var f2_opened = try std.fs.cwd().openFile(self.f2_path, .{});
-        var in_stream_2 = std.io.bufferedReader(f2_opened.reader()).reader();
+        var in_stream_2_ = std.io.bufferedReader(f2_opened.reader());
+        var in_stream_2 = in_stream_2_.reader();
         defer f2_opened.close();
         // std.debug.print("kernel size: {d} \n", .{(try f2_opened.stat()).size});
 

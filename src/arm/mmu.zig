@@ -78,7 +78,7 @@ pub const TableDescriptorAttr = packed struct {
     }
 };
 
-pub fn PageTable(total_mem_size: usize, gran: GranuleParams) !type {
+pub fn PageTable(comptime total_mem_size: usize, comptime gran: GranuleParams) !type {
     comptime var req_table_total = try board.boardConfig.calctotalTablesReq(gran, total_mem_size);
     return struct {
         const Self = @This();
@@ -87,12 +87,12 @@ pub fn PageTable(total_mem_size: usize, gran: GranuleParams) !type {
         page_table_gran: GranuleParams,
         page_table: *volatile [req_table_total][gran.table_size]usize,
 
-        pub fn init(page_tables: []usize, lma_offset: usize) !Self {
+        pub fn init(page_tables: *volatile [req_table_total * gran.table_size]usize, lma_offset: usize) !Self {
             return Self{
                 .lma_offset = lma_offset,
                 .total_size = total_mem_size,
                 .page_table_gran = gran,
-                .page_table = @ptrCast(*volatile [req_table_total][gran.table_size]usize, page_tables.ptr),
+                .page_table = @ptrCast(*volatile [req_table_total][gran.table_size]usize, page_tables),
             };
         }
 

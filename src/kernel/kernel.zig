@@ -20,7 +20,7 @@ const intHandle = @import("gicHandle.zig");
 const b_options = @import("build_options");
 const board = @import("board");
 
-const proc = arm.processor.ProccessorRegMap(.ttbr1, .el1, false);
+const proc = arm.processor.ProccessorRegMap(.el1);
 const mmu = arm.mmu;
 
 // raspberry
@@ -175,7 +175,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
         // toUnse is bc we are in ttbr1 and can't change with page tables that are also in ttbr1
         proc.setTTBR1(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset + mmu.toTtbr0(usize, @ptrToInt(ttbr1)));
         // proc.setTTBR0(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + mmu.toTtbr0(usize, @ptrToInt(ttbr0)));
-        _ = ttbr0;
+        // _ = ttbr0;
 
         // proc.invalidateMmuTlbEl1();
         proc.invalidateCache();

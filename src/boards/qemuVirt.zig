@@ -40,17 +40,17 @@ pub const config = boardConfig.BoardConfig{
     .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "virt", "-m", "10G", "-cpu", "cortex-a53", "-device", "loader,file=zig-out/bin/mergedKernel,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
 };
 
-pub fn PeriphConfig(addr_space: boardConfig.AddrSpace) type {
-    const new_ttbr1_device_base = 0x40000000;
+pub fn PeriphConfig(comptime addr_space: boardConfig.AddrSpace) type {
+    const new_ttbr1_device_base_ = 0x40000000;
     comptime var device_base_tmp: usize = 0x8000000;
 
     // in ttbr1 all periph base is mapped to 0x40000000
-    if (addr_space.isKernelSpace()) device_base_tmp = config.mem.va_start + new_ttbr1_device_base;
+    if (addr_space.isKernelSpace()) device_base_tmp = config.mem.va_start + new_ttbr1_device_base_;
 
     return struct {
         pub const device_base_size: usize = 0xA000000;
         pub const device_base: usize = device_base_tmp;
-        pub const new_ttbr1_device_base = new_ttbr1_device_base;
+        pub const new_ttbr1_device_base = new_ttbr1_device_base_;
 
         pub const Pl011 = struct {
             pub const base_address: u64 = device_base + 0x1000000;

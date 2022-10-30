@@ -38,7 +38,7 @@ pub const config = boardConfig.BoardConfig{
     .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "raspi3b", "-device", "loader,addr=0x80000,file=zig-out/bin/mergedKernel,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
 };
 
-pub fn PeriphConfig(addr_space: boardConfig.AddrSpace) type {
+pub fn PeriphConfig(comptime addr_space: boardConfig.AddrSpace) type {
     const new_ttbr1_device_base = 0x40000000;
     comptime var device_base_tmp: usize = 0x3f000000;
 

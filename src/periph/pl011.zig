@@ -2,7 +2,7 @@ const std = @import("std");
 const board = @import("board");
 const AddrSpace = board.boardConfig.AddrSpace;
 
-pub fn Pl011(addr_space: AddrSpace) type {
+pub fn Pl011(comptime addr_space: AddrSpace) type {
     const pl011Cfg = board.PeriphConfig(addr_space).Pl011;
     return struct {
         const RegMap = struct {

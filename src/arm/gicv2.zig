@@ -24,7 +24,7 @@ pub const ExceptionFrame = struct {
     lr: u64,
 };
 
-pub fn Gic(addr_space: AddrSpace) type {
+pub fn Gic(comptime addr_space: AddrSpace) type {
     const gicCfg = @import("board").PeriphConfig(addr_space).GicV2;
     return struct {
         // initialize gic controller

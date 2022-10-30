@@ -6,7 +6,7 @@ const arm = @import("arm");
 const periph = @import("periph");
 const board = @import("board");
 const b_options = @import("build_options");
-const proc = arm.processor.ProccessorRegMap(.ttbr0, .el1, false);
+const proc = arm.processor.ProccessorRegMap(.el1);
 const mmu = arm.mmu;
 // .ttbr0 arg sets the addresses value to either or user_, kernel_space
 const PeriphConfig = board.PeriphConfig(.ttbr0);
@@ -61,7 +61,7 @@ export fn bl_main() callconv(.Naked) noreturn {
             };
 
             // mapping general kernel mem (inlcuding device base)
-            var ttbr1_write = (mmu.PageTable(board.config.mem.va_layout.va_kernel_space_size, Granule.Fourk) catch |e| {
+            var ttbr1_write = (mmu.PageTable(board.config.mem.ram_size, Granule.Fourk) catch |e| {
                 kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 bl_utils.panic();
             }).init(ttbr1_arr, 0) catch |e| {
@@ -114,7 +114,7 @@ export fn bl_main() callconv(.Naked) noreturn {
             // MMU page dir config
 
             // identity mapped memory for bootloader and kernel contrtol handover!
-            var ttbr0_write = (mmu.PageTable(board.config.mem.va_layout.va_user_space_size, Granule.FourkSection) catch |e| {
+            var ttbr0_write = (mmu.PageTable(mapping_bl_phys_size, Granule.FourkSection) catch |e| {
                 kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 bl_utils.panic();
             }).init(ttbr0_arr, 0) catch |e| {

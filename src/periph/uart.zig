@@ -2,7 +2,7 @@ const std = @import("std");
 const board = @import("board");
 const AddrSpace = board.boardConfig.AddrSpace;
 
-pub fn UartWriter(addr_space: AddrSpace) type {
+pub fn UartWriter(comptime addr_space: AddrSpace) type {
     const pl011 = @import("pl011.zig").Pl011(addr_space);
     return struct {
         const Self = @This();

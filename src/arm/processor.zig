@@ -4,9 +4,7 @@ const AddrSpace = board.boardConfig.AddrSpace;
 
 pub const ExceptionLevels = enum { el0, el1, el2, el3 };
 
-pub fn ProccessorRegMap(curr_address_space: AddrSpace, curr_el: ExceptionLevels, curr_secure: bool) type {
-    _ = curr_address_space;
-    _ = curr_secure;
+pub fn ProccessorRegMap(comptime curr_el: ExceptionLevels) type {
     return struct {
         pub const TcrReg = packed struct {
             t0sz: u6 = 0,
