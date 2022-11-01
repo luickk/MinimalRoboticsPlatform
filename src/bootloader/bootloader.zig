@@ -34,7 +34,8 @@ export fn bl_main() callconv(.Naked) noreturn {
         var user_space_start = (board.config.mem.bl_load_addr orelse 0) + (board.config.mem.rom_size orelse 0) + board.config.mem.kernel_space_size;
         proc.setSp(user_space_start + board.config.mem.bl_stack_size);
         // increasing user_space_start by stack_size so that later writes to the user_space don't overwrite the bl's stack
-        break :blk (user_space_start + board.config.mem.bl_stack_size);
+        user_space_start += board.config.mem.bl_stack_size;
+        break :blk user_space_start;
     };
 
     // mmu configuration...
@@ -76,15 +77,18 @@ export fn bl_main() callconv(.Naked) noreturn {
                 .virt_addr_start = 0,
                 .granule = Granule.Fourk,
                 .addr_space = .ttbr1,
-                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page, .attrIndex = .mair0 },
-                .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
+                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .attrIndex = .mair0 },
+                .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write },
             };
             ttbr1_write.mapMem(kernel_mapping) catch |e| {
                 kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
                 bl_utils.panic();
             };
+            kprint("{d} \n", .{board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset});
+            kprint("{d} \n", .{board.config.mem.ram_start_addr + no_rom_bl_bin_offset});
             break :blk ttbr1_arr;
         };
+
         const ttbr0 = blk: {
             // in case there is no rom(rom_size is equal to zero) and the kernel(and bl) are directly loaded to memory by some rom bootloader
             // the ttbr0 memory is also identity mapped to the ram
@@ -102,7 +106,8 @@ export fn bl_main() callconv(.Naked) noreturn {
                     bl_utils.panic();
                 });
 
-                var ttbr0_addr = user_space_start + (ttbr1.*.len * @sizeOf(usize));
+                var ttbr0_addr = user_space_start + (ttbr1.len * @sizeOf(usize));
+
                 ttbr0_addr = utils.ceilRoundToMultiple(ttbr0_addr, Granule.Fourk.page_size) catch |e| {
                     kprint("[panic] Page table ttbr0 address alignment error: {s}\n", .{@errorName(e)});
                     bl_utils.panic();
@@ -110,7 +115,6 @@ export fn bl_main() callconv(.Naked) noreturn {
 
                 break :blk_arr @intToPtr(*volatile [ttbr0_size]usize, ttbr0_addr);
             };
-
             // MMU page dir config
 
             // identity mapped memory for bootloader and kernel contrtol handover!
@@ -126,12 +130,12 @@ export fn bl_main() callconv(.Naked) noreturn {
             // identity mapped memory for bootloader to kernel transfer
             const bootloader_mapping = mmu.Mapping{
                 .mem_size = mapping_bl_phys_size,
-                .pointing_addr_start = mapping_bl_offset,
+                .pointing_addr_start = 0,
                 .virt_addr_start = 0,
                 .granule = Granule.FourkSection,
                 .addr_space = .ttbr0,
-                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .block, .attrIndex = .mair0 },
-                .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
+                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .attrIndex = .mair0 },
+                .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write },
             };
             ttbr0_write.mapMem(bootloader_mapping) catch |e| {
                 kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
@@ -140,6 +144,9 @@ export fn bl_main() callconv(.Naked) noreturn {
 
             break :blk ttbr0_arr;
         };
+
+        kprint("ttbr1: 0x{x} \n", .{@ptrToInt(ttbr1)});
+        kprint("ttbr0: 0x{x} \n", .{@ptrToInt(ttbr0)});
 
         // updating page dirs
         proc.setTTBR0(@ptrToInt(ttbr0));
@@ -160,6 +167,7 @@ export fn bl_main() callconv(.Naked) noreturn {
         proc.nop();
         proc.nop();
     }
+
     if (board.config.board == .raspi3b)
         bcm2835IntController.init();
 
@@ -197,16 +205,12 @@ export fn bl_main() callconv(.Naked) noreturn {
         kprint("[bootloader] kernel copied \n", .{});
     }
 
-    brfn();
     var kernel_addr = @ptrToInt(kernel_target_loc.ptr);
 
     kprint("[bootloader] jumping to kernel at 0x{x}\n", .{kernel_addr});
     proc.branchToAddr(kernel_addr);
 
     while (true) {}
-}
-pub fn brfn() void {
-    kprint("[kernel] gdb breakpoint function... \n", .{});
 }
 
 comptime {

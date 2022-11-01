@@ -1,6 +1,6 @@
 const AddrSpace = @import("board").boardConfig.AddrSpace;
 
-pub fn InterruptController(addr_space: AddrSpace) type {
+pub fn InterruptController(comptime addr_space: AddrSpace) type {
     const base_address = @import("board").PeriphConfig(addr_space).InterruptController.base_address;
     return struct {
         const Self = @This();

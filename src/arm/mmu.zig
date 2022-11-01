@@ -100,9 +100,13 @@ pub fn PageTable(comptime total_mem_size: usize, comptime gran: GranuleParams) !
             return std.math.pow(usize, mapping.granule.table_size, @enumToInt(mapping.granule.lvls_required) - @enumToInt(lvl)) * mapping.granule.page_size;
         }
 
-        pub fn mapMem(self: *Self, mapping: Mapping) !void {
-            if (std.meta.eql(mapping.granule, board.boardConfig.Granule.FourkSection) and mapping.flags_last_lvl.descType != .block) return Error.FlagConfigErr;
-            if (std.meta.eql(mapping.granule, board.boardConfig.Granule.Fourk) and mapping.flags_last_lvl.descType != .page) return Error.FlagConfigErr;
+        pub fn mapMem(self: *Self, mapping_without_adjusted_flags: Mapping) !void {
+            var mapping = mapping_without_adjusted_flags;
+            // todo => implement a proper flag configuration
+            if (std.meta.eql(mapping.granule, board.boardConfig.Granule.FourkSection)) mapping.flags_last_lvl.descType = .block;
+            if (std.meta.eql(mapping.granule, board.boardConfig.Granule.Fourk)) mapping.flags_last_lvl.descType = .page;
+            mapping.flags_non_last_lvl.descType = .page;
+
             if (!std.meta.eql(mapping.granule, gran)) return Error.PageTableConfigErr;
 
             var table_offset: usize = 0;

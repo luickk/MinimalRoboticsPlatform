@@ -5,7 +5,7 @@ const os = @import("std").os;
 
 const Error = error{BlExceedsRomSize};
 
-const currBoard = @import("src/boards/qemuVirt.zig");
+const currBoard = @import("src/boards/raspi3b.zig");
 
 // both binaries are padded to that size and zig throws an exception if too small.
 const kernel_bin_size: usize = 0x2000000;
@@ -13,6 +13,7 @@ const bl_bin_size: usize = 0x2000000;
 
 pub fn build(b: *std.build.Builder) !void {
     currBoard.config.checkConfig();
+    const build_mode = std.builtin.Mode.ReleaseFast;
 
     var build_options = b.addOptions();
     build_options.addOption(usize, "kernel_bin_size", kernel_bin_size);
@@ -41,7 +42,7 @@ pub fn build(b: *std.build.Builder) !void {
     bl_exe.addPackage(periph);
     bl_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
     bl_exe.addOptions("build_options", build_options);
-    bl_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
+    bl_exe.setBuildMode(build_mode);
     const temp_bl_ld = "zig-cache/tmp/tempBlLinker.ld";
     bl_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_bl_ld });
     bl_exe.addObjectFile("src/bootloader/bootloader.zig");
@@ -55,13 +56,14 @@ pub fn build(b: *std.build.Builder) !void {
     // kernel
     const kernel_exe = b.addExecutable("kernel", null);
     kernel_exe.code_model = .large;
+    kernel_exe.strip = false;
     kernel_exe.addPackage(arm);
     kernel_exe.addPackage(utils);
     kernel_exe.addPackage(board);
     kernel_exe.addPackage(periph);
     kernel_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
     kernel_exe.addOptions("build_options", build_options);
-    kernel_exe.setBuildMode(std.builtin.Mode.ReleaseFast);
+    kernel_exe.setBuildMode(build_mode);
     const temp_kernel_ld = "zig-cache/tmp/tempKernelLinker.ld";
     kernel_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_kernel_ld });
     kernel_exe.addObjectFile("src/kernel/kernel.zig");
@@ -191,12 +193,9 @@ const UpdateLinkerScripts = struct {
                 if (!currBoard.config.mem.has_rom)
                     bl_pt_size_ttbr0 = currBoard.config.mem.ram_size;
 
-                const ttbr0_size = (currBoard.boardConfig.calcPageTableSizeTotal(currBoard.boardConfig.Granule.FourkSection, bl_pt_size_ttbr0) catch {
-                    @panic("[panic] Page table size calc error\n");
-                }) * @sizeOf(usize);
                 try writeVarsToLinkerScript(self.allocator, "src/bootloader/linker.ld", self.temp_bl_ld, .{
                     bl_start_address,
-                    ttbr0_size,
+                    null,
                     null,
                 });
             },

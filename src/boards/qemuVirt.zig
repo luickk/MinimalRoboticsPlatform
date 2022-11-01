@@ -28,7 +28,7 @@ pub const config = boardConfig.BoardConfig{
 
         .va_layout = .{
             .va_kernel_space_size = 0x80000000,
-            .va_kernel_space_gran = boardConfig.Granule.Fourk,
+            .va_kernel_space_gran = boardConfig.Granule.FourkSection,
 
             .va_user_space_size = 0x80000000,
             .va_user_space_gran = boardConfig.Granule.Fourk,

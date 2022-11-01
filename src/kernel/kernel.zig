@@ -31,21 +31,21 @@ const kernel_bin_size = b_options.kernel_bin_size;
 const bl_bin_size = b_options.bl_bin_size;
 
 export fn kernel_main() callconv(.Naked) noreturn {
-    // setting stack pointer back to kernel stack linker region
-    {
-        const _stack_top: usize = @ptrToInt(@extern(?*u8, .{ .name = "_stack_bottom" }) orelse {
-            old_mapping_kprint("error reading _stack_top label\n", .{});
-            unreachable;
-        });
+    old_mapping_kprint("[kernel] kernel started! \n", .{});
 
-        // setting stack back to linker section
-        proc.setSp(_stack_top);
-    }
+    // setting stack pointer back to kernel stack linker region
+
+    const _stack_bottom: usize = @ptrToInt(@extern(?*u8, .{ .name = "_stack_bottom" }) orelse {
+        old_mapping_kprint("error reading _stack_bottom label\n", .{});
+        k_utils.panic();
+    });
+
+    // setting stack back to linker section
+    proc.setSp(_stack_bottom);
+
     // if there is rom, the bootloader binary has to be taken into account for the offset
     comptime var no_rom_bl_bin_offset = 0;
     if (!board.config.mem.has_rom) no_rom_bl_bin_offset = bl_bin_size;
-
-    old_mapping_kprint("[kernel] kernel started! \n", .{});
 
     // kernelspace allocator test
     var kspace_alloc = blk: {
@@ -90,8 +90,8 @@ export fn kernel_main() callconv(.Naked) noreturn {
                 .virt_addr_start = 0,
                 .granule = board.config.mem.va_layout.va_kernel_space_gran,
                 .addr_space = .ttbr1,
-                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page, .attrIndex = .mair0 },
-                .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
+                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .attrIndex = .mair0 },
+                .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write },
             };
             ttbr1_write.mapMem(kernel_space_mapping) catch |e| {
                 old_mapping_kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
@@ -105,8 +105,8 @@ export fn kernel_main() callconv(.Naked) noreturn {
                 .virt_addr_start = board.PeriphConfig(.ttbr0).new_ttbr1_device_base,
                 .granule = board.config.mem.va_layout.va_kernel_space_gran,
                 .addr_space = .ttbr1,
-                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page, .attrIndex = .mair0 },
-                .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
+                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .attrIndex = .mair0 },
+                .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write },
             };
 
             ttbr1_write.mapMem(periph_mapping) catch |e| {
@@ -148,8 +148,8 @@ export fn kernel_main() callconv(.Naked) noreturn {
             //     .virt_addr_start = 0,
             //     .granule = board.config.mem.va_layout.va_user_space_gran,
             //     .addr_space = .ttbr0,
-            //     .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page, .attrIndex = .mair0 },
-            //     .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .descType = .page },
+            //     .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .attrIndex = .mair0 },
+            //     .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write },
             // };
             // ttbr0_write.mapMem(user_space_mapping) catch |e| {
             //     old_mapping_kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
@@ -161,7 +161,6 @@ export fn kernel_main() callconv(.Naked) noreturn {
         // old_mapping_kprint("[kernel] changing to kernel page tables.. \n", .{});
         old_mapping_kprint("0: {*} 1: {*} \n", .{ ttbr0, ttbr1 });
         // old_mapping_kprint("{any} \n", .{ttbr1.*});
-        brfn();
 
         proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 25, .t1sz = 25, .tg0 = 0, .tg1 = 0 }).asInt());
         proc.MairReg.setMairEl(.el1, (proc.MairReg{ .attr0 = 0xFF, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
@@ -245,10 +244,6 @@ export fn kernel_main() callconv(.Naked) noreturn {
     //     tests.testUserSpaceMem(100);
 
     while (true) {}
-}
-
-pub fn brfn() void {
-    old_mapping_kprint("[kernel] gdb breakpoint function... \n", .{});
 }
 
 comptime {
