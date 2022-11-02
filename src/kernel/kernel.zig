@@ -30,18 +30,18 @@ const timer = arm.timer;
 const kernel_bin_size = b_options.kernel_bin_size;
 const bl_bin_size = b_options.bl_bin_size;
 
-export fn kernel_main() callconv(.Naked) noreturn {
-    old_mapping_kprint("[kernel] kernel started! \n", .{});
-
+export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noreturn {
+    brfn();
     // setting stack pointer back to kernel stack linker region
-
-    const _stack_bottom: usize = @ptrToInt(@extern(?*u8, .{ .name = "_stack_bottom" }) orelse {
-        old_mapping_kprint("error reading _stack_bottom label\n", .{});
+    const _stack_top: usize = @ptrToInt(@extern(?*u8, .{ .name = "_stack_top" }) orelse {
+        old_mapping_kprint("error reading _stack_top label\n", .{});
         k_utils.panic();
     });
-
     // setting stack back to linker section
-    proc.setSp(_stack_bottom);
+    proc.setSp(_stack_top);
+
+    const s = 100;
+    old_mapping_kprint("0x{x} \n", .{s});
 
     // if there is rom, the bootloader binary has to be taken into account for the offset
     comptime var no_rom_bl_bin_offset = 0;
@@ -53,7 +53,10 @@ export fn kernel_main() callconv(.Naked) noreturn {
             old_mapping_kprint("[panic] error reading _kernel_space_start label\n", .{});
             k_utils.panic();
         });
-        // kprint("kss: {x} \n", .{_kernel_space_start});
+
+        old_mapping_kprint("peter \n", .{});
+        old_mapping_kprint("kss: {x} \n", .{_kernel_space_start});
+        old_mapping_kprint("..s: {x} \n", .{board.config.mem.kernel_space_size - kernel_bin_size});
         var kernel_alloc = KernelAllocator(board.config.mem.kernel_space_size - kernel_bin_size, 102400).init(_kernel_space_start) catch |e| {
             old_mapping_kprint("[panic] KernelAllocator init error: {s}\n", .{@errorName(e)});
             k_utils.panic();
@@ -74,6 +77,9 @@ export fn kernel_main() callconv(.Naked) noreturn {
                 }).ptr);
             };
 
+            proc.isb();
+            proc.isb();
+            proc.isb();
             // mapping general kernel mem (inlcuding device base)
             var ttbr1_write = (mmu.PageTable(board.config.mem.va_layout.va_kernel_space_size, board.config.mem.va_layout.va_kernel_space_gran) catch |e| {
                 old_mapping_kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
@@ -169,14 +175,13 @@ export fn kernel_main() callconv(.Naked) noreturn {
         proc.isb();
 
         proc.invalidateOldPageTableEntries();
+        proc.invalidateMmuTlbEl1();
 
         // updating page dirs for kernel and user space
         // toUnse is bc we are in ttbr1 and can't change with page tables that are also in ttbr1
         proc.setTTBR1(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset + mmu.toTtbr0(usize, @ptrToInt(ttbr1)));
         // proc.setTTBR0(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + mmu.toTtbr0(usize, @ptrToInt(ttbr0)));
         // _ = ttbr0;
-
-        // proc.invalidateMmuTlbEl1();
         proc.invalidateCache();
 
         proc.dsb();
@@ -184,7 +189,7 @@ export fn kernel_main() callconv(.Naked) noreturn {
         proc.nop();
         proc.nop();
     }
-    kprint("[kernel] page tables updated! \n", .{});
+    old_mapping_kprint("[kernel] page tables updated! \n", .{});
 
     var current_el = proc.getCurrentEl();
     if (current_el != 1) {
@@ -244,6 +249,10 @@ export fn kernel_main() callconv(.Naked) noreturn {
     //     tests.testUserSpaceMem(100);
 
     while (true) {}
+}
+
+pub fn brfn() void {
+    old_mapping_kprint("[kernel] gdb breakpoint function... \n", .{});
 }
 
 comptime {

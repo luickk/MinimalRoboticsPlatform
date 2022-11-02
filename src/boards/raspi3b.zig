@@ -7,8 +7,8 @@ pub const config = boardConfig.BoardConfig{
     .mem = boardConfig.BoardConfig.BoardMemLayout{
         .va_start = vaStart,
 
-        .bl_stack_size = 0x1000,
-        .k_stack_size = 0x1000,
+        .bl_stack_size = 0x10000,
+        .k_stack_size = 0x10000,
 
         .has_rom = false,
         // the kernel is loaded by into 0x8000 ram by the gpu, so no relocation (or rom) required

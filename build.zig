@@ -78,10 +78,10 @@ pub fn build(b: *std.build.Builder) !void {
     run_step_serial.dependOn(&update_linker_scripts_bl.step);
     // compiling elfs as well, but only for gdb debugging
     run_step_serial.dependOn(&bl_exe.install_step.?.step);
-    run_step_serial.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = bl_bin_size }).step);
+    run_step_serial.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = .bin, .pad_to_size = bl_bin_size }).step);
     run_step_serial.dependOn(&update_linker_scripts_k.step);
     run_step_serial.dependOn(&kernel_exe.install_step.?.step);
-    run_step_serial.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = kernel_bin_size }).step);
+    run_step_serial.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = .bin, .pad_to_size = kernel_bin_size }).step);
     run_step_serial.dependOn(&concat_step.step);
     run_step_serial.dependOn(&b.addSystemCommand(currBoard.config.qemu_launch_command).step);
 
@@ -92,10 +92,10 @@ pub fn build(b: *std.build.Builder) !void {
     run_step_serial_gdb.dependOn(&update_linker_scripts_bl.step);
     // compiling elfs as well, but only for gdb debugging
     run_step_serial_gdb.dependOn(&bl_exe.install_step.?.step);
-    run_step_serial_gdb.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = bl_bin_size }).step);
+    run_step_serial_gdb.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = .bin, .pad_to_size = bl_bin_size }).step);
     run_step_serial_gdb.dependOn(&update_linker_scripts_k.step);
     run_step_serial_gdb.dependOn(&kernel_exe.install_step.?.step);
-    run_step_serial_gdb.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = std.build.InstallRawStep.RawFormat.bin, .pad_to_size = kernel_bin_size }).step);
+    run_step_serial_gdb.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = .bin, .pad_to_size = kernel_bin_size }).step);
     run_step_serial_gdb.dependOn(&concat_step.step);
     run_step_serial_gdb.dependOn(&gdb_qemu.step);
 

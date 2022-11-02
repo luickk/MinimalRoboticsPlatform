@@ -29,7 +29,6 @@ const bl_bin_size = b_options.bl_bin_size;
 
 // note: when bl_main gets too big(instruction mem wise), the exception vector table could be pushed too far up and potentially not be read!
 export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
-
     // setting stack pointer to writable memory (ram (userspace))
     // using userspace as stack, incase the bootloader is located in rom
     var user_space_start = blk: {
@@ -86,8 +85,6 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
                 kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
                 bl_utils.panic();
             };
-            kprint("{d} \n", .{board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset});
-            kprint("{d} \n", .{board.config.mem.ram_start_addr + no_rom_bl_bin_offset});
             break :blk ttbr1_arr;
         };
 
@@ -147,8 +144,8 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
             break :blk ttbr0_arr;
         };
 
-        kprint("ttbr1: 0x{x} \n", .{@ptrToInt(ttbr1)});
-        kprint("ttbr0: 0x{x} \n", .{@ptrToInt(ttbr0)});
+        // kprint("ttbr1: 0x{x} \n", .{@ptrToInt(ttbr1)});
+        // kprint("ttbr0: 0x{x} \n", .{@ptrToInt(ttbr0)});
 
         // updating page dirs
         proc.setTTBR0(@ptrToInt(ttbr0));
