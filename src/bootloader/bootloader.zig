@@ -25,8 +25,10 @@ const TransLvl = board.boardConfig.TransLvl;
 const kernel_bin_size = b_options.kernel_bin_size;
 const bl_bin_size = b_options.bl_bin_size;
 
+// todo => single link section! with .only_section in build.zig to not have extra padding in bootloader binary...
+
 // note: when bl_main gets too big(instruction mem wise), the exception vector table could be pushed too far up and potentially not be read!
-export fn bl_main() callconv(.Naked) noreturn {
+export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
 
     // setting stack pointer to writable memory (ram (userspace))
     // using userspace as stack, incase the bootloader is located in rom
