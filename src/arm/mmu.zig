@@ -115,6 +115,12 @@ pub fn PageTable(comptime total_mem_size: usize, comptime gran: GranuleParams) !
 
             while (i_lvl <= @enumToInt(mapping.granule.lvls_required)) : (i_lvl += 1) {
                 const curr_lvl_desc_size = calcTransLvlDescriptorSize(mapping, @intToEnum(TransLvl, i_lvl));
+                var next_lvl_desc_size = @as(usize, 0);
+                var vas_next_offset_in_tables = @as(usize, 0);
+                if (i_lvl != @enumToInt(mapping.granule.lvls_required)) {
+                    next_lvl_desc_size = calcTransLvlDescriptorSize(mapping, @intToEnum(TransLvl, i_lvl + 1));
+                    vas_next_offset_in_tables = try std.math.divFloor(usize, try std.math.divExact(usize, mapping.virt_addr_start, next_lvl_desc_size), mapping.granule.table_size);
+                }
 
                 const vas_offset_in_descriptors = try std.math.divExact(usize, mapping.virt_addr_start, curr_lvl_desc_size);
                 const vas_offset_in_tables = try std.math.divFloor(usize, vas_offset_in_descriptors, mapping.granule.table_size);
@@ -144,7 +150,7 @@ pub fn PageTable(comptime total_mem_size: usize, comptime gran: GranuleParams) !
                             self.page_table[table_offset + i_table][i_descriptor] = phys_count;
                             phys_count += mapping.granule.page_size;
                         } else {
-                            var link_to_table_addr = toTtbr0(usize, @ptrToInt(&self.page_table[table_offset + to_map_in_tables + i_descriptor + total_mem_size_padding_in_tables])) + self.lma_offset;
+                            var link_to_table_addr = toTtbr0(usize, @ptrToInt(&self.page_table[table_offset + to_map_in_tables + i_descriptor + vas_next_offset_in_tables + total_mem_size_padding_in_tables])) + self.lma_offset;
                             if (i_lvl == @enumToInt(TransLvl.first_lvl) or i_lvl == @enumToInt(TransLvl.second_lvl))
                                 link_to_table_addr |= mapping.flags_non_last_lvl.asInt();
                             self.page_table[table_offset + i_table][i_descriptor] = link_to_table_addr;

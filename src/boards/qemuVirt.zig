@@ -7,8 +7,8 @@ pub const config = boardConfig.BoardConfig{
     .mem = boardConfig.BoardConfig.BoardMemLayout{
         .va_start = vaStart,
 
-        .bl_stack_size = 0x1000,
-        .k_stack_size = 0x1000,
+        .bl_stack_size = 0x10000,
+        .k_stack_size = 0x10000,
 
         .has_rom = true,
         // qemus machine has a rom with 1 gb size
@@ -28,7 +28,7 @@ pub const config = boardConfig.BoardConfig{
 
         .va_layout = .{
             .va_kernel_space_size = 0x80000000,
-            .va_kernel_space_gran = boardConfig.Granule.FourkSection,
+            .va_kernel_space_gran = boardConfig.Granule.Fourk,
 
             .va_user_space_size = 0x80000000,
             .va_user_space_gran = boardConfig.Granule.Fourk,

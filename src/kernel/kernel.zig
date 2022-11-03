@@ -31,22 +31,19 @@ const kernel_bin_size = b_options.kernel_bin_size;
 const bl_bin_size = b_options.bl_bin_size;
 
 export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noreturn {
-    brfn();
     // setting stack pointer back to kernel stack linker region
-    const _stack_top: usize = @ptrToInt(@extern(?*u8, .{ .name = "_stack_top" }) orelse {
+    const _stack_top: usize = @ptrToInt(@extern(?*u8, .{ .name = "_stack_bottom" }) orelse {
         old_mapping_kprint("error reading _stack_top label\n", .{});
         k_utils.panic();
     });
     // setting stack back to linker section
     proc.setSp(_stack_top);
 
-    const s = 100;
-    old_mapping_kprint("0x{x} \n", .{s});
-
     // if there is rom, the bootloader binary has to be taken into account for the offset
     comptime var no_rom_bl_bin_offset = 0;
     if (!board.config.mem.has_rom) no_rom_bl_bin_offset = bl_bin_size;
 
+    // old_mapping_kprint("lol\n", .{});
     // kernelspace allocator test
     var kspace_alloc = blk: {
         const _kernel_space_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernel_space_start" }) orelse {
@@ -54,10 +51,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
             k_utils.panic();
         });
 
-        old_mapping_kprint("peter \n", .{});
-        old_mapping_kprint("kss: {x} \n", .{_kernel_space_start});
-        old_mapping_kprint("..s: {x} \n", .{board.config.mem.kernel_space_size - kernel_bin_size});
-        var kernel_alloc = KernelAllocator(board.config.mem.kernel_space_size - kernel_bin_size, 102400).init(_kernel_space_start) catch |e| {
+        var kernel_alloc = KernelAllocator(board.config.mem.kernel_space_size - kernel_bin_size, 0x100000).init(_kernel_space_start) catch |e| {
             old_mapping_kprint("[panic] KernelAllocator init error: {s}\n", .{@errorName(e)});
             k_utils.panic();
         };
@@ -77,9 +71,6 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
                 }).ptr);
             };
 
-            proc.isb();
-            proc.isb();
-            proc.isb();
             // mapping general kernel mem (inlcuding device base)
             var ttbr1_write = (mmu.PageTable(board.config.mem.va_layout.va_kernel_space_size, board.config.mem.va_layout.va_kernel_space_gran) catch |e| {
                 old_mapping_kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
@@ -89,36 +80,40 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
                 k_utils.panic();
             };
 
-            // creating virtual address space for kernel
-            const kernel_space_mapping = mmu.Mapping{
-                .mem_size = board.config.mem.kernel_space_size,
-                .pointing_addr_start = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset,
-                .virt_addr_start = 0,
-                .granule = board.config.mem.va_layout.va_kernel_space_gran,
-                .addr_space = .ttbr1,
-                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .attrIndex = .mair0 },
-                .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write },
-            };
-            ttbr1_write.mapMem(kernel_space_mapping) catch |e| {
-                old_mapping_kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
-                k_utils.panic();
-            };
+            {
+                // creating virtual address space for kernel
+                const kernel_space_mapping = mmu.Mapping{
+                    .mem_size = board.config.mem.kernel_space_size,
+                    .pointing_addr_start = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset,
+                    .virt_addr_start = 0,
+                    .granule = board.config.mem.va_layout.va_kernel_space_gran,
+                    .addr_space = .ttbr1,
+                    .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .attrIndex = .mair0 },
+                    .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write },
+                };
+                ttbr1_write.mapMem(kernel_space_mapping) catch |e| {
+                    old_mapping_kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
+                    k_utils.panic();
+                };
+            }
 
-            // creating virtual address space for kernel
-            const periph_mapping = mmu.Mapping{
-                .mem_size = board.PeriphConfig(.ttbr0).device_base_size,
-                .pointing_addr_start = board.PeriphConfig(.ttbr0).device_base,
-                .virt_addr_start = board.PeriphConfig(.ttbr0).new_ttbr1_device_base,
-                .granule = board.config.mem.va_layout.va_kernel_space_gran,
-                .addr_space = .ttbr1,
-                .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .attrIndex = .mair0 },
-                .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write },
-            };
+            {
+                // creating virtual address space for kernel
+                const periph_mapping = mmu.Mapping{
+                    .mem_size = board.PeriphConfig(.ttbr0).device_base_size,
+                    .pointing_addr_start = board.PeriphConfig(.ttbr0).device_base,
+                    .virt_addr_start = board.PeriphConfig(.ttbr0).new_ttbr1_device_base,
+                    .granule = board.config.mem.va_layout.va_kernel_space_gran,
+                    .addr_space = .ttbr1,
+                    .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .attrIndex = .mair0 },
+                    .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write },
+                };
 
-            ttbr1_write.mapMem(periph_mapping) catch |e| {
-                old_mapping_kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
-                k_utils.panic();
-            };
+                ttbr1_write.mapMem(periph_mapping) catch |e| {
+                    old_mapping_kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
+                    k_utils.panic();
+                };
+            }
 
             break :blk ttbr1_arr;
         };
@@ -165,7 +160,8 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
         };
 
         // old_mapping_kprint("[kernel] changing to kernel page tables.. \n", .{});
-        old_mapping_kprint("0: {*} 1: {*} \n", .{ ttbr0, ttbr1 });
+        // old_mapping_kprint("0: {*} 1: {*} \n", .{ ttbr0, ttbr1 });
+        old_mapping_kprint("1: {*} \n", .{ttbr1});
         // old_mapping_kprint("{any} \n", .{ttbr1.*});
 
         proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 25, .t1sz = 25, .tg0 = 0, .tg1 = 0 }).asInt());
@@ -175,13 +171,13 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
         proc.isb();
 
         proc.invalidateOldPageTableEntries();
-        proc.invalidateMmuTlbEl1();
+        // proc.invalidateMmuTlbEl1();
 
         // updating page dirs for kernel and user space
         // toUnse is bc we are in ttbr1 and can't change with page tables that are also in ttbr1
         proc.setTTBR1(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset + mmu.toTtbr0(usize, @ptrToInt(ttbr1)));
         // proc.setTTBR0(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + mmu.toTtbr0(usize, @ptrToInt(ttbr0)));
-        // _ = ttbr0;
+        _ = ttbr0;
         proc.invalidateCache();
 
         proc.dsb();
@@ -189,7 +185,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
         proc.nop();
         proc.nop();
     }
-    old_mapping_kprint("[kernel] page tables updated! \n", .{});
+    kprint("[kernel] page tables updated! \n", .{});
 
     var current_el = proc.getCurrentEl();
     if (current_el != 1) {
@@ -249,10 +245,6 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
     //     tests.testUserSpaceMem(100);
 
     while (true) {}
-}
-
-pub fn brfn() void {
-    old_mapping_kprint("[kernel] gdb breakpoint function... \n", .{});
 }
 
 comptime {

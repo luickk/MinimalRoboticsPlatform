@@ -27,7 +27,7 @@ pub const config = boardConfig.BoardConfig{
         .va_layout = .{
             .va_kernel_space_size = 0x80000000,
             // has to be Fourk since without a rom the kernel is positioned at a (addr % 2mb) != 0, so a 4kb granule is required
-            .va_kernel_space_gran = boardConfig.Granule.FourkSection,
+            .va_kernel_space_gran = boardConfig.Granule.Fourk,
 
             .va_user_space_size = 0x80000000,
             .va_user_space_gran = boardConfig.Granule.Fourk,

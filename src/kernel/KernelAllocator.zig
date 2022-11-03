@@ -6,6 +6,7 @@ const arm = @import("arm");
 const kprint = periph.uart.UartWriter(.ttbr0).kprint;
 const addr = periph.rbAddr;
 const mmu = arm.mmu;
+const proc = arm.processor.ProccessorRegMap(.el1);
 
 // simply keeps record of what is kept where, slow but safe
 pub fn KernelAllocator(comptime mem_size: usize, comptime chunk_size: usize) type {
@@ -25,8 +26,10 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime chunk_size: usize) typ
         used_chunks: usize,
 
         pub fn init(mem_base: usize) !Self {
+            proc.isb();
+            proc.isb();
+            proc.isb();
             if (mem_base % 8 != 0) return Error.MemBaseNotAligned;
-
             var ka = Self{
                 .kernel_mem = [_]bool{false} ** max_chunks,
                 // can currently only increase and indicates at which point findFree() is required
