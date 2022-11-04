@@ -150,6 +150,7 @@ pub fn PageTable(comptime total_mem_size: usize, comptime gran: GranuleParams) !
                             self.page_table[table_offset + i_table][i_descriptor] = phys_count;
                             phys_count += mapping.granule.page_size;
                         } else {
+                            if (vas_next_offset_in_tables >= i_descriptor) vas_next_offset_in_tables -= i_descriptor;
                             var link_to_table_addr = toTtbr0(usize, @ptrToInt(&self.page_table[table_offset + to_map_in_tables + i_descriptor + vas_next_offset_in_tables + total_mem_size_padding_in_tables])) + self.lma_offset;
                             if (i_lvl == @enumToInt(TransLvl.first_lvl) or i_lvl == @enumToInt(TransLvl.second_lvl))
                                 link_to_table_addr |= mapping.flags_non_last_lvl.asInt();
