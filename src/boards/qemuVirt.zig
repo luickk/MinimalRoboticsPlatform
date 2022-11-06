@@ -41,7 +41,7 @@ pub const config = boardConfig.BoardConfig{
 };
 
 pub fn PeriphConfig(comptime addr_space: boardConfig.AddrSpace) type {
-    const new_ttbr1_device_base_ = 0x40000000;
+    const new_ttbr1_device_base_ = 0x30000000;
     comptime var device_base_tmp: usize = 0x8000000;
 
     // in ttbr1 all periph base is mapped to 0x40000000

@@ -26,9 +26,6 @@ pub fn KernelAllocator(comptime mem_size: usize, comptime chunk_size: usize) typ
         used_chunks: usize,
 
         pub fn init(mem_base: usize) !Self {
-            proc.isb();
-            proc.isb();
-            proc.isb();
             if (mem_base % 8 != 0) return Error.MemBaseNotAligned;
             var ka = Self{
                 .kernel_mem = [_]bool{false} ** max_chunks,

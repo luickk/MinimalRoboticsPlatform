@@ -22,6 +22,8 @@ const Error = error{
     PageTableConfigErr,
 };
 
+// todo => second gigabyte in 4k mapping doesn't work
+
 // In addition to an output address, a translation table descriptor that refers to a page or region of memory
 // includes fields that define properties of the target memory region. These fields can be classified as
 // address map control, access control, and region attribute fields.
@@ -122,7 +124,7 @@ pub fn PageTable(comptime total_mem_size: usize, comptime gran: GranuleParams) !
                     vas_next_offset_in_tables = try std.math.divFloor(usize, try std.math.divExact(usize, mapping.virt_addr_start, next_lvl_desc_size), mapping.granule.table_size);
                 }
 
-                const vas_offset_in_descriptors = try std.math.divExact(usize, mapping.virt_addr_start, curr_lvl_desc_size);
+                const vas_offset_in_descriptors = try std.math.divFloor(usize, mapping.virt_addr_start, curr_lvl_desc_size);
                 const vas_offset_in_tables = try std.math.divFloor(usize, vas_offset_in_descriptors, mapping.granule.table_size);
                 const vas_offset_in_descriptors_rest = try std.math.mod(usize, vas_offset_in_descriptors, mapping.granule.table_size);
 
