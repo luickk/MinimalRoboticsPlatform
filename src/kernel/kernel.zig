@@ -11,11 +11,11 @@ const tests = @import("tests.zig");
 const old_mapping_kprint = periph.uart.UartWriter(.ttbr0).kprint;
 
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
-const gic = arm.gicv2.Gic(.ttbr19);
+const gic = arm.gicv2.Gic(.ttbr1);
 
 // kernel services
 const KernelAllocator = @import("KernelAllocator.zig").KernelAllocator;
-// const UserPageAllocator = @import("UserPageAllocator.zig").UserPageAllocator;
+const UserPageAllocator = @import("UserPageAllocator.zig").UserPageAllocator;
 const intHandle = @import("gicHandle.zig");
 const b_options = @import("build_options");
 const board = @import("board");
@@ -36,6 +36,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
         old_mapping_kprint("error reading _stack_top label\n", .{});
         k_utils.panic();
     });
+
     // setting stack back to linker section
     proc.setSp(_stack_top);
 
@@ -189,57 +190,43 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
         kprint("[panic] el must be 1! (it is: {d})\n", .{current_el});
         proc.panic();
     }
-    // if (board.config.board == .qemuVirt) {
-    //     gic.init() catch |e| {
-    //         kprint("[panic] Page table ttbr0 address calc error: {s}\n", .{@errorName(e)});
-    //         k_utils.panic();
-    //     };
-    // }
-    // if (board.config.board == .raspi3b) {
-    //     timer.initTimer();
-    //     kprint("[kernel] timer inited \n", .{});
+    if (board.config.board == .qemuVirt) {
+        gic.init() catch |e| {
+            kprint("[panic] Page table ttbr0 address calc error: {s}\n", .{@errorName(e)});
+            k_utils.panic();
+        };
+    }
+    if (board.config.board == .raspi3b) {
+        timer.initTimer();
+        kprint("[kernel] timer inited \n", .{});
 
-    //     bcm2835IntController.init();
-    //     kprint("[kernel] ic inited \n", .{});
-    // }
+        bcm2835IntController.init();
+        kprint("[kernel] ic inited \n", .{});
+    }
 
     kprint("[kernel] kernel boot complete \n", .{});
 
-    // // userspace page allocator test
-    // {
-    //     var page_alloc_start = utils.ceilRoundToMultiple((board.config.mem.rom_size orelse 0) + board.config.mem.kernel_space_size, board.config.mem.va_layout.va_user_space_gran.page_size) catch |e| {
-    //         kprint("[panic] UserSpaceAllocator start addr calc err: {s}\n", .{@errorName(e)});
-    //         k_utils.panic();
-    //     };
+    // userspace page allocator test
+    {
+        var page_alloc_start = utils.ceilRoundToMultiple((board.config.mem.rom_size orelse 0) + board.config.mem.kernel_space_size, board.config.mem.va_layout.va_user_space_gran.page_size) catch |e| {
+            kprint("[panic] UserSpaceAllocator start addr calc err: {s}\n", .{@errorName(e)});
+            k_utils.panic();
+        };
 
-    //     var user_page_alloc = (UserPageAllocator(204800, board.config.mem.va_layout.va_user_space_gran) catch |e| {
-    //         kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
-    //         k_utils.panic();
-    //     }).init(page_alloc_start) catch |e| {
-    //         kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
-    //         k_utils.panic();
-    //     };
-    //     tests.testUserPageAlloc(&user_page_alloc) catch |e| {
-    //         kprint("[panic] UserSpaceAllocator test error: {s} \n", .{@errorName(e)});
-    //         k_utils.panic();
-    //     };
-    // }
+        var user_page_alloc = (UserPageAllocator(204800, board.config.mem.va_layout.va_user_space_gran) catch |e| {
+            kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
+            k_utils.panic();
+        }).init(page_alloc_start) catch |e| {
+            kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
+            k_utils.panic();
+        };
+        tests.testUserPageAlloc(&user_page_alloc) catch |e| {
+            kprint("[panic] UserSpaceAllocator test error: {s} \n", .{@errorName(e)});
+            k_utils.panic();
+        };
+    }
 
-    // kernel alloc test
-    // {
-    //     tests.testKMalloc(&kspace_alloc) catch |e| {
-    //         kprint("[panic] KMalloc test error: {s} \n", .{@errorName(e)});
-    //         k_utils.panic();
-    //     };
-    // }
-
-    kprint("tests complete \n", .{});
-
-    // if (board.config.board == .raspi3b)
-    //     tests.testUserSpaceMem(100);
-
-    // if (board.config.board == .qemuVirt)
-    //     tests.testUserSpaceMem(100);
+    tests.testUserSpaceMem(100);
 
     while (true) {}
 }

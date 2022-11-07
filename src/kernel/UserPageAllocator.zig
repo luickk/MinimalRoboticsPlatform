@@ -6,7 +6,9 @@ const kprint = @import("periph").uart.UartWriter(.ttbr1).kprint;
 
 const mmu = arm.mmu;
 
-pub fn UserPageAllocator(comptime mem_size: usize, comptime granule: board.boardConfig.GranuleParams) !type {
+const GranuleParams = board.boardConfig.Granule.GranuleParams;
+
+pub fn UserPageAllocator(comptime mem_size: usize, comptime granule: GranuleParams) !type {
     const n_pages = try std.math.divExact(usize, mem_size, granule.page_size);
     const gran = granule;
     return struct {
@@ -21,7 +23,7 @@ pub fn UserPageAllocator(comptime mem_size: usize, comptime granule: board.board
         kernel_mem: [n_pages]bool,
         mem_start: usize,
         curr_page_pointer: usize,
-        granule: board.boardConfig.GranuleParams,
+        granule: GranuleParams,
 
         pub fn init(mem_start: usize) !Self {
             if ((try std.math.mod(usize, mem_start, granule.page_size)) != 0)
