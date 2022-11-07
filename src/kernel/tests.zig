@@ -1,22 +1,28 @@
 const UserSpaceAllocator = @import("KernelAllocator.zig").UserSpaceAllocator;
-const kprint = @import("periph").uart.UartWriter(.ttbr0).kprint;
+const kprint = @import("periph").uart.UartWriter(.ttbr1).kprint;
 
 pub fn testUserPageAlloc(alloc: anytype) !void {
+    kprint("MAX \n", .{});
     var p1 = try alloc.allocNPage(10);
     var p2 = try alloc.allocNPage(10);
-    var p3 = try alloc.allocNPage(10);
-    var p4 = try alloc.allocNPage(10);
-    var p5 = try alloc.allocNPage(10);
+    // var p3 = try alloc.allocNPage(10);
+    // var p4 = try alloc.allocNPage(10);
+    _ = p1;
+    _ = p2;
+    // _ = p3;
+    // _ = p4;
 
-    try alloc.freeNPage(p2, 10);
-    var p6 = try alloc.allocNPage(10);
+    // var p5 = try alloc.allocNPage(10);
 
-    try alloc.freeNPage(p1, 10);
-    try alloc.freeNPage(p3, 10);
-    try alloc.freeNPage(p4, 10);
-    try alloc.freeNPage(p5, 10);
+    // try alloc.freeNPage(p2, 10);
+    // var p6 = try alloc.allocNPage(10);
 
-    try alloc.freeNPage(p6, 10);
+    // try alloc.freeNPage(p1, 10);
+    // try alloc.freeNPage(p3, 10);
+    // try alloc.freeNPage(p4, 10);
+    // try alloc.freeNPage(p5, 10);
+
+    // try alloc.freeNPage(p6, 10);
     kprint("[kTEST] userspace page alloc test successfull \n", .{});
 }
 

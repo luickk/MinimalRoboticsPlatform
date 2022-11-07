@@ -8,7 +8,7 @@ const Error = error{BlExceedsRomSize};
 const raspi3b = @import("src/boards/raspi3b.zig");
 const qemuVirt = @import("src/boards/qemuVirt.zig");
 
-const currBoard = qemuVirt;
+const currBoard = raspi3b;
 
 // both binaries are padded to that size and zig throws an exception if too small.
 const kernel_bin_size: usize = 0x2000000;
