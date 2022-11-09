@@ -8,7 +8,7 @@ const Error = error{BlExceedsRomSize};
 const raspi3b = @import("src/boards/raspi3b.zig");
 const qemuVirt = @import("src/boards/qemuVirt.zig");
 
-const currBoard = raspi3b;
+const currBoard = qemuVirt;
 
 // both binaries are padded to that size and zig throws an exception if too small.
 const kernel_bin_size: usize = 0x2000000;
@@ -38,6 +38,8 @@ pub fn build(b: *std.build.Builder) !void {
 
     // bootloader
     const bl_exe = b.addExecutable("bootloader", null);
+    bl_exe.force_pic = false;
+    bl_exe.pie = false;
     bl_exe.code_model = .large;
     bl_exe.addPackage(arm);
     bl_exe.addPackage(utils);
@@ -58,6 +60,8 @@ pub fn build(b: *std.build.Builder) !void {
 
     // kernel
     const kernel_exe = b.addExecutable("kernel", null);
+    kernel_exe.force_pic = false;
+    kernel_exe.pie = false;
     kernel_exe.code_model = .large;
     kernel_exe.strip = false;
     kernel_exe.addPackage(arm);

@@ -26,8 +26,8 @@ pub fn UserPageAllocator(comptime mem_size: usize, comptime granule: GranulePara
         granule: GranuleParams,
 
         pub fn init(mem_start: usize) !Self {
-            if ((try std.math.mod(usize, mem_start, granule.page_size)) != 0)
-                return Error.PageAddrDoesNotAlign;
+            // if ((try std.math.mod(usize, mem_start, granule.page_size)) != 0)
+            //     return Error.PageAddrDoesNotAlign;
 
             return Self{
                 .kernel_mem = [_]bool{false} ** n_pages,
