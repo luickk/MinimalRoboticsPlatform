@@ -4,6 +4,7 @@ const periph = @import("periph");
 const utils = @import("utils");
 const k_utils = @import("utils.zig");
 const tests = @import("tests.zig");
+const Scheduler = @import("Scheduler.zig").Scheduler;
 
 const iD = @import("issueDemo.zig");
 
@@ -212,10 +213,10 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
 
     tests.testUserSpaceMem(10);
 
-    const demo_var = @as(usize, 4096);
-    kprint("{*}: {x} \n", .{ &demo_var, demo_var });
-    var demo_struct = iD.IssueDemo().init(demo_var);
-    kprint("{any} \n", .{demo_struct});
+    // const demo_var = @as(usize, 4096);
+    // kprint("{*}: {x} \n", .{ &demo_var, demo_var });
+    // var demo_struct = iD.IssueDemo().init(demo_var);
+    // kprint("{any} \n", .{demo_struct});
     // _ = demo_struct;
 
     // // userspace page allocator test
@@ -239,9 +240,36 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
     //     };
     // }
 
-    while (true) {}
+    comptime var page_alloc_start = utils.ceilRoundToMultiple(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset + board.config.mem.kernel_space_size, board.config.mem.va_layout.va_user_space_gran.page_size) catch |e| {
+        @compileError(@errorName(e));
+    };
+
+    var user_page_alloc = (UserPageAllocator(204800, board.config.mem.va_layout.va_user_space_gran, page_alloc_start) catch |e| {
+        kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    }).init() catch |e| {
+        kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+
+    kprint("[kernel] starting scheduler \n", .{});
+    var scheduler = Scheduler(@TypeOf(user_page_alloc)).init(&user_page_alloc);
+
+    var test_proc_pid = scheduler.copyProcessToTaskQueue(0, &testUserProcess) catch |e| {
+        kprint("[panic] Scheduler copyProcessToTaskQueue error: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+
+    kprint("test process pid: {d} \n", .{test_proc_pid});
+
+    while (true) {
+        scheduler.schedule();
+    }
 }
 
+fn testUserProcess() void {
+    old_mapping_kprint("userspace test print \n", .{});
+}
 comptime {
     @export(intHandle.irqHandler, .{ .name = "irqHandler", .linkage = .Strong });
     @export(intHandle.irqElxSpx, .{ .name = "irqElxSpx", .linkage = .Strong });
