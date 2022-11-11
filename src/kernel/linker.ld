@@ -33,12 +33,6 @@ SECTIONS {
         *(.data);
         *(.data.*);
     }
-
-    .stack : ALIGN(16) {
-        _stack_bottom = .;
-        . = . + {@zig};
-        _stack_top = .;
-    }
     
     .kernel_space (NOLOAD) : ALIGN(8)  {
         _kernel_space_start = .;

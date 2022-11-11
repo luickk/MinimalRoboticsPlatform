@@ -1,3 +1,11 @@
+const periph = @import("periph");
+const kprint = periph.uart.UartWriter(.ttbr1).kprint;
+const board = @import("board");
+const b_options = @import("build_options");
+
+const kernel_bin_size = b_options.kernel_bin_size;
+const bl_bin_size = b_options.bl_bin_size;
+
 pub const Task = packed struct {
     pub const TaskState = enum(usize) {
         running,
@@ -8,8 +16,10 @@ pub const Task = packed struct {
         n_pages: usize,
 
         pub fn init() TaskPageInfo {
+            comptime var no_rom_bl_bin_offset = 0;
+            if (!board.config.mem.has_rom) no_rom_bl_bin_offset = bl_bin_size;
             return TaskPageInfo{
-                .base_pgd = 0,
+                .base_pgd = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset + board.config.mem.kernel_space_size,
                 .n_pages = 0,
             };
         }
@@ -50,9 +60,9 @@ pub const Task = packed struct {
     // !has to be first for context switch to find cpu_context!
     cpu_context: CpuContext,
     state: TaskState,
-    counter: usize,
-    priority: usize,
-    preempt_count: usize,
+    counter: isize,
+    priority: isize,
+    preempt_count: isize,
     flags: usize,
     page_info: TaskPageInfo,
 
@@ -61,7 +71,7 @@ pub const Task = packed struct {
             .cpu_context = CpuContext.init(),
             .state = .running,
             .counter = 0,
-            .priority = 0,
+            .priority = 1,
             .preempt_count = 0,
             .flags = 0x00000002,
             .page_info = TaskPageInfo.init(),
@@ -79,6 +89,7 @@ const maxTasks = 10;
 var init_task = Task.init();
 var current_task: ?*Task = &init_task;
 var tasks = [_]?*Task{null} ** maxTasks;
+
 var running_tasks: usize = 1;
 
 pub fn Scheduler(comptime UserPageAllocator: type) type {
@@ -88,6 +99,10 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
         page_allocator: *UserPageAllocator,
 
         pub fn init(page_allocator: *UserPageAllocator) Self {
+            // the init task contains all relevant mem&cpu context information of the "main" kernel process
+            // and as such has the highest priority
+            init_task.priority = 15;
+            tasks[0] = &init_task;
             return Self{
                 .page_allocator = page_allocator,
             };
@@ -99,36 +114,41 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
 
             current_task.?.setPreempt(false);
             var next: usize = 0;
-            // todo => has to be -1
-            var c: usize = 0;
+            var c: isize = -1;
             while (true) {
                 for (tasks) |*task, i| {
                     if (task.*.?.state == .running and task.*.?.counter > c) {
                         c = task.*.?.counter;
                         next = i;
                     }
+                    // kprint("increasing {d} \n", .{task.*.?.counter});
                 }
 
                 if (c != 0) break;
-
                 for (tasks) |*task| {
                     task.*.?.counter = (task.*.?.counter >> 1) + task.*.?.priority;
                 }
             }
-            // todo => create switch_to
+            kprint("swithcing... {d} \n", .{next});
             switchContextToTask(tasks[next].?);
             current_task.?.setPreempt(true);
         }
 
         pub fn copyProcessToTaskQueue(self: *Self, flags: usize, fnp: *const fn () void) !usize {
             current_task.?.setPreempt(false);
-            var copied_task: *Task = @ptrCast(*Task, try self.page_allocator.allocNPage(2));
 
+            comptime var no_rom_bl_bin_offset = 0;
+            if (!board.config.mem.has_rom) no_rom_bl_bin_offset = bl_bin_size;
+
+            var copied_task: *Task = @ptrCast(*Task, try self.page_allocator.allocNPage(2));
+            // kprint("{*} \n", .{copied_task});
             copied_task.cpu_context.x19 = @ptrToInt(fnp);
             // arg0 is not supported for now
             copied_task.cpu_context.x20 = 0;
-            copied_task.cpu_context.pc = @ptrToInt(&retFromFork());
+            copied_task.cpu_context.pc = @ptrToInt(&retFromFork);
             copied_task.cpu_context.sp = @ptrToInt(&copied_task.cpu_context);
+
+            copied_task.page_info.base_pgd = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset + board.config.mem.kernel_space_size;
 
             copied_task.flags = flags;
             copied_task.priority = current_task.?.priority;
@@ -136,9 +156,9 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             copied_task.counter = copied_task.priority;
             copied_task.preempt_count = 1;
 
-            running_tasks += 1;
             var pid = running_tasks;
             tasks[pid] = copied_task;
+            running_tasks += 1;
 
             current_task.?.setPreempt(false);
             return pid;
@@ -159,6 +179,7 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             switchMemContext(next_task.page_info.base_pgd);
             // chaning relevant regs including sp
             switchCpuContext(prev_task, next_task);
+            kprint("text \n", .{});
         }
 
         fn switchCpuContext(from: *Task, to: *Task) callconv(.C) void {
@@ -195,9 +216,9 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
         }
 
         fn switchMemContext(ttbr_0_addr: usize) callconv(.C) void {
-            _ = ttbr_0_addr;
             // x0 -> arg0
             asm volatile ("msr ttbr0_el1, x0");
+            kprint("text {x} \n", .{ttbr_0_addr});
             asm volatile ("tlbi vmalle1is");
             // ensure completion of TLB invalidation
             asm volatile ("dsb ish");

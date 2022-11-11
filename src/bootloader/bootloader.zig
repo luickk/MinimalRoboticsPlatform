@@ -206,6 +206,15 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
 
     var kernel_addr = @ptrToInt(kernel_target_loc.ptr);
 
+    {
+        const aligned_ksize = utils.ceilRoundToMultiple(kernel_bin_size, 0x8) catch |e| {
+            kprint("[panic] kernel stack address calc error: {s} \n", .{@errorName(e)});
+            bl_utils.panic();
+        };
+        const kernel_stack_addr = mmu.toTtbr1(usize, aligned_ksize);
+        proc.setSp(kernel_stack_addr);
+    }
+
     kprint("[bootloader] jumping to kernel at 0x{x}\n", .{kernel_addr});
     proc.branchToAddr(kernel_addr);
 

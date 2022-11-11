@@ -1,27 +1,27 @@
 const kprint = @import("periph").uart.UartWriter(.ttbr1).kprint;
 
 pub fn testUserPageAlloc(alloc: anytype) !void {
-    kprint("{any} \n", .{alloc.*});
     var p1 = try alloc.allocNPage(10);
-    // var p2 = try alloc.allocNPage(10);
-    // var p3 = try alloc.allocNPage(10);
-    // var p4 = try alloc.allocNPage(10);
+    var p2 = try alloc.allocNPage(10);
+    var p3 = try alloc.allocNPage(10);
+    var p4 = try alloc.allocNPage(10);
     @ptrCast(*volatile u8, p1).* = 10;
-    // @ptrCast(*volatile u8, p2).* = 10;
-    // @ptrCast(*volatile u8, p3).* = 10;
-    // @ptrCast(*volatile u8, p4).* = 10;
+    @ptrCast(*volatile u8, p2).* = 10;
+    @ptrCast(*volatile u8, p3).* = 10;
+    @ptrCast(*volatile u8, p4).* = 10;
 
-    // var p5 = try alloc.allocNPage(10);
+    var p5 = try alloc.allocNPage(10);
+    @ptrCast(*volatile u8, p5).* = 10;
 
-    // try alloc.freeNPage(p2, 10);
-    // var p6 = try alloc.allocNPage(10);
+    try alloc.freeNPage(p2, 10);
+    var p6 = try alloc.allocNPage(10);
 
-    // try alloc.freeNPage(p1, 10);
-    // try alloc.freeNPage(p3, 10);
-    // try alloc.freeNPage(p4, 10);
-    // try alloc.freeNPage(p5, 10);
+    try alloc.freeNPage(p1, 10);
+    try alloc.freeNPage(p3, 10);
+    try alloc.freeNPage(p4, 10);
+    try alloc.freeNPage(p5, 10);
 
-    // try alloc.freeNPage(p6, 10);
+    try alloc.freeNPage(p6, 10);
     kprint("[kTEST] userspace page alloc test successfull \n", .{});
 }
 

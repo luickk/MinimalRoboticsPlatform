@@ -9,9 +9,11 @@ const mmu = arm.mmu;
 const GranuleParams = board.boardConfig.Granule.GranuleParams;
 
 // todo => put mem_start back as init() args
-pub fn UserPageAllocator(comptime mem_size: usize, comptime granule: GranuleParams, comptime mem_start: usize) !type {
+pub fn UserPageAllocator(comptime mem_size: usize, comptime granule: GranuleParams) !type {
     const n_pages = try std.math.divExact(usize, mem_size, granule.page_size);
     const gran = granule;
+    // virt userspace 0x0
+    const mem_start: usize = 0;
     return struct {
         const Self = @This();
         const Error = error{
@@ -27,9 +29,6 @@ pub fn UserPageAllocator(comptime mem_size: usize, comptime granule: GranulePara
         granule: GranuleParams,
 
         pub fn init() !Self {
-            // if ((try std.math.mod(usize, mem_start, granule.page_size)) != 0)
-            //     return Error.PageAddrDoesNotAlign;
-
             return Self{
                 .kernel_mem = [_]bool{false} ** n_pages,
                 .mem_start = mem_start,
@@ -39,16 +38,14 @@ pub fn UserPageAllocator(comptime mem_size: usize, comptime granule: GranulePara
         }
 
         pub fn allocNPage(self: *Self, n: usize) !*align(4096) anyopaque {
-            var ret_addr: *anyopaque = undefined;
             if (self.curr_page_pointer + n > self.kernel_mem.len) {
                 return try self.searchFreePages(n);
             }
             for (self.kernel_mem[self.curr_page_pointer .. self.curr_page_pointer + n]) |*page| {
                 page.* = true;
             }
-            ret_addr = @alignCast(4096, @ptrCast(*anyopaque, &self.kernel_mem[self.curr_page_pointer]));
             self.curr_page_pointer += n;
-            return @alignCast(4096, @intToPtr(*anyopaque, self.mem_start + @ptrToInt(ret_addr) * self.granule.page_size));
+            return @alignCast(4096, @intToPtr(*anyopaque, self.mem_start + self.curr_page_pointer * self.granule.page_size));
         }
 
         fn searchFreePages(self: *Self, req_pages: usize) !*align(4096) anyopaque {
@@ -60,7 +57,7 @@ pub fn UserPageAllocator(comptime mem_size: usize, comptime granule: GranulePara
                     free_pages_in_row = 0;
                 }
                 if (free_pages_in_row >= req_pages) {
-                    return @alignCast(4096, @ptrCast(*anyopaque, &self.kernel_mem[i - req_pages]));
+                    return @alignCast(4096, @intToPtr(*anyopaque, (i - req_pages) * self.granule.page_size));
                 }
             }
             return Error.OutOfMem;

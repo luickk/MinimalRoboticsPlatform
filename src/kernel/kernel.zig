@@ -6,8 +6,6 @@ const k_utils = @import("utils.zig");
 const tests = @import("tests.zig");
 const Scheduler = @import("Scheduler.zig").Scheduler;
 
-const iD = @import("issueDemo.zig");
-
 // pre_kernel_page_table_init_kprint...
 // uses userspace addresses(ttbr0), since those are still identity mapped
 // to access peripherals
@@ -34,21 +32,11 @@ const kernel_bin_size = b_options.kernel_bin_size;
 const bl_bin_size = b_options.bl_bin_size;
 
 export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noreturn {
+    // !! kernel sp is inited in the Bootloader!!
 
     // if there is rom, the bootloader binary has to be taken into account for the offset
     comptime var no_rom_bl_bin_offset = 0;
     if (!board.config.mem.has_rom) no_rom_bl_bin_offset = bl_bin_size;
-    {
-        // setting stack pointer back to kernel stack linker region
-        const _stack_top: usize = @ptrToInt(@extern(?*u8, .{ .name = "_stack_bottom" }) orelse {
-            old_mapping_kprint("error reading _stack_top label\n", .{});
-            k_utils.panic();
-        });
-
-        // const phys_offset_to_kernel = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset;
-        // setting stack back to linker section
-        proc.setSp(_stack_top);
-    }
 
     // kernelspace allocator test
     var kspace_alloc = blk: {
@@ -59,7 +47,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
         // todo => for some reason this var is optimized away, if not printed (or somehow used explicitely)
         old_mapping_kprint("_kernel_space_start: {x} \n", .{_kernel_space_start});
 
-        var kernel_alloc = KernelAllocator(board.config.mem.kernel_space_size - kernel_bin_size, 0x100000).init(_kernel_space_start) catch |e| {
+        var kernel_alloc = KernelAllocator(board.config.mem.kernel_space_size - kernel_bin_size - board.config.mem.k_stack_size, 0x100000).init(_kernel_space_start + board.config.mem.k_stack_size) catch |e| {
             old_mapping_kprint("[panic] KernelAllocator init error: {s}\n", .{@errorName(e)});
             k_utils.panic();
         };
@@ -211,46 +199,20 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
 
     kprint("[kernel] kernel boot complete \n", .{});
 
-    tests.testUserSpaceMem(10);
-
-    // const demo_var = @as(usize, 4096);
-    // kprint("{*}: {x} \n", .{ &demo_var, demo_var });
-    // var demo_struct = iD.IssueDemo().init(demo_var);
-    // kprint("{any} \n", .{demo_struct});
-    // _ = demo_struct;
-
-    // // userspace page allocator test
-    // {
-    //     const page_alloc_start = utils.ceilRoundToMultiple(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset + board.config.mem.kernel_space_size, board.config.mem.va_layout.va_user_space_gran.page_size) catch |e| {
-    //         kprint("[panic] UserSpaceAllocator start addr calc err: {s}\n", .{@errorName(e)});
-    //         k_utils.panic();
-    //     };
-
-    //     var user_page_alloc = (UserPageAllocator(204800, board.config.mem.va_layout.va_user_space_gran) catch |e| {
-    //         kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
-    //         k_utils.panic();
-    //     }).init(page_alloc_start) catch |e| {
-    //         kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
-    //         k_utils.panic();
-    //     };
-
-    //     tests.testUserPageAlloc(&user_page_alloc) catch |e| {
-    //         kprint("[panic] UserSpaceAllocator test error: {s} \n", .{@errorName(e)});
-    //         k_utils.panic();
-    //     };
-    // }
-
-    comptime var page_alloc_start = utils.ceilRoundToMultiple(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset + board.config.mem.kernel_space_size, board.config.mem.va_layout.va_user_space_gran.page_size) catch |e| {
-        @compileError(@errorName(e));
-    };
-
-    var user_page_alloc = (UserPageAllocator(204800, board.config.mem.va_layout.va_user_space_gran, page_alloc_start) catch |e| {
+    var user_page_alloc = (UserPageAllocator(204800, board.config.mem.va_layout.va_user_space_gran) catch |e| {
         kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
         k_utils.panic();
     }).init() catch |e| {
         kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
         k_utils.panic();
     };
+
+    // // tests
+    // tests.testUserSpaceMem(10);
+    // tests.testUserPageAlloc(&user_page_alloc) catch |e| {
+    //     kprint("[panic] testUserPageAlloc test error: {s} \n", .{@errorName(e)});
+    //     k_utils.panic();
+    // };
 
     kprint("[kernel] starting scheduler \n", .{});
     var scheduler = Scheduler(@TypeOf(user_page_alloc)).init(&user_page_alloc);

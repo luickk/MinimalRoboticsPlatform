@@ -8,7 +8,7 @@ pub const config = boardConfig.BoardConfig{
         .va_start = vaStart,
 
         .bl_stack_size = 0x10000,
-        .k_stack_size = 0x10000,
+        .k_stack_size = 0x100000,
 
         .has_rom = true,
         // qemus machine has a rom with 1 gb size
