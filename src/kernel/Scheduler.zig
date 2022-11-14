@@ -40,21 +40,7 @@ pub const Task = packed struct {
         pc: usize,
 
         pub fn init() CpuContext {
-            return CpuContext{
-                .x19 = 0,
-                .x20 = 0,
-                .x21 = 0,
-                .x22 = 0,
-                .x23 = 0,
-                .x24 = 0,
-                .x25 = 0,
-                .x26 = 0,
-                .x27 = 0,
-                .x28 = 0,
-                .fp = 0,
-                .sp = 0,
-                .pc = 0,
-            };
+            return CpuContext{ .x19 = 0, .x20 = 0, .x21 = 0, .x22 = 0, .x23 = 0, .x24 = 0, .x25 = 0, .x26 = 0, .x27 = 0, .x28 = 0, .fp = 0, .sp = 0, .pc = 0 };
         }
     };
     // !has to be first for context switch to find cpu_context!
@@ -90,7 +76,7 @@ var init_task = Task.init();
 var current_task: ?*Task = &init_task;
 var tasks = [_]?*Task{null} ** maxTasks;
 
-var running_tasks: usize = 1;
+var running_tasks: usize = 0;
 
 pub fn Scheduler(comptime UserPageAllocator: type) type {
     return struct {
@@ -103,6 +89,7 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             // and as such has the highest priority
             init_task.priority = 15;
             tasks[0] = &init_task;
+            running_tasks += 1;
             return Self{
                 .page_allocator = page_allocator,
             };
@@ -110,6 +97,9 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
 
         pub fn schedule(self: *Self) void {
             _ = self;
+            kprint("-- \n", .{});
+            // current_task.?.counter -= 1;
+            // if (current_task.?.counter > 0 or current_task.?.preempt_count > 0) return;
             current_task.?.counter = 0;
 
             current_task.?.setPreempt(false);
@@ -117,6 +107,7 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             var c: isize = -1;
             while (true) {
                 for (tasks) |*task, i| {
+                    // kprint("task {d}: {any} \n", .{ i, task.*.?.* });
                     if (task.*.?.state == .running and task.*.?.counter > c) {
                         c = task.*.?.counter;
                         next = i;
@@ -141,14 +132,15 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             if (!board.config.mem.has_rom) no_rom_bl_bin_offset = bl_bin_size;
 
             var copied_task: *Task = @ptrCast(*Task, try self.page_allocator.allocNPage(2));
-            // kprint("{*} \n", .{copied_task});
+            kprint("{*} \n", .{copied_task});
             copied_task.cpu_context.x19 = @ptrToInt(fnp);
             // arg0 is not supported for now
             copied_task.cpu_context.x20 = 0;
             copied_task.cpu_context.pc = @ptrToInt(&retFromFork);
             copied_task.cpu_context.sp = @ptrToInt(&copied_task.cpu_context);
 
-            copied_task.page_info.base_pgd = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset + board.config.mem.kernel_space_size;
+            // setting base_pdg to allocated userspace page base
+            copied_task.page_info.base_pgd = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset + board.config.mem.kernel_space_size + @ptrToInt(copied_task);
 
             copied_task.flags = flags;
             copied_task.priority = current_task.?.priority;
@@ -176,24 +168,19 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             var prev_task = current_task.?;
             current_task.? = next_task;
             // changing ttbr0 page desc
-            switchMemContext(next_task.page_info.base_pgd);
+            // switchMemContext(next_task.page_info.base_pgd);
             // chaning relevant regs including sp
             switchCpuContext(prev_task, next_task);
-            kprint("text \n", .{});
         }
 
         fn switchCpuContext(from: *Task, to: *Task) callconv(.C) void {
-            _ = from;
-            _ = to;
-            // x0 -> arg0, x1 -> arg1
-            // x10 contains offset to Task struct CpuContext struct member (since it's the first element 0)
-            asm volatile ("mov x10, 0");
-            // // todo => check assembler if that creates a performance bottleneck
-            // asm volatile("mov x0, %[task]"
-            //     :
-            //     : [task] "x0" (@ptrToInt(task)),
-            // );
-            asm volatile ("add x8, x0, x10");
+            kprint("from: {*} to {*} \n", .{ from, to });
+
+            asm volatile ("mov x8, %[from_addr]"
+                :
+                : [from_addr] "rax" (@ptrToInt(from)),
+            );
+
             asm volatile ("mov x9, sp");
             // store callee-saved registers
             asm volatile ("stp x19, x20, [x8], #16");
@@ -203,7 +190,11 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             asm volatile ("stp x27, x28, [x8], #16");
             asm volatile ("stp x29, x9, [x8], #16");
             asm volatile ("str x30, [x8]");
-            asm volatile ("add x8, x1, x10");
+
+            asm volatile ("mov x8, %[to_addr]"
+                :
+                : [to_addr] "rax" (@ptrToInt(to)),
+            );
             // restore callee regs
             asm volatile ("ldp x19, x20, [x8], #16");
             asm volatile ("ldp x21, x22, [x8], #16");
@@ -213,6 +204,7 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             asm volatile ("ldp x29, x9, [x8], #16");
             asm volatile ("ldr x30, [x8]");
             asm volatile ("mov sp, x9");
+            asm volatile ("ret");
         }
 
         fn switchMemContext(ttbr_0_addr: usize) callconv(.C) void {

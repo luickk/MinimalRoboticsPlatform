@@ -183,12 +183,26 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
         kprint("[panic] el must be 1! (it is: {d})\n", .{current_el});
         proc.panic();
     }
+
     if (board.config.board == .qemuVirt) {
         gic.init() catch |e| {
             kprint("[panic] Page table ttbr0 address calc error: {s}\n", .{@errorName(e)});
             k_utils.panic();
         };
+
+        gic.setDAIF(gic.DaifConfig{ .bits = .{
+            .debug = true,
+            .serr = false,
+            .irqs = false,
+            .fiqs = false,
+        } });
+
+        gic.Gicd.gicdEnableInt(gic.InterruptIds.non_secure_physical_timer) catch |e| {
+            kprint("[panic] gicdEnableInt address calc error: {s}\n", .{@errorName(e)});
+            k_utils.panic();
+        };
     }
+
     if (board.config.board == .raspi3b) {
         timer.initTimer();
         kprint("[kernel] timer inited \n", .{});
@@ -230,7 +244,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
 }
 
 fn testUserProcess() void {
-    old_mapping_kprint("userspace test print \n", .{});
+    kprint("userspace test print \n", .{});
 }
 comptime {
     @export(intHandle.irqHandler, .{ .name = "irqHandler", .linkage = .Strong });
