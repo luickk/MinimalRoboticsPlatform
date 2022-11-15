@@ -5,7 +5,6 @@
 .section .text.exc_vec
 
 .macro EXCEPTION_VECTOR handler int_type
-
     sub sp, sp, #CONTEXT_SIZE
 
     // store general purpose registers
@@ -31,11 +30,9 @@
     mrs x1, esr_el1
     stp x0, x1, [sp, #16 * 15]
     
-    // mrs x0, spsr_el1
-    // str x0, [sp, #16 * 16]
+    mrs x0, elr_el1
+    stp x0, x30, [sp, #16 * 16]
 
-    // store link register which is x30
-    str x30, [sp, #16 * 16]
     mov x0, sp
 
     // call exception handler
@@ -105,12 +102,11 @@ _exception_vector_table:
 
 .exit_exception:
     // restore link register
-    ldr x30, [sp, #16 * 16]
+    // ldr x30, [sp, #16 * 16]
 
     // restore exception link register and saved processor state register
-    // ldp x0, x1, [sp, #16 * 15]
-    // msr elr_el1, x0
-    // msr esr_el1, x1
+    ldp x0, x30, [sp, #16 * 16]
+    msr elr_el1, x0
 
     // restore general purpose registers
     ldp x28, x29, [sp, #16 * 14]

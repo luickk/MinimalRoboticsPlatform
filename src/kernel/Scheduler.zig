@@ -97,7 +97,6 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
 
         pub fn schedule(self: *Self) void {
             _ = self;
-            kprint("-- \n", .{});
             // current_task.?.counter -= 1;
             // if (current_task.?.counter > 0 or current_task.?.preempt_count > 0) return;
             current_task.?.counter = 0;
@@ -120,7 +119,6 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
                     task.*.?.counter = (task.*.?.counter >> 1) + task.*.?.priority;
                 }
             }
-            kprint("swithcing... {d} \n", .{next});
             switchContextToTask(tasks[next].?);
             current_task.?.setPreempt(true);
         }
@@ -132,7 +130,6 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             if (!board.config.mem.has_rom) no_rom_bl_bin_offset = bl_bin_size;
 
             var copied_task: *Task = @ptrCast(*Task, try self.page_allocator.allocNPage(2));
-            kprint("{*} \n", .{copied_task});
             copied_task.cpu_context.x19 = @ptrToInt(fnp);
             // arg0 is not supported for now
             copied_task.cpu_context.x20 = 0;
@@ -208,9 +205,10 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
         }
 
         fn switchMemContext(ttbr_0_addr: usize) callconv(.C) void {
-            // x0 -> arg0
-            asm volatile ("msr ttbr0_el1, x0");
-            kprint("text {x} \n", .{ttbr_0_addr});
+            asm volatile ("msr ttbr0_el1, %[ttbr0_addr]"
+                :
+                : [ttbr0_addr] "rax" (@ptrToInt(ttbr_0_addr)),
+            );
             asm volatile ("tlbi vmalle1is");
             // ensure completion of TLB invalidation
             asm volatile ("dsb ish");

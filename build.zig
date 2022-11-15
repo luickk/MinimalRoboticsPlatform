@@ -52,7 +52,7 @@ pub fn build(b: *std.build.Builder) !void {
     bl_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_bl_ld });
     bl_exe.addObjectFile("src/bootloader/bootloader.zig");
     bl_exe.addCSourceFile("src/bootloader/board/" ++ @tagName(currBoard.config.board) ++ "/boot.S", &.{});
-    bl_exe.addCSourceFile("src/bootloader/board/" ++ @tagName(currBoard.config.board) ++ "/exc_vec.S", &.{});
+    bl_exe.addCSourceFile("src/bootloader/exc_vec.S", &.{});
     bl_exe.install();
     if (currBoard.config.mem.rom_size) |rs|
         if (bl_bin_size + kernel_bin_size > rs)
@@ -74,6 +74,7 @@ pub fn build(b: *std.build.Builder) !void {
     const temp_kernel_ld = "zig-cache/tmp/tempKernelLinker.ld";
     kernel_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_kernel_ld });
     kernel_exe.addObjectFile("src/kernel/kernel.zig");
+    kernel_exe.addCSourceFile("src/kernel/exc_vec.S", &.{});
     kernel_exe.install();
 
     // compilation steps

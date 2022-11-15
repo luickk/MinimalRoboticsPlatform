@@ -193,9 +193,15 @@ pub fn ProccessorRegMap(comptime curr_el: ExceptionLevels) type {
         pub inline fn dsb() void {
             asm volatile ("dsb SY");
         }
-
+        pub inline fn setExceptionVec(exc_vec_addr: usize) void {
+            asm volatile ("msr vbar_el1, %[exc_vec]"
+                :
+                : [exc_vec] "rax" (exc_vec_addr),
+            );
+            asm volatile ("isb");
+        }
         pub inline fn exceptionSvc() void {
-            // Supervisor call to allow application code to call the OS.  It generates an exception targeting exception level 1 (EL1).
+            // Supervisor call. generates an exception targeting exception level 1 (EL1).
             asm volatile ("svc #0xdead");
         }
 

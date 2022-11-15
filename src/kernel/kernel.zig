@@ -44,8 +44,6 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
             old_mapping_kprint("[panic] error reading _kernel_space_start label\n", .{});
             k_utils.panic();
         });
-        // todo => for some reason this var is optimized away, if not printed (or somehow used explicitely)
-        old_mapping_kprint("_kernel_space_start: {x} \n", .{_kernel_space_start});
 
         var kernel_alloc = KernelAllocator(board.config.mem.kernel_space_size - kernel_bin_size - board.config.mem.k_stack_size, 0x100000).init(_kernel_space_start + board.config.mem.k_stack_size) catch |e| {
             old_mapping_kprint("[panic] KernelAllocator init error: {s}\n", .{@errorName(e)});
@@ -178,6 +176,14 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
     }
     kprint("[kernel] page tables updated! \n", .{});
 
+    {
+        const _exc_vec_label: usize = @ptrToInt(@extern(?*u8, .{ .name = "_exception_vector_table" }) orelse {
+            kprint("[panic] error reading _exception_vector_table label\n", .{});
+            k_utils.panic();
+        });
+        proc.setExceptionVec(_exc_vec_label);
+    }
+
     var current_el = proc.getCurrentEl();
     if (current_el != 1) {
         kprint("[panic] el must be 1! (it is: {d})\n", .{current_el});
@@ -191,7 +197,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
         };
 
         gic.setDAIF(gic.DaifConfig{ .bits = .{
-            .debug = true,
+            .debug = false,
             .serr = false,
             .irqs = false,
             .fiqs = false,
@@ -202,6 +208,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
             k_utils.panic();
         };
     }
+    proc.exceptionSvc();
 
     if (board.config.board == .raspi3b) {
         timer.initTimer();

@@ -135,7 +135,7 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
         };
 
         pub const DaifConfig = union {
-            bits: struct { debug: bool, serr: bool, irqs: bool, fiqs: bool },
+            bits: packed struct { debug: bool, serr: bool, irqs: bool, fiqs: bool },
             int: u4,
         };
 
@@ -328,7 +328,7 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
         pub fn setDAIF(daif_config: DaifConfig) void {
             asm volatile ("msr daifclr, %[conf]"
                 :
-                : [conf] "I" (daif_config.int),
+                : [conf] "iax" (daif_config.int),
             );
         }
     };
