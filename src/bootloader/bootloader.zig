@@ -1,27 +1,30 @@
 const std = @import("std");
-const bl_utils = @import("utils.zig");
 const utils = @import("utils");
-const intHandle = @import("gicHandle.zig");
-const arm = @import("arm");
-const periph = @import("periph");
+
+// bootloader specific
 const board = @import("board");
-const b_options = @import("build_options");
-const proc = arm.processor.ProccessorRegMap(.el1);
-const mmu = arm.mmu;
-// .ttbr0 arg sets the addresses value to either or user_, kernel_space
 const PeriphConfig = board.PeriphConfig(.ttbr0);
+const bl_utils = @import("utils.zig");
+const intHandle = @import("blIntHandler.zig");
+const b_options = @import("build_options");
+
+// general periphs
+const periph = @import("periph");
+// .ttbr0 arg sets the addresses value to either or user_, kernel_space
 const pl011 = periph.Pl011(.ttbr0);
 const kprint = periph.uart.UartWriter(.ttbr0).kprint;
+
+const arm = @import("arm");
+const gic = arm.gicv2.Gic(.ttbr0);
+const proc = arm.processor.ProccessorRegMap(.el1);
+const mmu = arm.mmu;
 
 // raspberry
 const bcm2835IntController = arm.bcm2835IntController.InterruptController(.ttbr0);
 
-const gic = arm.gicv2.Gic(.ttbr0);
-
 const Granule = board.boardConfig.Granule;
 const GranuleParams = board.boardConfig.GranuleParams;
 const TransLvl = board.boardConfig.TransLvl;
-
 const kernel_bin_size = b_options.kernel_bin_size;
 const bl_bin_size = b_options.bl_bin_size;
 

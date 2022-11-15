@@ -134,9 +134,11 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
             pub const giccIarSpuriousIntr = 0x3ff; // 1023 means spurious interrupt
         };
 
-        pub const DaifConfig = union {
-            bits: packed struct { debug: bool, serr: bool, irqs: bool, fiqs: bool },
-            int: u4,
+        pub const DaifConfig = packed struct(u4) {
+            debug: bool,
+            serr: bool,
+            irqs: bool,
+            fiqs: bool,
         };
 
         pub const InterruptIds = enum(u32) {
@@ -328,7 +330,7 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
         pub fn setDAIF(daif_config: DaifConfig) void {
             asm volatile ("msr daifclr, %[conf]"
                 :
-                : [conf] "iax" (daif_config.int),
+                : [conf] "I" (daif_config),
             );
         }
     };

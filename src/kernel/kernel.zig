@@ -1,35 +1,36 @@
 const std = @import("std");
-const arm = @import("arm");
-const periph = @import("periph");
 const utils = @import("utils");
-const k_utils = @import("utils.zig");
-const tests = @import("tests.zig");
-const Scheduler = @import("Scheduler.zig").Scheduler;
-
-// pre_kernel_page_table_init_kprint...
-// uses userspace addresses(ttbr0), since those are still identity mapped
-// to access peripherals
-const old_mapping_kprint = periph.uart.UartWriter(.ttbr0).kprint;
-
-const kprint = periph.uart.UartWriter(.ttbr1).kprint;
-const gic = arm.gicv2.Gic(.ttbr1);
+const board = @import("board");
 
 // kernel services
 const KernelAllocator = @import("KernelAllocator.zig").KernelAllocator;
 const UserPageAllocator = @import("UserPageAllocator.zig").UserPageAllocator;
-const intHandle = @import("gicHandle.zig");
+const Scheduler = @import("Scheduler.zig").Scheduler;
+const k_utils = @import("utils.zig");
+const tests = @import("tests.zig");
+const intHandle = @import("kernelIntHandler.zig");
 const b_options = @import("build_options");
-const board = @import("board");
+const kernel_bin_size = b_options.kernel_bin_size;
+const bl_bin_size = b_options.bl_bin_size;
 
+// arm specific periphs
+const arm = @import("arm");
+const gic = arm.gicv2.Gic(.ttbr1);
+const gt = arm.genericTimer;
 const proc = arm.processor.ProccessorRegMap(.el1);
 const mmu = arm.mmu;
 
-// raspberry
-const bcm2835IntController = arm.bcm2835IntController.InterruptController(.ttbr1);
-const timer = arm.timer;
+// general peripherals
+const periph = @import("periph");
+// pre_kernel_page_table_init_kprint...
+// uses userspace addresses(ttbr0), since those are still identity mapped
+// to access peripherals
+const old_mapping_kprint = periph.uart.UartWriter(.ttbr0).kprint;
+const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 
-const kernel_bin_size = b_options.kernel_bin_size;
-const bl_bin_size = b_options.bl_bin_size;
+// raspberry specific periphs
+const bcm2835IntController = arm.bcm2835IntController.InterruptController(.ttbr1);
+const bcm2835Timer = arm.bcm2835Timer;
 
 export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noreturn {
     // !! kernel sp is inited in the Bootloader!!
@@ -196,22 +197,21 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
             k_utils.panic();
         };
 
-        gic.setDAIF(gic.DaifConfig{ .bits = .{
+        gic.setDAIF(.{
             .debug = false,
             .serr = false,
             .irqs = false,
             .fiqs = false,
-        } });
+        });
 
         gic.Gicd.gicdEnableInt(gic.InterruptIds.non_secure_physical_timer) catch |e| {
             kprint("[panic] gicdEnableInt address calc error: {s}\n", .{@errorName(e)});
             k_utils.panic();
         };
     }
-    proc.exceptionSvc();
 
     if (board.config.board == .raspi3b) {
-        timer.initTimer();
+        bcm2835Timer.initTimer();
         kprint("[kernel] timer inited \n", .{});
 
         bcm2835IntController.init();
@@ -234,6 +234,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
     //     kprint("[panic] testUserPageAlloc test error: {s} \n", .{@errorName(e)});
     //     k_utils.panic();
     // };
+    // proc.exceptionSvc();
 
     kprint("[kernel] starting scheduler \n", .{});
     var scheduler = Scheduler(@TypeOf(user_page_alloc)).init(&user_page_alloc);
@@ -246,13 +247,14 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
     kprint("test process pid: {d} \n", .{test_proc_pid});
 
     while (true) {
-        scheduler.schedule();
+        // scheduler.schedule();
     }
 }
 
 fn testUserProcess() void {
     kprint("userspace test print \n", .{});
 }
+
 comptime {
     @export(intHandle.irqHandler, .{ .name = "irqHandler", .linkage = .Strong });
     @export(intHandle.irqElxSpx, .{ .name = "irqElxSpx", .linkage = .Strong });
