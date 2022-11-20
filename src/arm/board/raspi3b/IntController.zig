@@ -6,13 +6,13 @@ pub fn InterruptController(comptime addr_space: AddrSpace) type {
         const Self = @This();
 
         pub const RegMap = struct {
-            pub const pendingBasic = @intToPtr(*u32, base_address + 0x0000b200);
-            pub const pendingIrq1 = @intToPtr(*u32, base_address + 0x0000b204);
-            pub const pendingIrq2 = @intToPtr(*u32, base_address + 0x0000b208);
+            pub const pendingBasic = @intToPtr(*u32, base_address + 0);
+            pub const pendingIrq1 = @intToPtr(*u32, base_address + 0x4);
+            pub const pendingIrq2 = @intToPtr(*u32, base_address + 0x8);
 
-            pub const enableIrq1 = @intToPtr(*u32, base_address + 0x0000b210);
-            pub const enableIrq2 = @intToPtr(*u32, base_address + 0x0000b214);
-            pub const enableIrqBasic = base_address + 0x0000b218;
+            pub const enableIrq1 = @intToPtr(*u32, base_address + 0x10);
+            pub const enableIrq2 = @intToPtr(*u32, base_address + 0x14);
+            pub const enableIrqBasic = @intToPtr(*u32, base_address + 0x18);
         };
         pub const RegValues = struct {
             // all banks are lister here: https://github.com/torvalds/linux/blob/master/Documentation/devicetree/bindings/interrupt-controller/brcm%2Cbcm2835-armctrl-ic.txt
@@ -62,11 +62,10 @@ pub fn InterruptController(comptime addr_space: AddrSpace) type {
         pub fn init() void {
             // enabling all irq types
             // enalbles system timer
-            // RegMap.enableIrq1.* = 1 << 1;
+            RegMap.enableIrq1.* = 1 << 1;
             // RegMap.enableIrq2.* = 1 << 1;
             // RegMap.enableIrqBasic.* = 1 << 1;
 
-            asm volatile ("msr daifclr, #3");
         }
     };
 }

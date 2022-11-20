@@ -1,3 +1,4 @@
+const kprint = @import("periph").uart.UartWriter(.ttbr1).kprint;
 const timerCfg = @import("board").PeriphConfig(.ttbr1).Timer;
 
 var timerVal: u32 = 0;
@@ -24,7 +25,8 @@ pub fn initTimer() void {
 }
 
 pub fn handleTimerIrq() void {
-    timerVal += RegValues.timerInterval;
-    RegMap.timerC1.* = timerVal;
-    RegMap.timerCs.* = RegValues.timerCsM1;
+    RegMap.timerC1.* = RegMap.timerClo.* + RegValues.timerInterval;
+    // timerVal += RegValues.timerInterval;
+    // RegMap.timerC1.* = timerVal;
+    // RegMap.timerCs.* = RegValues.timerCsM1;
 }

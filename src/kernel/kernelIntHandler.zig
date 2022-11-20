@@ -43,7 +43,7 @@ pub const ExceptionClass = enum(u6) {
 };
 
 pub fn irqHandler(exc: *gic.ExceptionFrame) callconv(.C) void {
-    kprint("SOSS \n", .{});
+    // kprint("SOSS \n", .{});
     // std intToEnum instead of build in in order to catch err
     var int_type = std.meta.intToEnum(gic.ExceptionType, exc.int_type) catch {
         kprint("int type not found \n", .{});
