@@ -4,7 +4,7 @@ const periph = @import("periph");
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 const icCfg = @import("board").PeriphConfig(.ttbr1).InterruptController;
 const gic = arm.gicv2;
-const timer = arm.timer;
+const timer = arm.bcm2835Timer;
 const intController = arm.bcm2835IntController.InterruptController(.ttbr1);
 
 const Bank0 = intController.RegValues.Bank0;

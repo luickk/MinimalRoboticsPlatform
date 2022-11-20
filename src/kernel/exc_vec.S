@@ -101,9 +101,6 @@ _exception_vector_table:
 
 
 .exit_exception:
-    // restore link register
-    // ldr x30, [sp, #16 * 16]
-
     // restore exception link register and saved processor state register
     ldp x0, x30, [sp, #16 * 16]
     msr elr_el1, x0

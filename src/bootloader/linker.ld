@@ -35,8 +35,4 @@ SECTIONS {
         *(.data);
         *(.data.*);
     }
-    
-    .paging_tbl (NOLOAD) : ALIGN(0x8){
-        _kernelrom_start = .;
-    }
 }

@@ -37,5 +37,4 @@ SECTIONS {
     .kernel_space (NOLOAD) : ALIGN(8)  {
         _kernel_space_start = .;
     }
-
 }

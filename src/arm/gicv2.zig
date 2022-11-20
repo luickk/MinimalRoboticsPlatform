@@ -1,4 +1,5 @@
 const std = @import("std");
+const arm = @import("arm");
 const mmu = @import("mmu.zig");
 const AddrSpace = @import("board").boardConfig.AddrSpace;
 
@@ -155,6 +156,7 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
                 // note: higher priority corresponds to a lower priority field value in the gic_pmr.
                 // in addition to this, writing 255 to the gicc_pmr always sets it to the largest supported priority field value.
                 GiccRegMap.pmr.* = GiccRegValues.giccPmrPrioMin;
+
                 // handle all of interrupts in a single group
                 GiccRegMap.bpr.* = GiccRegValues.giccBprNoGroup;
 
@@ -203,8 +205,7 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
 
                 // diable distributor
                 GicdRegMap.ctlr.* = GiccRegValues.giccCtlrDisable;
-
-                // disable all irqs
+                // disable all irqs & clear pending
                 irq_num = try std.math.divExact(u32, gicCfg.intMax + GicdRegValues.intPerReg, GicdRegValues.intPerReg);
                 while (irq_num > i) : (i += 1) {
                     @intToPtr(*volatile u32, @ptrToInt(GicdRegMap.icenabler) + 4 * i).* = ~@as(u32, 0);
@@ -235,31 +236,31 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
                 GicdRegMap.ctlr.* = GicdRegValues.gicdCtlrEnable;
             }
 
+            // todo => ! every enable/disable/clear... overwrites existing configs...
+
             pub fn gicdEnableInt(irq_id: InterruptIds) !void {
-                // irq_id mod 32
-                const clear_ena_bit = @truncate(u3, @enumToInt(irq_id) & (@as(u8, 1) << @as(u8, 5)) - @as(u8, 1));
-                calcReg(GicdRegMap.isenabler, @enumToInt(irq_id)).* = @as(u8, 1) << clear_ena_bit;
+                const clear_ena_bit = @truncate(u5, try std.math.mod(u32, @enumToInt(irq_id), @as(u32, 32)));
+                calcReg(GicdRegMap.isenabler, @enumToInt(irq_id)).* = @as(u32, 1) << clear_ena_bit;
             }
 
             pub fn gicdDisableInt(irq_id: InterruptIds) !void {
                 // irq_id mod 32
-                const clear_ena_bit = @truncate(u3, @enumToInt(irq_id) & (@as(u8, 1) << @as(u8, 5)) - @as(u8, 1));
-                calcReg(GicdRegMap.icenabler, @enumToInt(irq_id)).* = @as(u8, 1) << clear_ena_bit;
+                const clear_ena_bit = @truncate(u5, try std.math.mod(u32, @enumToInt(irq_id), @as(u32, 32)));
+                calcReg(GicdRegMap.icenabler, @enumToInt(irq_id)).* = @as(u32, 1) << clear_ena_bit;
             }
 
             fn gicdClearPending(irq_id: InterruptIds) !void {
                 // irq_id mod 32
-                const clear_ena_bit = @truncate(u3, @enumToInt(irq_id) & (@as(u8, 1) << @as(u8, 5)) - @as(u8, 1));
-                calcReg(GicdRegMap.icpendr, @enumToInt(irq_id)).* = @as(u8, 1) << clear_ena_bit;
+                const clear_ena_bit = @truncate(u5, try std.math.mod(u32, @enumToInt(irq_id), @as(u32, 32)));
+                calcReg(GicdRegMap.icpendr, @enumToInt(irq_id)).* = @as(u32, 1) << clear_ena_bit;
             }
 
             fn gicdProbePending(irq_id: InterruptIds) !bool {
-
                 // irq_id mod 32
-                var clear_ena_bit = @truncate(u3, @enumToInt(irq_id) & (@as(u8, 1) << @as(u8, 5)) - @as(u8, 1));
-                clear_ena_bit = @as(u8, 1) << clear_ena_bit;
+                const clear_ena_bit = @truncate(u5, try std.math.mod(u32, @enumToInt(irq_id), @as(u32, 32)));
+                const cleared_ena_bit = @as(u32, 1) << clear_ena_bit;
 
-                const is_pending = calcReg(GicdRegMap.icpendr, @enumToInt(irq_id)).* & clear_ena_bit;
+                const is_pending = calcReg(GicdRegMap.icpendr, @enumToInt(irq_id)).* & cleared_ena_bit;
                 return is_pending != 0;
             }
 
@@ -275,56 +276,59 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
             // there is few occasions on which bit shifts are more explicit and less confusing, but this is defenitely one of them.
             // in order to prevent that (int to float) conversion/ casting chaos, all operations below are done with bitshifts
             // For some reason arm docs describe them mathematically which is a huge footgun if realised that way
-            fn calcReg(pointing_addr_start: *volatile u32, irq_id: u32) *volatile u32 {
+            fn calcReg(addr_start: *volatile u32, irq_id: u32) *volatile u32 {
                 // wtf... but that's what the docs say.... and it works -.-
-                // const reg = @intToPtr(*volatile u32, @ptrToInt(GicdRegMap.isenabler) + 4 * (@floatToInt(usize, try std.math.divFloor(f32, @intToFloat(f32, @enumToInt(irq)), GicdRegValues.isenablerperReg))));
+                // const reg = @ptrToInt(GicdRegMap.isenabler) + 4 * (@floatToInt(usize, (try std.math.divFloor(f32, @intToFloat(f32, irq_id), @as(u32, 32)))));
 
                 // alternative version:
-                // irq_id div by 32
-                var n = irq_id >> @as(u8, 5);
-                // n mult with 4
-                return @intToPtr(*volatile u32, @ptrToInt(pointing_addr_start) + (n << 2));
+                // irq_id (div by 32) * 4
+                var reg = (irq_id >> @as(u32, 5)) << 2;
+
+                return @intToPtr(*volatile u32, @ptrToInt(addr_start) + reg);
             }
 
-            // // set an interrupt target processor
-            // // irq irq number
-            // // p   target processor mask
-            // // 0x1 processor 0
-            // // 0x2 processor 1
-            // // 0x4 processor 2
-            // // 0x8 processor 3
-            // fn gicdSetTarget(irq: u32, p: u32) void {
-            //     var shift: u5 = @truncate(u5, (irq % GicdRegValues.itargetsrPerReg) * GicdRegValues.itargetsrSizePerReg);
+            // set an interrupt target processor
+            // irq irq number
+            // p   target processor mask
+            // 0x1 processor 0
+            // 0x2 processor 1
+            // 0x4 processor 2
+            // 0x8 processor 3
+            pub fn gicdSetTarget(irq_id: InterruptIds, p: u32) !void {
+                const reg = @intToPtr(*volatile u32, @ptrToInt(GicdRegMap.itargetsr) + (@enumToInt(irq_id) & ~@as(u32, 0x3)));
+                var targets: u32 = reg.*;
+                const shift = @truncate(u5, (@enumToInt(irq_id) % 4) * 8);
+                targets &= ~(@as(u32, 0xff) << shift);
+                targets |= p << shift;
 
-            //     var reg: u32 = reg_gic_gicd_itargetsr(irq / GicdRegValues.itargetsrPerReg).*;
-            //     reg &= ~(@as(u32, 0xff) << shift);
-            //     reg |= p << shift;
-            //     reg_gic_gicd_itargetsr(irq / GicdRegValues.itargetsrPerReg).* = reg;
-            // }
+                reg.* = targets;
+            }
 
-            // // set an interrupt priority
-            // // irq  irq number
-            // // prio interrupt priority in arm specific expression
-            // fn gicdSetPriority(irq: u32, prio: u32) void {
-            //     var shift: u5 = @truncate(u5, (irq % GicdRegValues.ipriorityPerReg) * GicdRegValues.iprioritySizePerReg);
-            //     var reg: u32 = reg_gic_gicd_ipriorityr(irq / GicdRegValues.ipriorityPerReg).*;
-            //     reg &= ~(@as(u32, 0xff) << shift);
-            //     reg |= (prio << shift);
-            //     reg_gic_gicd_ipriorityr(irq / GicdRegValues.ipriorityPerReg).* = reg;
-            // }
+            // set an interrupt priority
+            // irq  irq number
+            // prio interrupt priority in arm specific expression
+            pub fn gicdSetPriority(irq_id: InterruptIds, prio: u32) void {
+                var shift: u5 = @truncate(u5, (@enumToInt(irq_id) % GicdRegValues.ipriorityPerReg) * GicdRegValues.iprioritySizePerReg);
+                var reg: u32 = @intToPtr(*volatile u32, @ptrToInt(GicdRegMap.ipriorityr) + ((@enumToInt(irq_id) / GicdRegValues.ipriorityPerReg) * 4)).*;
 
-            // // configure irq
-            // // irq     irq number
-            // // config  configuration value for gicd_icfgr
-            // fn gicdConfig(irq: u32, config: u32) void {
-            //     var shift: u5 = @truncate(u5, (irq % GicdRegValues.icfgrPerReg) * GicdRegValues.icfgrSizePerReg); // gicd_icfgr has 17 fields, each field has 2bits.
+                reg &= ~(@as(u32, 0xff) << shift);
+                reg |= (prio << shift);
 
-            //     var reg: u32 = reg_gic_gicd_icfgr(irq / GicdRegValues.icfgrPerReg).*;
+                @intToPtr(*volatile u32, @ptrToInt(GicdRegMap.ipriorityr) + ((@enumToInt(irq_id) / GicdRegValues.ipriorityPerReg) * 4)).* = reg;
+            }
 
-            //     reg &= ~((@as(u32, 0x03)) << shift); // clear the field
-            //     reg |= ((@as(u32, config)) << shift); // set the value to the field correponding to irq
-            //     reg_gic_gicd_icfgr(irq / GicdRegValues.icfgrPerReg).* = reg;
-            // }
+            // configure irq
+            // irq     irq number
+            // config  configuration value for gicd_icfgr
+            pub fn gicdConfig(irq_id: InterruptIds, config: u32) void {
+                var shift: u5 = @truncate(u5, (@enumToInt(irq_id) % GicdRegValues.icfgrPerReg) * GicdRegValues.icfgrSizePerReg); // gicd_icfgr has 16 fields, each field has 2bits.
+
+                var reg: u32 = @intToPtr(*volatile u32, @ptrToInt(GicdRegMap.icfgr) + ((@enumToInt(irq_id) / GicdRegValues.icfgrPerReg) * 4)).*;
+
+                reg &= ~((@as(u32, 0x03)) << shift); // clear the field
+                reg |= ((@as(u32, config)) << shift); // set the value to the field correponding to irq
+                @intToPtr(*volatile u32, @ptrToInt(GicdRegMap.icfgr) + ((@enumToInt(irq_id) / GicdRegValues.icfgrPerReg) * 4)).* = reg;
+            }
         };
 
         pub fn setDAIF(daif_config: DaifConfig) void {

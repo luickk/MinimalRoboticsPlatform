@@ -200,6 +200,7 @@ pub fn ProccessorRegMap(comptime curr_el: ExceptionLevels) type {
             );
             asm volatile ("isb");
         }
+
         pub inline fn exceptionSvc() void {
             // Supervisor call. generates an exception targeting exception level 1 (EL1).
             asm volatile ("svc #0xdead");

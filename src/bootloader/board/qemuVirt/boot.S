@@ -3,8 +3,15 @@
 .globl	_start
 _start:
 	mrs	x0, mpidr_el1		
-	and	x0, x0,#0xFF // Check processor id
+	and	x0, x0, #0xFF // Check processor id
 	cbz	x0, master // Hang for all non-primary CPU
+
+	// mov w1, #0
+	// orr w1, w1, #(1 << 3)
+	// orr w1, w1, #(1 << 4)
+	// orr w1, w1, #(1 << 5)
+	// msr HCR_EL2, x1
+
 	b	proc_hang
 
 // virt does directly boot to el1 on startup

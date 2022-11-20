@@ -193,7 +193,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
 
     if (board.config.board == .qemuVirt) {
         gic.init() catch |e| {
-            kprint("[panic] Page table ttbr0 address calc error: {s}\n", .{@errorName(e)});
+            kprint("[panic] gic init error: {s}\n", .{@errorName(e)});
             k_utils.panic();
         };
 
@@ -204,18 +204,29 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
             .fiqs = false,
         });
 
+        gic.Gicd.gicdConfig(gic.InterruptIds.non_secure_physical_timer, 0x2);
+        gic.Gicd.gicdSetPriority(gic.InterruptIds.non_secure_physical_timer, 0);
+        gic.Gicd.gicdSetTarget(gic.InterruptIds.non_secure_physical_timer, 1) catch |e| {
+            kprint("[panic] gicd setTarget error: {s}\n", .{@errorName(e)});
+            k_utils.panic();
+        };
+
         gic.Gicd.gicdEnableInt(gic.InterruptIds.non_secure_physical_timer) catch |e| {
             kprint("[panic] gicdEnableInt address calc error: {s}\n", .{@errorName(e)});
             k_utils.panic();
         };
+
+        gt.setupGt();
     }
 
-    if (board.config.board == .raspi3b) {
-        bcm2835Timer.initTimer();
-        kprint("[kernel] timer inited \n", .{});
+    // asm volatile ("WFI");
 
+    if (board.config.board == .raspi3b) {
         bcm2835IntController.init();
         kprint("[kernel] ic inited \n", .{});
+
+        bcm2835Timer.initTimer();
+        kprint("[kernel] timer inited \n", .{});
     }
 
     kprint("[kernel] kernel boot complete \n", .{});
@@ -248,6 +259,11 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
 
     while (true) {
         // scheduler.schedule();
+        // ISR_EL1 or cntp_ctl_el0
+        // var x: usize = asm volatile ("mrs %[curr], cntp_ctl_el0"
+        //     : [curr] "=r" (-> usize),
+        // );
+        // kprint("x: {d} \n", .{x});
     }
 }
 
