@@ -30,11 +30,16 @@ pub fn build(b: *std.build.Builder) !void {
     var board = std.build.Pkg{ .name = "board", .source = .{ .path = "src/boards/" ++ @tagName(currBoard.config.board) ++ ".zig" } };
     // peripheral drivers
     var periph = std.build.Pkg{ .name = "periph", .source = .{ .path = "src/periph/periph.zig" } };
+    // peripheral drivers
+    var sharedKServices = std.build.Pkg{ .name = "sharedKServices", .source = .{ .path = "src/kernel/sharedKServices/sharedKServices.zig" } };
+
+    sharedKServices.dependencies = &.{ board, build_options.*.getPackage("build_options"), arm, utils, periph };
 
     periph.dependencies = &.{board};
 
-    arm.dependencies = &.{periph};
-    arm.dependencies = &.{board};
+    utils.dependencies = &.{ board, arm };
+
+    arm.dependencies = &.{ periph, utils, board, sharedKServices };
 
     // bootloader
     const bl_exe = b.addExecutable("bootloader", null);
@@ -65,6 +70,7 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.code_model = .large;
     kernel_exe.strip = false;
     kernel_exe.addPackage(arm);
+    kernel_exe.addPackage(sharedKServices);
     kernel_exe.addPackage(utils);
     kernel_exe.addPackage(board);
     kernel_exe.addPackage(periph);

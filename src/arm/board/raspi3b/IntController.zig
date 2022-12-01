@@ -6,13 +6,13 @@ pub fn InterruptController(comptime addr_space: AddrSpace) type {
         const Self = @This();
 
         pub const RegMap = struct {
-            pub const pendingBasic = @intToPtr(*u32, base_address + 0);
-            pub const pendingIrq1 = @intToPtr(*u32, base_address + 0x4);
-            pub const pendingIrq2 = @intToPtr(*u32, base_address + 0x8);
+            pub const pendingBasic = @intToPtr(*volatile u32, base_address + 0);
+            pub const pendingIrq1 = @intToPtr(*volatile u32, base_address + 0x4);
+            pub const pendingIrq2 = @intToPtr(*volatile u32, base_address + 0x8);
 
-            pub const enableIrq1 = @intToPtr(*u32, base_address + 0x10);
-            pub const enableIrq2 = @intToPtr(*u32, base_address + 0x14);
-            pub const enableIrqBasic = @intToPtr(*u32, base_address + 0x18);
+            pub const enableIrq1 = @intToPtr(*volatile u32, base_address + 0x10);
+            pub const enableIrq2 = @intToPtr(*volatile u32, base_address + 0x14);
+            pub const enableIrqBasic = @intToPtr(*volatile u32, base_address + 0x18);
         };
         pub const RegValues = struct {
             // all banks are lister here: https://github.com/torvalds/linux/blob/master/Documentation/devicetree/bindings/interrupt-controller/brcm%2Cbcm2835-armctrl-ic.txt

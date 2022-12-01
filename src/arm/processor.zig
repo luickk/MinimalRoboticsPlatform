@@ -231,5 +231,40 @@ pub fn ProccessorRegMap(comptime curr_el: ExceptionLevels) type {
         pub fn panic() noreturn {
             while (true) {}
         }
+
+        pub const DaifReg = packed struct(u4) {
+            debug: bool,
+            serr: bool,
+            irqs: bool,
+            fiqs: bool,
+
+            pub fn setDaifClr(daif_config: DaifReg) void {
+                asm volatile ("msr daifclr, %[conf]"
+                    :
+                    : [conf] "I" (daif_config),
+                );
+            }
+
+            pub fn setDaif(daif_config: DaifReg) void {
+                asm volatile ("msr daifset, %[conf]"
+                    :
+                    : [conf] "I" (daif_config),
+                );
+            }
+
+            pub fn enableIrq() void {
+                asm volatile ("msr daifclr, %[conf]"
+                    :
+                    : [conf] "I" (DaifReg{ .debug = false, .serr = false, .irqs = true, .fiqs = false }),
+                );
+            }
+
+            pub fn disableIrq() void {
+                asm volatile ("msr daifset, %[conf]"
+                    :
+                    : [conf] "I" (DaifReg{ .debug = false, .serr = false, .irqs = true, .fiqs = false }),
+                );
+            }
+        };
     };
 }

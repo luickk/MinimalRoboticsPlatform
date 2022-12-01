@@ -1,18 +1,18 @@
 const std = @import("std");
 const arm = @import("arm");
+const cpuContext = arm.cpuContext;
 const periph = @import("periph");
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 const icCfg = @import("board").PeriphConfig(.ttbr1).InterruptController;
 const gic = arm.gicv2;
-const timer = arm.bcm2835Timer;
+const timer = @import("timer.zig");
 const intController = arm.bcm2835IntController.InterruptController(.ttbr1);
 
 const Bank0 = intController.RegValues.Bank0;
 const Bank1 = intController.RegValues.Bank1;
 const Bank2 = intController.RegValues.Bank2;
 
-pub fn irqHandler(exc: *gic.ExceptionFrame) callconv(.C) void {
-    _ = exc;
+pub fn irqHandler(context: *cpuContext.CpuContext) callconv(.C) void {
     var irq_bank_0 = std.meta.intToEnum(Bank0, intController.RegMap.pendingBasic.*) catch {
         kprint("bank0 int type not found. \n", .{});
         return;
@@ -45,7 +45,7 @@ pub fn irqHandler(exc: *gic.ExceptionFrame) callconv(.C) void {
         Bank0.pending1 => {
             switch (irq_bank_1) {
                 Bank1.timer1 => {
-                    timer.handleTimerIrq();
+                    timer.handleTimerIrq(context);
                 },
                 else => {
                     kprint("Unknown bank 1 irq num: {s} \n", .{@tagName(irq_bank_1)});

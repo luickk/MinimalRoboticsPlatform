@@ -1,11 +1,14 @@
 const std = @import("std");
 const utils = @import("utils");
+
 const board = @import("board");
 
 // kernel services
-const KernelAllocator = @import("KernelAllocator.zig").KernelAllocator;
-const UserPageAllocator = @import("UserPageAllocator.zig").UserPageAllocator;
-const Scheduler = @import("Scheduler.zig").Scheduler;
+const sharedKServices = @import("sharedKServices");
+const Scheduler = sharedKServices.Scheduler;
+// KernelAllocator and UserPageAllocator types are inited in sharedKServices!.
+const KernelAllocator = sharedKServices.KernelAllocator;
+const UserPageAllocator = sharedKServices.UserPageAllocator;
 const k_utils = @import("utils.zig");
 const tests = @import("tests.zig");
 const intHandle = @import("kernelIntHandler.zig");
@@ -30,7 +33,10 @@ const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 
 // raspberry specific periphs
 const bcm2835IntController = arm.bcm2835IntController.InterruptController(.ttbr1);
-const bcm2835Timer = arm.bcm2835Timer;
+const bcm2835Timer = @import("board/raspi3b/timer.zig");
+
+// globals
+export var scheduler: *Scheduler = undefined;
 
 export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noreturn {
     // !! kernel sp is inited in the Bootloader!!
@@ -46,7 +52,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
             k_utils.panic();
         });
 
-        var kernel_alloc = KernelAllocator(board.config.mem.kernel_space_size - kernel_bin_size - board.config.mem.k_stack_size, 0x100000).init(_kernel_space_start + board.config.mem.k_stack_size) catch |e| {
+        var kernel_alloc = KernelAllocator.init(_kernel_space_start + board.config.mem.k_stack_size) catch |e| {
             old_mapping_kprint("[panic] KernelAllocator init error: {s}\n", .{@errorName(e)});
             k_utils.panic();
         };
@@ -191,18 +197,30 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
         proc.panic();
     }
 
+    kprint("[kernel] kernel boot complete \n", .{});
+
+    var user_page_alloc = UserPageAllocator.init() catch |e| {
+        kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+
+    // pointer is now global, ! kernel main lifetime needs to be equal to schedulers.. !
+    var scheduler_tmp = Scheduler.init(&user_page_alloc);
+    scheduler = &scheduler_tmp;
+
+    // // tests
+    // tests.testUserSpaceMem(10);
+    // tests.testUserPageAlloc(&user_page_alloc) catch |e| {
+    //     kprint("[panic] testUserPageAlloc test error: {s} \n", .{@errorName(e)});
+    //     k_utils.panic();
+    // };
+    // proc.exceptionSvc();
+
     if (board.config.board == .qemuVirt) {
         gic.init() catch |e| {
             kprint("[panic] gic init error: {s}\n", .{@errorName(e)});
             k_utils.panic();
         };
-
-        gic.setDAIF(.{
-            .debug = false,
-            .serr = false,
-            .irqs = false,
-            .fiqs = false,
-        });
 
         gic.Gicd.gicdConfig(gic.InterruptIds.non_secure_physical_timer, 0x2);
         gic.Gicd.gicdSetPriority(gic.InterruptIds.non_secure_physical_timer, 0);
@@ -215,6 +233,13 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
             kprint("[panic] gicdEnableInt address calc error: {s}\n", .{@errorName(e)});
             k_utils.panic();
         };
+
+        proc.DaifReg.setDaifClr(.{
+            .debug = true,
+            .serr = true,
+            .irqs = true,
+            .fiqs = true,
+        });
 
         gt.setupGt();
     }
@@ -229,36 +254,29 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
         kprint("[kernel] timer inited \n", .{});
     }
 
-    kprint("[kernel] kernel boot complete \n", .{});
-
-    var user_page_alloc = (UserPageAllocator(204800, board.config.mem.va_layout.va_user_space_gran) catch |e| {
-        kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    }).init() catch |e| {
-        kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
-
-    // // tests
-    // tests.testUserSpaceMem(10);
-    // tests.testUserPageAlloc(&user_page_alloc) catch |e| {
-    //     kprint("[panic] testUserPageAlloc test error: {s} \n", .{@errorName(e)});
-    //     k_utils.panic();
-    // };
-    // proc.exceptionSvc();
-
     kprint("[kernel] starting scheduler \n", .{});
-    var scheduler = Scheduler(@TypeOf(user_page_alloc)).init(&user_page_alloc);
 
     var test_proc_pid = scheduler.copyProcessToTaskQueue(0, &testUserProcess) catch |e| {
         kprint("[panic] Scheduler copyProcessToTaskQueue error: {s} \n", .{@errorName(e)});
         k_utils.panic();
     };
+    var test_proc_pid_ts = scheduler.copyProcessToTaskQueue(0, &testUserProcessTheSecond) catch |e| {
+        kprint("[panic] Scheduler copyProcessToTaskQueue error: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
 
-    kprint("test process pid: {d} \n", .{test_proc_pid});
+    kprint("test process pid: {d}, {d} \n", .{ test_proc_pid, test_proc_pid_ts });
 
     while (true) {
-        // scheduler.schedule();
+        // kprint("basic pend: {b} 1: {b} 2: {b} \n", .{ @intToPtr(*volatile u32, 0xFFFFFF8030000000).*, @intToPtr(*volatile u32, 0xFFFFFF8030000004).*, @intToPtr(*volatile u32, 0xFFFFFF8030000008).* });
+        kprint("while \n", .{});
+        // kprint("lol: {any} \n", .{gic.Gicc.gicv2FindPendingIrq() catch {
+        //     unreachable;
+        // }});
+        // kprint("lol: {any} \n", .{gic.Gicd.gicdProbePending(30) catch {
+        //     unreachable;
+        // }});
+        // scheduler.timerIntEvent();
         // ISR_EL1 or cntp_ctl_el0
         // var x: usize = asm volatile ("mrs %[curr], cntp_ctl_el0"
         //     : [curr] "=r" (-> usize),
@@ -268,7 +286,21 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
 }
 
 fn testUserProcess() void {
-    kprint("userspace test print \n", .{});
+    kprint("userspace test print - ONE 1 \n", .{});
+    // kprint("enable 1: {b} 2: {b} basic: {b} \n", .{ @intToPtr(*volatile u32, 0xFFFFFF8030000010).*, @intToPtr(*volatile u32, 0xFFFFFF8030000014).*, @intToPtr(*volatile u32, 0xFFFFFF8030000018).* });
+    while (true) {
+        kprint("p1 \n", .{});
+    }
+}
+
+fn testUserProcessTheSecond() void {
+    kprint("userspace test print - TWO 2 \n", .{});
+    // kprint("enable 1: {b} 2: {b} basic: {b} \n", .{ @intToPtr(*volatile u32, 0xFFFFFF8030000010).*, @intToPtr(*volatile u32, 0xFFFFFF8030000014).*, @intToPtr(*volatile u32, 0xFFFFFF8030000018).* });
+    while (true) {
+
+        // kprint("cs: {b} \n", .{@intToPtr(*volatile u32, 0xFFFFFF8030003000).*});
+        kprint("p2 \n", .{});
+    }
 }
 
 comptime {

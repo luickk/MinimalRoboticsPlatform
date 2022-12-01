@@ -122,8 +122,8 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
         pub const GiccRegValues = struct {
             // gicc..
             // 8.13.14 gicc_pmr, cpu interface priority mask register
-            pub const giccPmrPrioMin = @truncate(u32, mmu.toTtbr0(usize, GiccRegMap.giccBase + 0xff)); // the lowest level mask
-            pub const giccPmrPrioHigh = @truncate(u32, mmu.toTtbr0(usize, GiccRegMap.giccBase + 0x0)); // the highest level mask
+            pub const giccPmrPrioMin = 0xff; // the lowest level mask
+            pub const giccPmrPrioHigh = 0x0; // the highest level mask
             // 8.13.7 gicc_ctlr, cpu interface control register
             pub const giccCtlrEnable = 0x1; // enable gicc
             pub const giccCtlrDisable = 0x0; // disable gicc
@@ -133,13 +133,6 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
             // 8.13.11 gicc_iar, cpu interface interrupt acknowledge register
             pub const giccIarIntrIdmask = 0x3ff; // 0-9 bits means interrupt id
             pub const giccIarSpuriousIntr = 0x3ff; // 1023 means spurious interrupt
-        };
-
-        pub const DaifConfig = packed struct(u4) {
-            debug: bool,
-            serr: bool,
-            irqs: bool,
-            fiqs: bool,
         };
 
         pub const InterruptIds = enum(u32) {
@@ -178,22 +171,18 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
             }
 
             // find pending irq
-            // sexc  an exception frame
             // irqp an irq number to be processed
-            pub fn gicv2FindPendingIrq(exception_frame: *ExceptionFrame, irqp: *u32) u32 {
-                _ = exception_frame;
-                var rc: u32 = undefined;
+            pub fn gicv2FindPendingIrq() ![gicCfg.intMax]u32 {
+                var ret_array = [_]u32{0} ** gicCfg.intMax;
                 var i: u32 = 0;
+                var i_found: u32 = 0;
                 while (gicCfg.intMax > i) : (i += 1) {
-                    if (Gicd.gicdProbePending(i)) {
-                        rc = 0;
-                        irqp.* = i;
-                        return rc;
+                    if (try Gicd.gicdProbePending(i)) {
+                        ret_array[i_found] = i;
+                        i_found += 1;
                     }
                 }
-
-                rc = 0;
-                return rc;
+                return ret_array;
             }
         };
 
@@ -236,31 +225,33 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
                 GicdRegMap.ctlr.* = GicdRegValues.gicdCtlrEnable;
             }
 
-            // todo => ! every enable/disable/clear... overwrites existing configs...
-
             pub fn gicdEnableInt(irq_id: InterruptIds) !void {
                 const clear_ena_bit = @truncate(u5, try std.math.mod(u32, @enumToInt(irq_id), @as(u32, 32)));
-                calcReg(GicdRegMap.isenabler, @enumToInt(irq_id)).* = @as(u32, 1) << clear_ena_bit;
+                const reg = calcReg(GicdRegMap.isenabler, @enumToInt(irq_id));
+                reg.* = reg.* | (@as(u32, 1) << clear_ena_bit);
             }
 
             pub fn gicdDisableInt(irq_id: InterruptIds) !void {
                 // irq_id mod 32
                 const clear_ena_bit = @truncate(u5, try std.math.mod(u32, @enumToInt(irq_id), @as(u32, 32)));
-                calcReg(GicdRegMap.icenabler, @enumToInt(irq_id)).* = @as(u32, 1) << clear_ena_bit;
+                const reg = calcReg(GicdRegMap.icenabler, @enumToInt(irq_id));
+                reg.* = reg.* << clear_ena_bit;
             }
 
             fn gicdClearPending(irq_id: InterruptIds) !void {
                 // irq_id mod 32
                 const clear_ena_bit = @truncate(u5, try std.math.mod(u32, @enumToInt(irq_id), @as(u32, 32)));
-                calcReg(GicdRegMap.icpendr, @enumToInt(irq_id)).* = @as(u32, 1) << clear_ena_bit;
+                const reg = calcReg(GicdRegMap.icpendr, @enumToInt(irq_id));
+                reg.* = reg.* << clear_ena_bit;
             }
 
-            fn gicdProbePending(irq_id: InterruptIds) !bool {
+            pub fn gicdProbePending(irq_id: u32) !bool {
                 // irq_id mod 32
-                const clear_ena_bit = @truncate(u5, try std.math.mod(u32, @enumToInt(irq_id), @as(u32, 32)));
-                const cleared_ena_bit = @as(u32, 1) << clear_ena_bit;
+                const clear_ena_ind = @truncate(u5, try std.math.mod(u32, irq_id, @as(u32, 32)));
 
-                const is_pending = calcReg(GicdRegMap.icpendr, @enumToInt(irq_id)).* & cleared_ena_bit;
+                const cleared_ena_bit = @as(u32, 1) << clear_ena_ind;
+
+                const is_pending = calcReg(GicdRegMap.icpendr, irq_id).* & cleared_ena_bit;
                 return is_pending != 0;
             }
 
@@ -307,14 +298,8 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
             // set an interrupt priority
             // irq  irq number
             // prio interrupt priority in arm specific expression
-            pub fn gicdSetPriority(irq_id: InterruptIds, prio: u32) void {
-                var shift: u5 = @truncate(u5, (@enumToInt(irq_id) % GicdRegValues.ipriorityPerReg) * GicdRegValues.iprioritySizePerReg);
-                var reg: u32 = @intToPtr(*volatile u32, @ptrToInt(GicdRegMap.ipriorityr) + ((@enumToInt(irq_id) / GicdRegValues.ipriorityPerReg) * 4)).*;
-
-                reg &= ~(@as(u32, 0xff) << shift);
-                reg |= (prio << shift);
-
-                @intToPtr(*volatile u32, @ptrToInt(GicdRegMap.ipriorityr) + ((@enumToInt(irq_id) / GicdRegValues.ipriorityPerReg) * 4)).* = reg;
+            pub fn gicdSetPriority(irq_id: InterruptIds, prio: u8) void {
+                @intToPtr(*volatile u8, @ptrToInt(GicdRegMap.ipriorityr) + @enumToInt(irq_id) * 8).* = prio;
             }
 
             // configure irq
@@ -330,12 +315,5 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
                 @intToPtr(*volatile u32, @ptrToInt(GicdRegMap.icfgr) + ((@enumToInt(irq_id) / GicdRegValues.icfgrPerReg) * 4)).* = reg;
             }
         };
-
-        pub fn setDAIF(daif_config: DaifConfig) void {
-            asm volatile ("msr daifclr, %[conf]"
-                :
-                : [conf] "I" (daif_config),
-            );
-        }
     };
 }
