@@ -20,14 +20,6 @@ export const el1Fiq = ExceptionType.el1Fiq;
 export const el1Irq = ExceptionType.el1Irq;
 export const elxSpx = ExceptionType.elxSpx;
 
-// reads interrupt data placed by exc. vec from the stack
-pub const ExceptionFrame = struct {
-    regs: [30]u64,
-    int_type: u64,
-    esr_el1: u64,
-    lr: u64,
-};
-
 pub fn Gic(comptime addr_space: AddrSpace) type {
     const gicCfg = @import("board").PeriphConfig(addr_space).GicV2;
     return struct {

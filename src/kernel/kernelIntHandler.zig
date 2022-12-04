@@ -1,6 +1,6 @@
 const std = @import("std");
 const arm = @import("arm");
-const cpuContext = arm.cpuContext;
+const CpuContext = arm.cpuContext.CpuContext;
 const periph = @import("periph");
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 const board = @import("board");
@@ -43,10 +43,11 @@ pub const ExceptionClass = enum(u6) {
     bkptInstExecAarch64 = 0b111100,
 };
 
-pub fn irqHandler(temp_context: *cpuContext.CpuContext) callconv(.C) void {
-    // copy away from stack
+pub fn irqHandler(temp_context: *CpuContext) callconv(.C) void {
+    // copy away from stack top
     var context = temp_context.*;
-    // kprint("SOSS \n", .{});
+    // kprint("current_el: {d} \n", .{arm.processor.ProccessorRegMap(.el1).getCurrentEl()});
+
     // std intToEnum instead of build in in order to catch err
     var int_type = std.meta.intToEnum(gic.ExceptionType, context.int_type) catch {
         kprint("int type not found \n", .{});
@@ -66,16 +67,19 @@ pub fn irqHandler(temp_context: *cpuContext.CpuContext) callconv(.C) void {
                 return;
             };
 
-            kprint(".........sync int............\n", .{});
+            kprint(".........sync exc............\n", .{});
             kprint("Exception Class(from esp reg): {s} \n", .{@tagName(ec_en)});
             kprint("Int Type: {s} \n", .{@tagName(int_type)});
+            kprint("el: {d} \n", .{context.el});
+            kprint("far_el1: {x} \n", .{context.far_el1});
+            kprint("elr_el1: {x} \n", .{context.elr_el1});
 
             if (il == 1) {
                 kprint("32 bit instruction trapped \n", .{});
             } else {
                 kprint("16 bit instruction trapped \n", .{});
             }
-            kprint(".........sync int............\n", .{});
+            kprint(".........sync exc............\n", .{});
         },
         gic.ExceptionType.el1Irq, gic.ExceptionType.el1Fiq => {
             if (board.config.board == .raspi3b)
@@ -83,6 +87,7 @@ pub fn irqHandler(temp_context: *cpuContext.CpuContext) callconv(.C) void {
             // qemu int handler...
         },
         else => {
+            kprint("{any} \n", .{context});
             kprint("unhandled int type! \n", .{});
         },
     }

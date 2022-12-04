@@ -1,6 +1,7 @@
 const std = @import("std");
 const bl_utils = @import("utils.zig");
 const arm = @import("arm");
+const CpuContext = arm.cpuContext.CpuContext;
 const periph = @import("periph");
 const kprint = periph.uart.UartWriter(.ttbr0).kprint;
 const gic = arm.gicv2;
@@ -41,19 +42,19 @@ pub const ExceptionClass = enum(u6) {
     bkptInstExecAarch64 = 0b111100,
 };
 
-pub fn irqHandler(exc: *gic.ExceptionFrame) callconv(.C) void {
+pub fn irqHandler(irq_context: *CpuContext) callconv(.C) void {
     kprint("irqHandler \n", .{});
     // std intToEnum instead of build in in order to catch err
-    var int_type = std.meta.intToEnum(gic.ExceptionType, exc.int_type) catch {
+    var int_type = std.meta.intToEnum(gic.ExceptionType, irq_context.int_type) catch {
         kprint("int type not found \n", .{});
         bl_utils.panic();
     };
 
     if (int_type == gic.ExceptionType.el1Sync) {
-        var iss = @truncate(u25, exc.esr_el1);
-        var il = @truncate(u1, exc.esr_el1 >> 25);
-        var ec = @truncate(u6, exc.esr_el1 >> 26);
-        var iss2 = @truncate(u5, exc.esr_el1 >> 32);
+        var iss = @truncate(u25, irq_context.esr_el1);
+        var il = @truncate(u1, irq_context.esr_el1 >> 25);
+        var ec = @truncate(u6, irq_context.esr_el1 >> 26);
+        var iss2 = @truncate(u5, irq_context.esr_el1 >> 32);
         _ = iss;
         _ = iss2;
 
@@ -62,16 +63,19 @@ pub fn irqHandler(exc: *gic.ExceptionFrame) callconv(.C) void {
             bl_utils.panic();
         };
 
-        kprint(".........sync exc............\n", .{});
+        kprint(".........sync irq_context............\n", .{});
         kprint("Exception Class(from esp reg): {s} \n", .{@tagName(ec_en)});
         kprint("Int Type: {s} \n", .{@tagName(int_type)});
+        kprint("el: {d} \n", .{irq_context.el});
+        kprint("far_el1: {x} \n", .{irq_context.far_el1});
+        kprint("elr_el1: {x} \n", .{irq_context.elr_el1});
 
         if (il == 1) {
             kprint("32 bit instruction trapped \n", .{});
         } else {
             kprint("16 bit instruction trapped \n", .{});
         }
-        kprint(".........sync exc............\n", .{});
+        kprint(".........sync irq_context............\n", .{});
     }
     bl_utils.panic();
 }

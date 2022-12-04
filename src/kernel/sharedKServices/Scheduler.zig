@@ -42,7 +42,7 @@ pub const Task = packed struct {
             .state = .running,
             .counter = 0,
             .priority = 1,
-            .preempt_count = 0,
+            .preempt_count = 1,
             .flags = 0x00000002,
             .page_info = TaskPageInfo.init(),
         };
@@ -77,14 +77,22 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             current_task.?.priority = 15;
             tasks[0] = current_task.?;
             running_tasks += 1;
+
             return Self{
                 .page_allocator = page_allocator,
             };
         }
 
+        // assumes that all task counter were inited to 0
+        pub fn initTaskCounter(self: *Self) void {
+            _ = self;
+            for (tasks) |*task| {
+                task.*.?.counter = (task.*.?.counter >> 1) + task.*.?.priority;
+            }
+        }
         pub fn schedule(self: *Self, irq_context: *CpuContext) void {
             _ = self;
-            kprint("schdeuler caleed \n", .{});
+            kprint("scheduler called \n", .{});
             // current_task.?.counter -= 1;
             // if (current_task.?.counter > 0 or current_task.?.preempt_count > 0) return;
             current_task.?.counter = 0;
@@ -112,15 +120,29 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
         }
 
         pub fn timerIntEvent(self: *Self, irq_context: *CpuContext) void {
+            kprint("TIMER 1\n", .{});
             current_task.?.counter -= 1;
-            // kprint("{d} {d} \n", .{ current_task.?.counter, current_task.?.preempt_count });
             if (current_task.?.counter > 0 and current_task.?.preempt_count > 0) {
+                // var sp: usize = asm ("mov %[curr], sp"
+                //     : [curr] "=r" (-> usize),
+                // );
+                // kprint("{x} \n", .{sp});
+                // var i: usize = 0;
+                // kprint("{any} \n", .{irq_context.*});
+                // while (i <= @as(usize, 500)) : (i += 1) {
+                //     var ptr = @intToPtr(*usize, sp + i * 8);
+                //     kprint("{d}: {d} \n", .{ i, ptr.* });
+                // }
                 kprint("returning.......... \n", .{});
-                return;
+
+                // don't restore from stack since there is already new data pushed
+                CpuContext.restoreContextFromMem(irq_context);
+                asm volatile ("eret");
             }
             current_task.?.counter = 0;
 
             proc.DaifReg.enableIrq();
+            kprint("TIMER 2\n", .{});
             self.schedule(irq_context);
             proc.DaifReg.disableIrq();
         }
@@ -134,7 +156,7 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             copied_task.cpu_context.x19 = @ptrToInt(fnp);
             // arg0 is not supported for now
             copied_task.cpu_context.x20 = 0;
-            copied_task.cpu_context.pc = @ptrToInt(&retFromFork);
+            copied_task.cpu_context.elr_el1 = @ptrToInt(&retFromFork);
             copied_task.cpu_context.sp = @ptrToInt(copied_task) + @sizeOf(Task) + task_stack_size;
 
             // setting base_pdg to allocated userspace page base
@@ -162,7 +184,10 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
 
         // args (task pointers) are past via registers
         fn switchContextToTask(next_task: *Task, irq_context: *CpuContext) void {
-            if (current_task.? == next_task) return;
+            if (current_task.? == next_task) {
+                kprint("[kernel][scheduler] last tasked executed \n", .{});
+                return;
+            }
             var prev_task = current_task.?;
             current_task.? = next_task;
             // changing ttbr0 page desc
@@ -176,8 +201,8 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             kprint("from: {*} to {*} \n", .{ from, to });
             // kprint("to sp: {x} \n", .{to.cpu_context.sp});
             from.cpu_context = irq_context.*;
-            CpuContext.restoreContextFromStruct(&to.cpu_context);
 
+            CpuContext.restoreContextFromMem(&to.cpu_context);
             asm volatile ("eret");
         }
 

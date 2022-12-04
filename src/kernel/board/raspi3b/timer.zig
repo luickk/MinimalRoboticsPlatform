@@ -21,7 +21,7 @@ pub const RegMap = struct {
 
 // address values
 pub const RegValues = struct {
-    pub const timerInterval: u32 = 10000;
+    pub const timerInterval: u32 = 100000;
     pub const timerCsM0: u32 = 1 << 0;
     pub const timerCsM1: u32 = 1 << 1;
     pub const timerCsM2: u32 = 1 << 2;
@@ -35,8 +35,6 @@ pub fn initTimer() void {
 }
 
 pub fn handleTimerIrq(irq_context: *cpuContext.CpuContext) void {
-    // RegMap.timerC1.* = RegMap.timerClo.* + RegValues.timerInterval;
-    kprint("TIMER \n", .{});
     timerVal += RegValues.timerInterval;
     RegMap.timerC1.* = timerVal;
     RegMap.timerCs.* = RegMap.timerCs.* | RegValues.timerCsM1;
