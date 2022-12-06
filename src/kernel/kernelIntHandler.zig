@@ -6,7 +6,7 @@ const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 const board = @import("board");
 const bcm2835IntHandle = @import("board/raspi3b/bcm2835IntHandle.zig");
 const gic = arm.gicv2;
-const timer = arm.timer;
+const gt = arm.genericTimer;
 
 pub const ExceptionClass = enum(u6) {
     unknownReason = 0b000000,
@@ -44,6 +44,7 @@ pub const ExceptionClass = enum(u6) {
 };
 
 pub fn irqHandler(temp_context: *CpuContext) callconv(.C) void {
+    kprint("LOL WORKS \n", .{});
     // copy away from stack top
     var context = temp_context.*;
     // kprint("current_el: {d} \n", .{arm.processor.ProccessorRegMap(.el1).getCurrentEl()});
@@ -84,7 +85,8 @@ pub fn irqHandler(temp_context: *CpuContext) callconv(.C) void {
         gic.ExceptionType.el1Irq, gic.ExceptionType.el1Fiq => {
             if (board.config.board == .raspi3b)
                 bcm2835IntHandle.irqHandler(&context);
-            // qemu int handler...
+            if (board.config.board == .qemuVirt)
+                gt.timerInt(&context);
         },
         else => {
             kprint("{any} \n", .{context});

@@ -1,4 +1,4 @@
-const cpuContext = @import("arm").cpuContext;
+const CpuContext = @import("arm").cpuContext.CpuContext;
 const kprint = @import("periph").uart.UartWriter(.ttbr1).kprint;
 const sharedKServices = @import("sharedKServices");
 const Scheduler = sharedKServices.Scheduler;
@@ -34,7 +34,7 @@ pub fn initTimer() void {
     RegMap.timerC1.* = timerVal;
 }
 
-pub fn handleTimerIrq(irq_context: *cpuContext.CpuContext) void {
+pub fn handleTimerIrq(irq_context: *CpuContext) void {
     timerVal += RegValues.timerInterval;
     RegMap.timerC1.* = timerVal;
     RegMap.timerCs.* = RegMap.timerCs.* | RegValues.timerCsM1;
