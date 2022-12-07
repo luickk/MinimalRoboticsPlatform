@@ -19,6 +19,7 @@ const bl_bin_size = b_options.bl_bin_size;
 // arm specific periphs
 const arm = @import("arm");
 const gic = arm.gicv2.Gic(.ttbr1);
+const InterruptIds = gic.InterruptIds;
 const gt = arm.genericTimer;
 const proc = arm.processor.ProccessorRegMap(.el1);
 const mmu = arm.mmu;
@@ -222,14 +223,25 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
             k_utils.panic();
         };
 
-        gic.Gicd.gicdConfig(gic.InterruptIds.non_secure_physical_timer, 0x2);
-        gic.Gicd.gicdSetPriority(gic.InterruptIds.non_secure_physical_timer, 0);
-        gic.Gicd.gicdSetTarget(gic.InterruptIds.non_secure_physical_timer, 1) catch |e| {
+        gic.Gicd.gicdConfig(InterruptIds.non_secure_physical_timer, 0x2) catch |e| {
+            kprint("[panic] gicd gicdConfig error: {s}\n", .{@errorName(e)});
+            k_utils.panic();
+        };
+        gic.Gicd.gicdSetPriority(InterruptIds.non_secure_physical_timer, 0) catch |e| {
+            kprint("[panic] gicd setPriority error: {s}\n", .{@errorName(e)});
+            k_utils.panic();
+        };
+        gic.Gicd.gicdSetTarget(InterruptIds.non_secure_physical_timer, 1) catch |e| {
             kprint("[panic] gicd setTarget error: {s}\n", .{@errorName(e)});
             k_utils.panic();
         };
 
-        gic.Gicd.gicdEnableInt(gic.InterruptIds.non_secure_physical_timer) catch |e| {
+        gic.Gicd.gicdClearPending(InterruptIds.non_secure_physical_timer) catch |e| {
+            kprint("[panic] gicd clearPending error: {s}\n", .{@errorName(e)});
+            k_utils.panic();
+        };
+
+        gic.Gicd.gicdEnableInt(InterruptIds.non_secure_physical_timer) catch |e| {
             kprint("[panic] gicdEnableInt address calc error: {s}\n", .{@errorName(e)});
             k_utils.panic();
         };
@@ -271,6 +283,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
     while (true) {
         // kprint("basic pend: {b} 1: {b} 2: {b} \n", .{ @intToPtr(*volatile u32, 0xFFFFFF8030000000).*, @intToPtr(*volatile u32, 0xFFFFFF8030000004).*, @intToPtr(*volatile u32, 0xFFFFFF8030000008).* });
         // kprint("while \n", .{});
+
         // kprint("lol: {any} \n", .{gic.Gicc.gicv2FindPendingIrq() catch {
         //     unreachable;
         // }});

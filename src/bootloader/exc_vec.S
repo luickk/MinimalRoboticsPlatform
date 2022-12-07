@@ -1,12 +1,8 @@
-// from https://github.com/lowenware/leos-kernel/blob/master/src/aarch64/exceptions.s
-
-.equ CONTEXT_SIZE, 264
-
 .section .text.exc_vec
 
 .macro EXCEPTION_VECTOR handler int_type
     // saveCurrContextOnStack & restoreContextFromStack are fns exported from cpuContext.zig
-    ldr x0, #\int_type
+    ldr x2, #\int_type
     bl _saveCurrContextOnStack
 
     // set stack as arg
@@ -16,7 +12,6 @@
     bl _restoreContextFromStack
     eret
 .endm
-
 
 // https://developer.arm.com/documentation/100933/0100/AArch64-exception-vector-table
 .globl _exception_vector_table

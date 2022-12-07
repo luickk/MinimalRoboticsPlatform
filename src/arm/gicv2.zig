@@ -94,12 +94,14 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
         pub const GicdRegValues = struct {
             // gicd...
             pub const itargetsrPerReg = 4;
+            pub const isenablerPerReg = 32;
+            pub const isdisablerPerReg = 32;
+            pub const icpendrPerReg = 32;
             pub const itargetsrSizePerReg = 8;
             pub const icfgrPerReg = 16;
-            pub const icfgrSizePerReg = 2;
             pub const intPerReg = 32; // 32 interrupts per reg
             pub const ipriorityPerReg = 4; // 4 priority per reg
-            pub const iprioritySizePerReg = 8; // priority element size
+
             pub const itargetsrCore0TargetBmap = 0x01010101; // cpu interface 0
 
             // 8.9.4 gicd_ctlr, distributor control register
@@ -219,21 +221,21 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
 
             pub fn gicdEnableInt(irq_id: InterruptIds) !void {
                 const clear_ena_bit = @truncate(u5, try std.math.mod(u32, @enumToInt(irq_id), @as(u32, 32)));
-                const reg = calcReg(GicdRegMap.isenabler, @enumToInt(irq_id));
+                const reg = try calcReg(GicdRegMap.isenabler, @enumToInt(irq_id), GicdRegValues.isenablerPerReg);
                 reg.* = reg.* | (@as(u32, 1) << clear_ena_bit);
             }
 
             pub fn gicdDisableInt(irq_id: InterruptIds) !void {
                 // irq_id mod 32
                 const clear_ena_bit = @truncate(u5, try std.math.mod(u32, @enumToInt(irq_id), @as(u32, 32)));
-                const reg = calcReg(GicdRegMap.icenabler, @enumToInt(irq_id));
+                const reg = try calcReg(GicdRegMap.icenabler, @enumToInt(irq_id), GicdRegValues.isdisablerPerReg);
                 reg.* = reg.* << clear_ena_bit;
             }
 
-            fn gicdClearPending(irq_id: InterruptIds) !void {
+            pub fn gicdClearPending(irq_id: InterruptIds) !void {
                 // irq_id mod 32
                 const clear_ena_bit = @truncate(u5, try std.math.mod(u32, @enumToInt(irq_id), @as(u32, 32)));
-                const reg = calcReg(GicdRegMap.icpendr, @enumToInt(irq_id));
+                const reg = try calcReg(GicdRegMap.icpendr, @enumToInt(irq_id), GicdRegValues.icpendrPerReg);
                 reg.* = reg.* << clear_ena_bit;
             }
 
@@ -243,7 +245,7 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
 
                 const cleared_ena_bit = @as(u32, 1) << clear_ena_ind;
 
-                const is_pending = calcReg(GicdRegMap.icpendr, irq_id).* & cleared_ena_bit;
+                const is_pending = (try calcReg(GicdRegMap.icpendr, irq_id, GicdRegValues.icpendrPerReg)).* & cleared_ena_bit;
                 return is_pending != 0;
             }
 
@@ -251,23 +253,9 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
             // For interrupt ID m, when DIV and MOD are the integer division and modulo operations:
             // • the corresponding GICD_ICENABLERn number, n, is given by m = n DIV 32
             // • the offset of the required GICD_ICENABLERn is (0x180 + (4*n))
-            // • the bit number of the required Clear-enable bit in this register is m MOD 32.
-            //
-            // according to the arm docs in order to calc the correct dma reg to access, the irq id has to be divided by 32,
-            // whereby a non exact division is **not possible**, a solution is to cast the resulting float to an int.
-            //
-            // there is few occasions on which bit shifts are more explicit and less confusing, but this is defenitely one of them.
-            // in order to prevent that (int to float) conversion/ casting chaos, all operations below are done with bitshifts
-            // For some reason arm docs describe them mathematically which is a huge footgun if realised that way
-            fn calcReg(addr_start: *volatile u32, irq_id: u32) *volatile u32 {
-                // wtf... but that's what the docs say.... and it works -.-
-                // const reg = @ptrToInt(GicdRegMap.isenabler) + 4 * (@floatToInt(usize, (try std.math.divFloor(f32, @intToFloat(f32, irq_id), @as(u32, 32)))));
-
-                // alternative version:
-                // irq_id (div by 32) * 4
-                var reg = (irq_id >> @as(u32, 5)) << 2;
-
-                return @intToPtr(*volatile u32, @ptrToInt(addr_start) + reg);
+            // • the bit number of the required Clear-enable bit in this register is m MOD 32
+            fn calcReg(addr_start: *volatile u32, irq_id: u32, size_per_reg: u32) !*volatile u32 {
+                return @intToPtr(*volatile u32, @ptrToInt(addr_start) + try std.math.divFloor(u32, irq_id, size_per_reg));
             }
 
             // set an interrupt target processor
@@ -278,33 +266,41 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
             // 0x4 processor 2
             // 0x8 processor 3
             pub fn gicdSetTarget(irq_id: InterruptIds, p: u32) !void {
-                const reg = @intToPtr(*volatile u32, @ptrToInt(GicdRegMap.itargetsr) + (@enumToInt(irq_id) & ~@as(u32, 0x3)));
-                var targets: u32 = reg.*;
-                const shift = @truncate(u5, (@enumToInt(irq_id) % 4) * 8);
-                targets &= ~(@as(u32, 0xff) << shift);
-                targets |= p << shift;
+                const reg = try calcReg(GicdRegMap.itargetsr, @enumToInt(irq_id), GicdRegValues.itargetsrSizePerReg);
+                reg.* = 0xfffffff;
+                kprint("{*} \n", .{reg});
 
-                reg.* = targets;
+                // var targets: u32 = reg.*;
+                // const shift = @truncate(u5, (try std.math.mod(u32, @enumToInt(irq_id), 4)) * 8);
+                // targets &= ~(@as(u32, 0xff) << shift);
+                // kprint("{d} \n", .{shift});
+                // targets |= p << shift;
+                _ = p;
             }
 
             // set an interrupt priority
             // irq  irq number
             // prio interrupt priority in arm specific expression
-            pub fn gicdSetPriority(irq_id: InterruptIds, prio: u8) void {
-                @intToPtr(*volatile u8, @ptrToInt(GicdRegMap.ipriorityr) + @enumToInt(irq_id) * 8).* = prio;
+            pub fn gicdSetPriority(irq_id: InterruptIds, prio: u8) !void {
+                const reg = try calcReg(GicdRegMap.ipriorityr, @enumToInt(irq_id), GicdRegValues.ipriorityPerReg);
+                const prio_shift = @truncate(u3, (try std.math.mod(u32, @enumToInt(irq_id), GicdRegValues.ipriorityPerReg)) * 8);
+                var update_val = reg.*;
+                update_val &= ~(@intCast(u32, 0xff) << prio_shift);
+                update_val |= prio << prio_shift;
+                reg.* = update_val;
             }
 
             // configure irq
             // irq     irq number
             // config  configuration value for gicd_icfgr
-            pub fn gicdConfig(irq_id: InterruptIds, config: u32) void {
-                var shift: u5 = @truncate(u5, (@enumToInt(irq_id) % GicdRegValues.icfgrPerReg) * GicdRegValues.icfgrSizePerReg); // gicd_icfgr has 16 fields, each field has 2bits.
+            pub fn gicdConfig(irq_id: InterruptIds, config: u32) !void {
+                const reg = try calcReg(GicdRegMap.icfgr, @enumToInt(irq_id), GicdRegValues.icfgrPerReg);
+                var shift: u5 = @truncate(u5, (@enumToInt(irq_id) % GicdRegValues.icfgrPerReg) * GicdRegValues.icfgrPerReg); // gicd_icfgr has 16 fields, each field has 2bits.
 
-                var reg: u32 = @intToPtr(*volatile u32, @ptrToInt(GicdRegMap.icfgr) + ((@enumToInt(irq_id) / GicdRegValues.icfgrPerReg) * 4)).*;
-
-                reg &= ~((@as(u32, 0x03)) << shift); // clear the field
-                reg |= ((@as(u32, config)) << shift); // set the value to the field correponding to irq
-                @intToPtr(*volatile u32, @ptrToInt(GicdRegMap.icfgr) + ((@enumToInt(irq_id) / GicdRegValues.icfgrPerReg) * 4)).* = reg;
+                var update_val = reg.*;
+                update_val &= ~((@as(u32, 0x03)) << shift); // clear the field
+                update_val |= ((@as(u32, config)) << shift); // set the value to the field correponding to irq
+                reg.* = update_val;
             }
         };
     };

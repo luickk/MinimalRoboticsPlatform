@@ -1,5 +1,3 @@
-// from https://github.com/lowenware/leos-kernel/blob/master/src/aarch64/exceptions.s
-
 .section .text.exc_vec
 
 .macro EXCEPTION_VECTOR handler int_type
@@ -19,7 +17,6 @@
 .globl _exception_vector_table
 .balign 0x80
 _exception_vector_table:
-
     EXCEPTION_VECTOR irqElxSpx elxSpx // el1_sp0_sync
 
 .balign 0x80
