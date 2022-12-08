@@ -44,7 +44,6 @@ pub const ExceptionClass = enum(u6) {
 };
 
 pub fn irqHandler(temp_context: *CpuContext) callconv(.C) void {
-    kprint("LOL \n", .{});
     // copy away from stack top
     var context = temp_context.*;
     // kprint("current_el: {d} \n", .{arm.processor.ProccessorRegMap(.el1).getCurrentEl()});

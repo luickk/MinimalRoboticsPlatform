@@ -256,8 +256,6 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
         gt.setupGt();
     }
 
-    // asm volatile ("WFI");
-
     if (board.config.board == .raspi3b) {
         bcm2835IntController.init();
         kprint("[kernel] ic inited \n", .{});

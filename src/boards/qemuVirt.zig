@@ -64,11 +64,6 @@ pub fn PeriphConfig(comptime addr_space: boardConfig.AddrSpace) type {
         };
         pub const GicV2 = struct {
             pub const base_address: u64 = device_base + 0;
-
-            pub const intMax: usize = 64;
-            pub const intNoPpi0: usize = 32;
-            pub const intNoSpi0: usize = 16;
-            pub const priShift: usize = 4;
         };
     };
 }

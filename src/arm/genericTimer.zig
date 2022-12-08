@@ -1,13 +1,18 @@
 const std = @import("std");
 const mmu = @import("mmu.zig");
+const periph = @import("periph");
 const AddrSpace = @import("board").boardConfig.AddrSpace;
 const Scheduler = sharedKServices.Scheduler;
 const CpuContext = @import("cpuContext.zig").CpuContext;
 const sharedKServices = @import("sharedKServices");
 
+const kprint = periph.uart.UartWriter(.ttbr1).kprint;
+
 extern var scheduler: *Scheduler;
 
 var timerVal: usize = 0;
+
+var freq_factor: f64 = 0.1;
 
 var cnt_freq: usize = 0;
 
@@ -16,10 +21,10 @@ pub fn setupGt() void {
     cnt_freq = asm ("mrs %[curr], CNTFRQ_EL0"
         : [curr] "=r" (-> usize),
     );
-    timerVal = cnt_freq;
 
-    var freq = cnt_freq * 1;
-    timerVal += freq;
+    // timerVal = 0;
+    timerVal += @floatToInt(usize, @intToFloat(f64, cnt_freq) * freq_factor);
+    kprint("{d} \n", .{timerVal});
 
     asm volatile (
         \\msr CNTP_TVAL_EL0, %[freq]
@@ -32,9 +37,9 @@ pub fn setupGt() void {
 }
 
 pub fn timerInt(irq_context: *CpuContext) void {
-    timerVal += cnt_freq;
+    timerVal += @floatToInt(usize, @intToFloat(f64, cnt_freq) * freq_factor);
     asm volatile (
-        \\msr CNTP_TVAL_EL0, %[freq]
+        \\msr CNTP_CVAL_EL0, %[freq]
         \\mov x0, 1
         \\msr cntp_ctl_el0, x0
         :

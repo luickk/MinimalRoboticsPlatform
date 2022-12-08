@@ -123,16 +123,6 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             kprint("TIMER 1\n", .{});
             current_task.?.counter -= 1;
             if (current_task.?.counter > 0 and current_task.?.preempt_count > 0) {
-                // var sp: usize = asm ("mov %[curr], sp"
-                //     : [curr] "=r" (-> usize),
-                // );
-                // kprint("{x} \n", .{sp});
-                // var i: usize = 0;
-                // kprint("{any} \n", .{irq_context.*});
-                // while (i <= @as(usize, 500)) : (i += 1) {
-                //     var ptr = @intToPtr(*usize, sp + i * 8);
-                //     kprint("{d}: {d} \n", .{ i, ptr.* });
-                // }
                 kprint("returning.......... \n", .{});
 
                 // don't restore from stack since there is already new data pushed

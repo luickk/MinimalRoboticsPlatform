@@ -3,8 +3,6 @@ const arm = @import("arm");
 const mmu = @import("mmu.zig");
 const AddrSpace = @import("board").boardConfig.AddrSpace;
 
-const kprint = @import("periph").uart.UartWriter(.ttbr1).kprint;
-
 // identifiers for the vector table addr_handler call
 pub const ExceptionType = enum(u64) {
     el1Sync = 0x1,
@@ -28,6 +26,18 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
             Gicc.init();
             try Gicd.init();
         }
+
+        pub const itargetsrPerReg = 4;
+        pub const isenablerPerReg = 32;
+        pub const isdisablerPerReg = 32;
+        pub const icpendrPerReg = 32;
+        pub const icfgrPerReg = 16;
+        pub const intPerReg = 32; // 32 interrupts per reg
+        pub const ipriorityPerReg = 4; // 4 priority per reg
+        pub const icenablerPerReg = 32;
+
+        pub const intNoPpi0 = 32;
+        pub const intNoSpi0 = 16;
 
         // 8.8 The GIC Distributor register map
         pub const GicdRegMap = struct {
@@ -92,16 +102,6 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
         };
 
         pub const GicdRegValues = struct {
-            // gicd...
-            pub const itargetsrPerReg = 4;
-            pub const isenablerPerReg = 32;
-            pub const isdisablerPerReg = 32;
-            pub const icpendrPerReg = 32;
-            pub const itargetsrSizePerReg = 8;
-            pub const icfgrPerReg = 16;
-            pub const intPerReg = 32; // 32 interrupts per reg
-            pub const ipriorityPerReg = 4; // 4 priority per reg
-
             pub const itargetsrCore0TargetBmap = 0x01010101; // cpu interface 0
 
             // 8.9.4 gicd_ctlr, distributor control register
@@ -166,11 +166,11 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
 
             // find pending irq
             // irqp an irq number to be processed
-            pub fn gicv2FindPendingIrq() ![gicCfg.intMax]u32 {
-                var ret_array = [_]u32{0} ** gicCfg.intMax;
+            pub fn gicv2FindPendingIrq() ![@bitSizeOf(usize)]u32 {
+                var ret_array = [_]u32{0} ** @bitSizeOf(usize);
                 var i: u32 = 0;
                 var i_found: u32 = 0;
-                while (gicCfg.intMax > i) : (i += 1) {
+                while (@bitSizeOf(usize) > i) : (i += 1) {
                     if (try Gicd.gicdProbePending(i)) {
                         ret_array[i_found] = i;
                         i_found += 1;
@@ -189,30 +189,30 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
                 // diable distributor
                 GicdRegMap.ctlr.* = GiccRegValues.giccCtlrDisable;
                 // disable all irqs & clear pending
-                irq_num = try std.math.divExact(u32, gicCfg.intMax + GicdRegValues.intPerReg, GicdRegValues.intPerReg);
+                irq_num = try std.math.divExact(u32, @bitSizeOf(usize) + intPerReg, intPerReg);
                 while (irq_num > i) : (i += 1) {
-                    @intToPtr(*volatile u32, @ptrToInt(GicdRegMap.icenabler) + 4 * i).* = ~@as(u32, 0);
-                    @intToPtr(*volatile u32, @ptrToInt(GicdRegMap.icpendr) + 4 * i).* = ~@as(u32, 0);
+                    (try calcReg(GicdRegMap.icenabler, i, icenablerPerReg)).* = ~@as(u32, 0);
+                    (try calcReg(GicdRegMap.icpendr, i, icpendrPerReg)).* = ~@as(u32, 0);
                 }
                 i = 0;
 
                 // set all of interrupt priorities as the lowest priority
-                irq_num = try std.math.divExact(u32, gicCfg.intMax + GicdRegValues.ipriorityPerReg, GicdRegValues.ipriorityPerReg);
+                irq_num = try std.math.divExact(u32, @bitSizeOf(usize) + ipriorityPerReg, ipriorityPerReg);
                 while (irq_num > i) : (i += 1) {
-                    @intToPtr(*volatile u32, @ptrToInt(GicdRegMap.ipriorityr) + 4 * i).* = ~@as(u32, 0);
+                    (try calcReg(GicdRegMap.ipriorityr, i, ipriorityPerReg)).* = ~@as(u32, 0);
                 }
                 i = 0;
 
                 // set target of all of shared arm to processor 0
-                i = try std.math.divExact(u32, gicCfg.intNoSpi0, GicdRegValues.itargetsrPerReg);
-                while ((try std.math.divExact(u32, gicCfg.intMax + GicdRegValues.itargetsrPerReg, GicdRegValues.itargetsrPerReg)) > i) : (i += 1) {
-                    @intToPtr(*volatile u32, @ptrToInt(GicdRegMap.itargetsr) + 4 * i).* = @as(u32, GicdRegValues.itargetsrCore0TargetBmap);
+                i = try std.math.divExact(u32, intNoSpi0, itargetsrPerReg);
+                while ((try std.math.divExact(u32, @bitSizeOf(usize) + itargetsrPerReg, itargetsrPerReg)) > i) : (i += 1) {
+                    (try calcReg(GicdRegMap.itargetsr, i, itargetsrPerReg)).* = @as(u32, GicdRegValues.itargetsrCore0TargetBmap);
                 }
 
                 // set trigger type for all armeral interrupts level triggered
-                i = try std.math.divExact(u32, gicCfg.intNoPpi0, GicdRegValues.icfgrPerReg);
-                while ((try std.math.divExact(u32, gicCfg.intMax + GicdRegValues.icfgrPerReg, GicdRegValues.icfgrPerReg)) > i) : (i += 1) {
-                    @intToPtr(*volatile u32, @ptrToInt(GicdRegMap.icfgr) + 4 * i).* = GicdRegValues.gicdIcfgrLevel;
+                i = try std.math.divExact(u32, intNoPpi0, icfgrPerReg);
+                while ((try std.math.divExact(u32, @bitSizeOf(usize) + icfgrPerReg, icfgrPerReg)) > i) : (i += 1) {
+                    (try calcReg(GicdRegMap.icfgr, i, icfgrPerReg)).* = GicdRegValues.gicdIcfgrLevel;
                 }
 
                 // enable distributor
@@ -220,42 +220,43 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
             }
 
             pub fn gicdEnableInt(irq_id: InterruptIds) !void {
-                const clear_ena_bit = @truncate(u5, try std.math.mod(u32, @enumToInt(irq_id), @as(u32, 32)));
-                const reg = try calcReg(GicdRegMap.isenabler, @enumToInt(irq_id), GicdRegValues.isenablerPerReg);
+                const clear_ena_bit = try calcShift(@enumToInt(irq_id), isenablerPerReg);
+                const reg = try calcReg(GicdRegMap.isenabler, @enumToInt(irq_id), isenablerPerReg);
                 reg.* = reg.* | (@as(u32, 1) << clear_ena_bit);
             }
 
             pub fn gicdDisableInt(irq_id: InterruptIds) !void {
                 // irq_id mod 32
-                const clear_ena_bit = @truncate(u5, try std.math.mod(u32, @enumToInt(irq_id), @as(u32, 32)));
-                const reg = try calcReg(GicdRegMap.icenabler, @enumToInt(irq_id), GicdRegValues.isdisablerPerReg);
+                const clear_ena_bit = try calcShift(@enumToInt(irq_id), isdisablerPerReg);
+                const reg = try calcReg(GicdRegMap.icenabler, @enumToInt(irq_id), isdisablerPerReg);
                 reg.* = reg.* << clear_ena_bit;
             }
 
             pub fn gicdClearPending(irq_id: InterruptIds) !void {
                 // irq_id mod 32
-                const clear_ena_bit = @truncate(u5, try std.math.mod(u32, @enumToInt(irq_id), @as(u32, 32)));
-                const reg = try calcReg(GicdRegMap.icpendr, @enumToInt(irq_id), GicdRegValues.icpendrPerReg);
+                const clear_ena_bit = try calcShift(@enumToInt(irq_id), icpendrPerReg);
+                const reg = try calcReg(GicdRegMap.icpendr, @enumToInt(irq_id), icpendrPerReg);
                 reg.* = reg.* << clear_ena_bit;
             }
 
             pub fn gicdProbePending(irq_id: u32) !bool {
                 // irq_id mod 32
-                const clear_ena_ind = @truncate(u5, try std.math.mod(u32, irq_id, @as(u32, 32)));
-
+                const clear_ena_ind = try calcShift(irq_id, icpendrPerReg);
                 const cleared_ena_bit = @as(u32, 1) << clear_ena_ind;
-
-                const is_pending = (try calcReg(GicdRegMap.icpendr, irq_id, GicdRegValues.icpendrPerReg)).* & cleared_ena_bit;
+                const is_pending = (try calcReg(GicdRegMap.icpendr, irq_id, icpendrPerReg)).* & cleared_ena_bit;
                 return is_pending != 0;
             }
 
             // from the gicv2 docs:
             // For interrupt ID m, when DIV and MOD are the integer division and modulo operations:
-            // • the corresponding GICD_ICENABLERn number, n, is given by m = n DIV 32
+            // • the corresponding GICD_ICENABLERn number, n, is given by m = n DIV 32 (32 ints per reg)
             // • the offset of the required GICD_ICENABLERn is (0x180 + (4*n))
-            // • the bit number of the required Clear-enable bit in this register is m MOD 32
-            fn calcReg(addr_start: *volatile u32, irq_id: u32, size_per_reg: u32) !*volatile u32 {
-                return @intToPtr(*volatile u32, @ptrToInt(addr_start) + try std.math.divFloor(u32, irq_id, size_per_reg));
+            // • the bit number of the required Clear-enable bit in this register is m MOD 32 (calcShift...)
+            fn calcReg(addr_start: *volatile u32, irq_id: u32, n_per_reg: u32) !*volatile u32 {
+                return @intToPtr(*volatile u32, @ptrToInt(addr_start) + try std.math.divFloor(u32, irq_id, n_per_reg));
+            }
+            fn calcShift(irq_id: u32, n_per_reg: u32) !u5 {
+                return @truncate(u5, try std.math.mod(u32, irq_id, n_per_reg));
             }
 
             // set an interrupt target processor
@@ -266,24 +267,22 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
             // 0x4 processor 2
             // 0x8 processor 3
             pub fn gicdSetTarget(irq_id: InterruptIds, p: u32) !void {
-                const reg = try calcReg(GicdRegMap.itargetsr, @enumToInt(irq_id), GicdRegValues.itargetsrSizePerReg);
-                reg.* = 0xfffffff;
-                kprint("{*} \n", .{reg});
+                const reg = try calcReg(GicdRegMap.itargetsr, @enumToInt(irq_id), itargetsrPerReg);
+                const shift = try calcShift(@enumToInt(irq_id), itargetsrPerReg) * 8;
 
-                // var targets: u32 = reg.*;
-                // const shift = @truncate(u5, (try std.math.mod(u32, @enumToInt(irq_id), 4)) * 8);
-                // targets &= ~(@as(u32, 0xff) << shift);
-                // kprint("{d} \n", .{shift});
-                // targets |= p << shift;
-                _ = p;
+                var update_val: u32 = reg.*;
+                update_val &= ~(@as(u32, 0xff) << shift);
+                update_val |= p << shift;
+                reg.* = update_val;
             }
 
             // set an interrupt priority
             // irq  irq number
             // prio interrupt priority in arm specific expression
             pub fn gicdSetPriority(irq_id: InterruptIds, prio: u8) !void {
-                const reg = try calcReg(GicdRegMap.ipriorityr, @enumToInt(irq_id), GicdRegValues.ipriorityPerReg);
-                const prio_shift = @truncate(u3, (try std.math.mod(u32, @enumToInt(irq_id), GicdRegValues.ipriorityPerReg)) * 8);
+                const reg = try calcReg(GicdRegMap.ipriorityr, @enumToInt(irq_id), ipriorityPerReg);
+                const prio_shift = @truncate(u3, (try std.math.mod(u32, @enumToInt(irq_id), ipriorityPerReg)) * 8);
+
                 var update_val = reg.*;
                 update_val &= ~(@intCast(u32, 0xff) << prio_shift);
                 update_val |= prio << prio_shift;
@@ -294,8 +293,8 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
             // irq     irq number
             // config  configuration value for gicd_icfgr
             pub fn gicdConfig(irq_id: InterruptIds, config: u32) !void {
-                const reg = try calcReg(GicdRegMap.icfgr, @enumToInt(irq_id), GicdRegValues.icfgrPerReg);
-                var shift: u5 = @truncate(u5, (@enumToInt(irq_id) % GicdRegValues.icfgrPerReg) * GicdRegValues.icfgrPerReg); // gicd_icfgr has 16 fields, each field has 2bits.
+                const reg = try calcReg(GicdRegMap.icfgr, @enumToInt(irq_id), icfgrPerReg);
+                var shift = try calcShift(@enumToInt(irq_id), icfgrPerReg) * 2; // gicd_icfgr has 16 fields, each field has 2bits.
 
                 var update_val = reg.*;
                 update_val &= ~((@as(u32, 0x03)) << shift); // clear the field
