@@ -92,7 +92,6 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
         }
         pub fn schedule(self: *Self, irq_context: *CpuContext) void {
             _ = self;
-            kprint("scheduler called \n", .{});
             // current_task.?.counter -= 1;
             // if (current_task.?.counter > 0 or current_task.?.preempt_count > 0) return;
             current_task.?.counter = 0;
@@ -120,19 +119,15 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
         }
 
         pub fn timerIntEvent(self: *Self, irq_context: *CpuContext) void {
-            kprint("TIMER 1\n", .{});
             current_task.?.counter -= 1;
             if (current_task.?.counter > 0 and current_task.?.preempt_count > 0) {
-                kprint("returning.......... \n", .{});
-
-                // don't restore from stack since there is already new data pushed
+                // don't restore from stack since there is already new data pushed to the stack
                 CpuContext.restoreContextFromMem(irq_context);
                 asm volatile ("eret");
             }
             current_task.?.counter = 0;
 
             proc.DaifReg.enableIrq();
-            kprint("TIMER 2\n", .{});
             self.schedule(irq_context);
             proc.DaifReg.disableIrq();
         }
@@ -189,7 +184,6 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
         // todo => simd regs?
         fn switchCpuContext(from: *Task, to: *Task, irq_context: *CpuContext) void {
             kprint("from: {*} to {*} \n", .{ from, to });
-            // kprint("to sp: {x} \n", .{to.cpu_context.sp});
             from.cpu_context = irq_context.*;
 
             CpuContext.restoreContextFromMem(&to.cpu_context);

@@ -93,10 +93,15 @@ pub const CpuContext = packed struct {
         asm (std.fmt.comptimePrint(
                 \\.globl  _restoreContextFromStack
                 \\_restoreContextFromStack:
-                \\ldp x0, x1, [sp, #16 * 16]
+                // \\brk #0xf000
+                // pop and discard debug info
+                \\ldp x0, x1, [sp, #16 * 18]
+                \\ldp x0, x1, [sp, #16 * 17]
+                //
+                \\ldp x1, x0, [sp, #16 * 16]
                 \\msr elr_el1, x0
                 \\mov fp, x1
-                \\ldp x0, x30, [sp, #16 * 15]
+                \\ldp x30, x0, [sp, #16 * 15]
                 \\mov sp, x0
                 \\ldp x28, x29, [sp, #16 * 14]
                 \\ldp x26, x27, [sp, #16 * 13]
@@ -113,9 +118,8 @@ pub const CpuContext = packed struct {
                 \\ldp x4, x5, [sp, #16 * 2]
                 \\ldp x2, x3, [sp, #16 * 1]
                 \\ldp x0, x1, [sp, #16 * 0]
-                \\ldr x1, #{d}
-                \\sub sp, sp, x1
-                \\ret
+                \\add sp, sp, #{d}
+                \\eret
             , .{@sizeOf(CpuContext)}));
 
         // label saveCurrContextOnStack args: x2: int_type
@@ -146,7 +150,7 @@ pub const CpuContext = packed struct {
                 \\stp x0, x1, [sp, #16 * 16]
                 \\mrs x0, far_el1
                 \\mrs x1, esr_el1
-                \\stp x0, x1, [sp, #16 * 17]
+                \\stp x1, x0, [sp, #16 * 17]
                 \\mrs x0, CurrentEL
                 \\lsr x0, x0, #2
                 \\stp x0, x2, [sp, #16 * 18]

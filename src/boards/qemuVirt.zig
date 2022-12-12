@@ -37,8 +37,8 @@ pub const config = boardConfig.BoardConfig{
         .storage_size = 0,
     },
     // arm_gt, gic
-    //
-    .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "virt", "-m", "10G", "-cpu", "cortex-a53", "-device", "loader,file=zig-out/bin/mergedKernel,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none", "-d", "trace:gic*", "-D", "./log.txt" },
+    // "-d", "trace:gic*", "-D", "./log.txt"
+    .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "virt", "-m", "10G", "-cpu", "cortex-a53", "-device", "loader,file=zig-out/bin/mergedKernel,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
 };
 
 pub fn PeriphConfig(comptime addr_space: boardConfig.AddrSpace) type {

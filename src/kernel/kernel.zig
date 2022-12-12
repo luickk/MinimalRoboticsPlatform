@@ -252,16 +252,11 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
             .irqs = true,
             .fiqs = true,
         });
-
-        gt.setupGt();
     }
 
     if (board.config.board == .raspi3b) {
         bcm2835IntController.init();
         kprint("[kernel] ic inited \n", .{});
-
-        bcm2835Timer.initTimer();
-        kprint("[kernel] timer inited \n", .{});
     }
 
     kprint("[kernel] starting scheduler \n", .{});
@@ -278,22 +273,19 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
     kprint("test process pid: {d}, {d} \n", .{ test_proc_pid, test_proc_pid_ts });
 
     scheduler.initTaskCounter();
-    while (true) {
-        // kprint("basic pend: {b} 1: {b} 2: {b} \n", .{ @intToPtr(*volatile u32, 0xFFFFFF8030000000).*, @intToPtr(*volatile u32, 0xFFFFFF8030000004).*, @intToPtr(*volatile u32, 0xFFFFFF8030000008).* });
-        // kprint("while \n", .{});
 
-        // kprint("lol: {any} \n", .{gic.Gicc.gicv2FindPendingIrq() catch {
-        //     unreachable;
-        // }});
-        // kprint("lol: {any} \n", .{gic.Gicd.gicdProbePending(30) catch {
-        //     unreachable;
-        // }});
-        // scheduler.timerIntEvent();
-        // ISR_EL1 or cntp_ctl_el0
-        // var x: usize = asm volatile ("mrs %[curr], cntp_ctl_el0"
-        //     : [curr] "=r" (-> usize),
-        // );
-        // kprint("x: {d} \n", .{x});
+    if (board.config.board == .qemuVirt) {
+        gt.setupGt();
+        kprint("[kernel] timer inited \n", .{});
+    }
+
+    if (board.config.board == .raspi3b) {
+        bcm2835Timer.initTimer();
+        kprint("[kernel] timer inited \n", .{});
+    }
+
+    while (true) {
+        // kprint("while \n", .{});
     }
 }
 
@@ -301,7 +293,7 @@ fn testUserProcess() void {
     kprint("userspace test print - ONE 1 \n", .{});
     // kprint("enable 1: {b} 2: {b} basic: {b} \n", .{ @intToPtr(*volatile u32, 0xFFFFFF8030000010).*, @intToPtr(*volatile u32, 0xFFFFFF8030000014).*, @intToPtr(*volatile u32, 0xFFFFFF8030000018).* });
     while (true) {
-        // kprint("p1 \n", .{});
+        kprint("p1 \n", .{});
     }
 }
 
@@ -310,9 +302,8 @@ fn testUserProcessTheSecond() void {
     // kprint("enable 1: {b} 2: {b} basic: {b} \n", .{ @intToPtr(*volatile u32, 0xFFFFFF8030000010).*, @intToPtr(*volatile u32, 0xFFFFFF8030000014).*, @intToPtr(*volatile u32, 0xFFFFFF8030000018).* });
     kprint("current_el: {d} \n", .{proc.getCurrentEl()});
     while (true) {
-
         // kprint("cs: {b} \n", .{@intToPtr(*volatile u32, 0xFFFFFF8030003000).*});
-        // kprint("p2 \n", .{});
+        kprint("p2 \n", .{});
     }
 }
 

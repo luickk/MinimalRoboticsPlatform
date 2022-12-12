@@ -12,7 +12,7 @@ extern var scheduler: *Scheduler;
 
 var timerVal: usize = 0;
 
-var freq_factor: f64 = 0.1;
+var freq_factor: f64 = 0.001;
 
 var cnt_freq: usize = 0;
 
@@ -22,12 +22,10 @@ pub fn setupGt() void {
         : [curr] "=r" (-> usize),
     );
 
-    // timerVal = 0;
     timerVal += @floatToInt(usize, @intToFloat(f64, cnt_freq) * freq_factor);
-    kprint("{d} \n", .{timerVal});
 
     asm volatile (
-        \\msr CNTP_TVAL_EL0, %[freq]
+        \\msr CNTP_CVAL_EL0, %[freq]
         \\mov x0, 1
         \\msr cntp_ctl_el0, x0
         :

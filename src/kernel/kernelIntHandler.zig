@@ -46,7 +46,6 @@ pub const ExceptionClass = enum(u6) {
 pub fn irqHandler(temp_context: *CpuContext) callconv(.C) void {
     // copy away from stack top
     var context = temp_context.*;
-    // kprint("current_el: {d} \n", .{arm.processor.ProccessorRegMap(.el1).getCurrentEl()});
 
     // std intToEnum instead of build in in order to catch err
     var int_type = std.meta.intToEnum(gic.ExceptionType, context.int_type) catch {
@@ -71,6 +70,7 @@ pub fn irqHandler(temp_context: *CpuContext) callconv(.C) void {
             kprint("Exception Class(from esp reg): {s} \n", .{@tagName(ec_en)});
             kprint("Int Type: {s} \n", .{@tagName(int_type)});
             kprint("el: {d} \n", .{context.el});
+            kprint("esr_el1: {x} \n", .{context.esr_el1});
             kprint("far_el1: {x} \n", .{context.far_el1});
             kprint("elr_el1: {x} \n", .{context.elr_el1});
 
@@ -80,6 +80,10 @@ pub fn irqHandler(temp_context: *CpuContext) callconv(.C) void {
                 kprint("16 bit instruction trapped \n", .{});
             }
             kprint(".........sync exc............\n", .{});
+            if (ec_en == ExceptionClass.bkptInstExecAarch64) {
+                kprint("[kernel] halting execution due to debug trap\n", .{});
+                while (true) {}
+            }
         },
         gic.ExceptionType.el1Irq, gic.ExceptionType.el1Fiq => {
             if (board.config.board == .raspi3b)

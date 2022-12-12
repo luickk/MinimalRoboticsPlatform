@@ -10,7 +10,6 @@
     bl \handler
         
     bl _restoreContextFromStack
-    eret
 .endm
 
 // https://developer.arm.com/documentation/100933/0100/AArch64-exception-vector-table

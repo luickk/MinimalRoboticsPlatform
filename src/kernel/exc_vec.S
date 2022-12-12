@@ -8,7 +8,7 @@
     // set stack as arg
     mov x0, sp
     bl \handler
-        
+    
     bl _restoreContextFromStack
     eret
 .endm
