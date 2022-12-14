@@ -186,7 +186,7 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             kprint("from: {*} to {*} \n", .{ from, to });
             from.cpu_context = irq_context.*;
 
-            CpuContext.restoreContextFromMem(&to.cpu_context);
+            CpuContext.restoreContextFromMem(&(to.cpu_context));
             asm volatile ("eret");
         }
 

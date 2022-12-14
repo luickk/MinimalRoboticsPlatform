@@ -12,7 +12,7 @@ extern var scheduler: *Scheduler;
 
 var timerVal: usize = 0;
 
-var freq_factor: f64 = 0.001;
+var freq_factor: f64 = 0.002;
 
 var cnt_freq: usize = 0;
 

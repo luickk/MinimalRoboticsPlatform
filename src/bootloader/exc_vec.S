@@ -29,7 +29,7 @@ _exception_vector_table:
 
 
 .balign 0x80
-    EXCEPTION_VECTOR irqHandler el1Sync // el1Sync (spx) selected bc issue I'm debugging is a sync exception
+    EXCEPTION_VECTOR irqHandler el1Sync // el1Sync
 
 .balign 0x80
     EXCEPTION_VECTOR irqHandler el1Irq // el1Irq

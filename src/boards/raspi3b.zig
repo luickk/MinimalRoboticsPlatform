@@ -35,8 +35,8 @@ pub const config = boardConfig.BoardConfig{
         .storage_start_addr = 0,
         .storage_size = 0,
     },
-    // "-d", "trace:bcm2835_systmr*"
-    .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "raspi3b", "-device", "loader,addr=0x80000,file=zig-out/bin/mergedKernel,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none", "-d", "trace:bcm2835_systmr*", "-D", "./log.txt" },
+    // , "-d", "trace:bcm2835_systmr*", "-D", "./log.txt"
+    .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "raspi3b", "-device", "loader,addr=0x80000,file=zig-out/bin/mergedKernel,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
 };
 
 pub fn PeriphConfig(comptime addr_space: boardConfig.AddrSpace) type {

@@ -11,7 +11,7 @@ extern var scheduler: *Scheduler;
 // raspberry system timer frequency is 1 Mhz
 var cnt_freq: u32 = 1000000;
 // 0.002 is the highest possible frequency
-var freq_factor: f32 = 0.001;
+var freq_factor: f32 = 0.002;
 
 pub const RegMap = struct {
     pub const timerCs = @intToPtr(*volatile u32, timerCfg.base_address + 0x0);
@@ -40,8 +40,6 @@ pub fn initTimer() void {
 pub fn handleTimerIrq(irq_context: *CpuContext) void {
     timerVal += @floatToInt(u32, @intToFloat(f64, cnt_freq) * freq_factor);
     RegMap.timerC1.* = timerVal;
-    // todo => clarify why and how timer irq has to be reset! bcm2835 docs state a reset with (1<<1) which does NOT work
-    // , BCM2835 xinu embedded docs write something completely different (which doesn't make a difference)
-    // RegMap.timerCs.* = RegMap.timerCs.* | RegValues.timerCsM1;
+    RegMap.timerCs.* = RegMap.timerCs.* | RegValues.timerCsM1;
     scheduler.timerIntEvent(irq_context);
 }
