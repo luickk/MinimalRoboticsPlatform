@@ -32,6 +32,8 @@ const periph = @import("periph");
 const old_mapping_kprint = periph.uart.UartWriter(.ttbr0).kprint;
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 
+export var tmp_counter: usize = 1;
+
 // raspberry specific periphs
 const bcm2835IntController = arm.bcm2835IntController.InterruptController(.ttbr1);
 const bcm2835Timer = @import("board/raspi3b/timer.zig");
@@ -294,6 +296,7 @@ fn testUserProcess() void {
     // kprint("enable 1: {b} 2: {b} basic: {b} \n", .{ @intToPtr(*volatile u32, 0xFFFFFF8030000010).*, @intToPtr(*volatile u32, 0xFFFFFF8030000014).*, @intToPtr(*volatile u32, 0xFFFFFF8030000018).* });
     while (true) {
         kprint("p1 \n", .{});
+        old_mapping_kprint("p1 old print \n", .{});
     }
 }
 
@@ -304,6 +307,12 @@ fn testUserProcessTheSecond() void {
     while (true) {
         // kprint("cs: {b} \n", .{@intToPtr(*volatile u32, 0xFFFFFF8030003000).*});
         kprint("p2 \n", .{});
+        old_mapping_kprint("p2 old print \n", .{});
+
+        if (tmp_counter > 1) {
+            // asm volatile ("brk 0xdead");
+            // kprint("FOASJOPFJASPODOPSAJKDOPK \n", .{});
+        }
     }
 }
 

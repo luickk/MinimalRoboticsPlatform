@@ -9,6 +9,8 @@ const b_options = @import("build_options");
 const kernel_bin_size = b_options.kernel_bin_size;
 const bl_bin_size = b_options.bl_bin_size;
 
+extern var tmp_counter: usize;
+
 pub const Task = packed struct {
     pub const TaskState = enum(usize) {
         running,
@@ -121,6 +123,8 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
         pub fn timerIntEvent(self: *Self, irq_context: *CpuContext) void {
             current_task.?.counter -= 1;
             if (current_task.?.counter > 0 and current_task.?.preempt_count > 0) {
+                kprint("--------- WAIT WAIT \n", .{});
+                // kprint("{any} \n", .{irq_context});
                 // don't restore from stack since there is already new data pushed to the stack
                 CpuContext.restoreContextFromMem(irq_context);
                 asm volatile ("eret");
@@ -138,10 +142,10 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             const task_stack_size = 2048;
 
             var copied_task: *Task = @ptrCast(*Task, try self.page_allocator.allocNPage(2));
-            copied_task.cpu_context.x19 = @ptrToInt(fnp);
+            // copied_task.cpu_context.x19 = @ptrToInt(fnp);
             // arg0 is not supported for now
-            copied_task.cpu_context.x20 = 0;
-            copied_task.cpu_context.elr_el1 = @ptrToInt(&retFromFork);
+            // copied_task.cpu_context.x20 = 0;
+            copied_task.cpu_context.elr_el1 = @ptrToInt(fnp);
             copied_task.cpu_context.sp = @ptrToInt(copied_task) + @sizeOf(Task) + task_stack_size;
 
             // setting base_pdg to allocated userspace page base
@@ -181,9 +185,10 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             switchCpuContext(prev_task, next_task, irq_context);
         }
 
-        // todo => simd regs?
         fn switchCpuContext(from: *Task, to: *Task, irq_context: *CpuContext) void {
             kprint("from: {*} to {*} \n", .{ from, to });
+            tmp_counter += 1;
+
             from.cpu_context = irq_context.*;
 
             CpuContext.restoreContextFromMem(&(to.cpu_context));

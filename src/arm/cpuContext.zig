@@ -9,6 +9,8 @@ pub const CpuContext = packed struct {
     el: usize,
     far_el1: usize,
     esr_el1: usize,
+    sp_sel: usize,
+    pc: usize,
 
     // sys regs
     elr_el1: usize,
@@ -95,6 +97,7 @@ pub const CpuContext = packed struct {
             // debug regs
             \\ldp x0, x1, [x8], #16
             \\ldp x0, x1, [x8], #16
+            \\ldp x0, x1, [x8], #16
             // system regs
             \\ldp x1, x0, [x8], #16
             \\msr elr_el1, x1
@@ -151,6 +154,7 @@ pub const CpuContext = packed struct {
             \\.globl  _restoreContextFromStack
             \\_restoreContextFromStack:
             // pop and discard debug info
+            \\ldp x0, x1, [sp, #16]!
             \\ldp x0, x1, [sp, #16]!
             \\ldp x0, x1, [sp, #16]!
             // sys regs
@@ -243,6 +247,9 @@ pub const CpuContext = packed struct {
             \\stp x1, x0, [sp, #-16]!
 
             // debug regs
+            \\adr x0, .
+            \\mrs x1, SPSel
+            \\stp x1, x0, [sp, #-16]!
             \\mrs x0, far_el1
             \\mrs x1, esr_el1
             \\stp x0, x1, [sp, #-16]!

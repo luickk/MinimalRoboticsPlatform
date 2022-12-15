@@ -68,11 +68,23 @@ pub fn irqHandler(temp_context: *CpuContext) callconv(.C) void {
 
             kprint(".........sync exc............\n", .{});
             kprint("Exception Class(from esp reg): {s} \n", .{@tagName(ec_en)});
+            kprint("- debug info: \n", .{});
             kprint("Int Type: {s} \n", .{@tagName(int_type)});
             kprint("el: {d} \n", .{context.el});
-            kprint("esr_el1: {x} \n", .{context.esr_el1});
-            kprint("far_el1: {x} \n", .{context.far_el1});
-            kprint("elr_el1: {x} \n", .{context.elr_el1});
+            kprint("esr_el1: 0x{x} \n", .{context.esr_el1});
+            kprint("far_el1: 0x{x} \n", .{context.far_el1});
+            kprint("elr_el1: 0x{x} \n", .{context.elr_el1});
+            kprint("- sys regs: \n", .{});
+            kprint("sp: 0x{x} \n", .{context.sp});
+            kprint("spSel: {d} \n", .{context.sp_sel});
+            kprint("pc: 0x{x} \n", .{context.pc});
+            kprint("lr(x30): 0x{x} \n", .{context.x30});
+            kprint("x0: {x}, x1: {x}, x2: {x}, x3: {x}, x4: {x} \n", .{ context.x0, context.x1, context.x2, context.x3, context.x4 });
+            kprint("x5: {x}, x6: {x}, x7: {x}, x8: {x}, x9: {x} \n", .{ context.x5, context.x6, context.x7, context.x8, context.x9 });
+            kprint("x10: {x}, x11: {x}, x12: {x}, x13: {x}, x14: {x} \n", .{ context.x10, context.x11, context.x12, context.x13, context.x14 });
+            kprint("x15: {x}, x16: {x}, x17: {x}, x18: {x}, x19: {x} \n", .{ context.x15, context.x16, context.x17, context.x18, context.x19 });
+            kprint("x20: {x}, x21: {x}, x22: {x}, x23: {x}, x24: {x} \n", .{ context.x20, context.x21, context.x22, context.x23, context.x24 });
+            kprint("x25: {x}, x26: {x}, x27: {x}, x28: {x}, x29: {x} \n", .{ context.x25, context.x26, context.x27, context.x28, context.x29 });
 
             if (il == 1) {
                 kprint("32 bit instruction trapped \n", .{});
