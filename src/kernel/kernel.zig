@@ -32,8 +32,6 @@ const periph = @import("periph");
 const old_mapping_kprint = periph.uart.UartWriter(.ttbr0).kprint;
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 
-export var tmp_counter: usize = 1;
-
 // raspberry specific periphs
 const bcm2835IntController = arm.bcm2835IntController.InterruptController(.ttbr1);
 const bcm2835Timer = @import("board/raspi3b/timer.zig");
@@ -290,29 +288,30 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
         // kprint("while \n", .{});
     }
 }
+const loltest: usize = 100;
 
 fn testUserProcess() void {
     kprint("userspace test print - ONE 1 \n", .{});
     // kprint("enable 1: {b} 2: {b} basic: {b} \n", .{ @intToPtr(*volatile u32, 0xFFFFFF8030000010).*, @intToPtr(*volatile u32, 0xFFFFFF8030000014).*, @intToPtr(*volatile u32, 0xFFFFFF8030000018).* });
+    // kprint("current spsr_el: {x} \n", .{loltest});
     while (true) {
+        // kprint("current spsr_el: {x} \n", .{loltest});
+        // kprint("current spsr_el: {x} \n", .{asm volatile ("mov %[curr], sp"
+        //     : [curr] "=r" (-> usize),
+        // )});
         kprint("p1 \n", .{});
-        old_mapping_kprint("p1 old print \n", .{});
+        // old_mapping_kprint("p1 old print \n", .{});
     }
 }
 
 fn testUserProcessTheSecond() void {
     kprint("userspace test print - TWO 2 \n", .{});
     // kprint("enable 1: {b} 2: {b} basic: {b} \n", .{ @intToPtr(*volatile u32, 0xFFFFFF8030000010).*, @intToPtr(*volatile u32, 0xFFFFFF8030000014).*, @intToPtr(*volatile u32, 0xFFFFFF8030000018).* });
-    kprint("current_el: {d} \n", .{proc.getCurrentEl()});
+    // kprint("current spsr_el: {x} \n", .{loltest});
     while (true) {
         // kprint("cs: {b} \n", .{@intToPtr(*volatile u32, 0xFFFFFF8030003000).*});
         kprint("p2 \n", .{});
-        old_mapping_kprint("p2 old print \n", .{});
-
-        if (tmp_counter > 1) {
-            // asm volatile ("brk 0xdead");
-            // kprint("FOASJOPFJASPODOPSAJKDOPK \n", .{});
-        }
+        // old_mapping_kprint("p2 old print \n", .{});
     }
 }
 

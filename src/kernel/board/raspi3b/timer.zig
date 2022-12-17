@@ -13,6 +13,8 @@ var cnt_freq: u32 = 1000000;
 // 0.002 is the highest possible frequency
 var freq_factor: f32 = 0.002;
 
+// todo => handle timer overflow
+
 pub const RegMap = struct {
     pub const timerCs = @intToPtr(*volatile u32, timerCfg.base_address + 0x0);
     pub const timerLo = @intToPtr(*volatile u32, timerCfg.base_address + 0x4);

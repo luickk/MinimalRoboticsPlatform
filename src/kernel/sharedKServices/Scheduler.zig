@@ -9,8 +9,6 @@ const b_options = @import("build_options");
 const kernel_bin_size = b_options.kernel_bin_size;
 const bl_bin_size = b_options.bl_bin_size;
 
-extern var tmp_counter: usize;
-
 pub const Task = packed struct {
     pub const TaskState = enum(usize) {
         running,
@@ -123,11 +121,11 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
         pub fn timerIntEvent(self: *Self, irq_context: *CpuContext) void {
             current_task.?.counter -= 1;
             if (current_task.?.counter > 0 and current_task.?.preempt_count > 0) {
-                kprint("--------- WAIT WAIT \n", .{});
-                // kprint("{any} \n", .{irq_context});
-                // don't restore from stack since there is already new data pushed to the stack
-                CpuContext.restoreContextFromMem(irq_context);
-                asm volatile ("eret");
+                kprint("--------- WAIT WAIT {x} \n", .{asm volatile ("adr %[curr], ."
+                    : [curr] "=r" (-> usize),
+                )});
+                // return all the way back to the exc vector table where cpu state is restored from the stack
+                return;
             }
             current_task.?.counter = 0;
 
@@ -187,7 +185,6 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
 
         fn switchCpuContext(from: *Task, to: *Task, irq_context: *CpuContext) void {
             kprint("from: {*} to {*} \n", .{ from, to });
-            tmp_counter += 1;
 
             from.cpu_context = irq_context.*;
 

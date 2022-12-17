@@ -48,12 +48,10 @@ pub fn irqHandler(temp_context: *CpuContext) callconv(.C) void {
     var context = temp_context.*;
 
     // std intToEnum instead of build in in order to catch err
-    var int_type = std.meta.intToEnum(gic.ExceptionType, context.int_type) catch {
-        kprint("int type not found \n", .{});
-        return;
-    };
+    var int_type = std.meta.intToEnum(gic.ExceptionType, context.int_type) catch gic.ExceptionType.unknown;
+
     switch (int_type) {
-        gic.ExceptionType.el1Sync => {
+        gic.ExceptionType.el1Sync, gic.ExceptionType.elxSpx, gic.ExceptionType.unknown => {
             var iss = @truncate(u25, context.esr_el1);
             var il = @truncate(u1, context.esr_el1 >> 25);
             var ec = @truncate(u6, context.esr_el1 >> 26);
@@ -109,6 +107,7 @@ pub fn irqHandler(temp_context: *CpuContext) callconv(.C) void {
         },
     }
 }
-pub fn irqElxSpx() callconv(.C) void {
-    kprint("elx/ spx interrupt fired \n", .{});
+pub fn irqElxSpx(temp_context: *CpuContext) callconv(.C) void {
+    kprint("!elx/ spx interrupt fired! \n", .{});
+    irqHandler(temp_context);
 }

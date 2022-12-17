@@ -104,7 +104,7 @@ pub const CpuContext = packed struct {
             \\mov fp, x0
             \\ldp x0, x30, [x8], #16
             \\mov sp, x0
-            // smid regs
+            // gp regs
             \\ldp x29, x28, [x8], #16
             \\ldp x27, x26, [x8], #16
             \\ldp x25, x24, [x8], #16
@@ -120,7 +120,7 @@ pub const CpuContext = packed struct {
             \\ldp x5, x4, [x8], #16
             \\ldp x3, x2, [x8], #16
             \\ldp x1, x0, [x8], #16
-            // gp regs
+            // smid regs
             \\ldp d31, d30, [x8], #16
             \\ldp d29, d28, [x8], #16
             \\ldp d27, d26, [x8], #16
@@ -133,7 +133,7 @@ pub const CpuContext = packed struct {
             \\ldp d13, d12, [x8], #16
             \\ldp d11, d10, [x8], #16
             \\ldp d9, d8, [x8], #16
-            \\ldp d6, d7, [x8], #16
+            \\ldp d7, d6, [x8], #16
             \\ldp d5, d4, [x8], #16
             \\ldp d3, d2, [x8], #16
             \\ldp d1, d0, [x8], #16
@@ -154,48 +154,48 @@ pub const CpuContext = packed struct {
             \\.globl  _restoreContextFromStack
             \\_restoreContextFromStack:
             // pop and discard debug info
-            \\ldp x0, x1, [sp, #16]!
-            \\ldp x0, x1, [sp, #16]!
-            \\ldp x0, x1, [sp, #16]!
+            \\ldp x0, x1, [sp], #16
+            \\ldp x0, x1, [sp], #16
+            \\ldp x0, x1, [sp], #16
             // sys regs
-            \\ldp x1, x0, [sp, #16]!
+            \\ldp x0, x1, [sp], #16
             \\msr elr_el1, x0
             \\mov fp, x1
-            \\ldp x30, x0, [sp, #16]!
+            \\ldp x0, x30, [sp], #16
             \\mov sp, x0
             // gp regs
-            \\ldp x28, x29, [sp, #16]!
-            \\ldp x26, x27, [sp, #16]!
-            \\ldp x24, x25, [sp, #16]!
-            \\ldp x22, x23, [sp, #16]!
-            \\ldp x20, x21, [sp, #16]!
-            \\ldp x18, x19, [sp, #16]!
-            \\ldp x16, x17, [sp, #16]!
-            \\ldp x14, x15, [sp, #16]!
-            \\ldp x12, x13, [sp, #16]!
-            \\ldp x10, x11, [sp, #16]!
-            \\ldp x8, x9, [sp, #16]!
-            \\ldp x6, x7, [sp, #16]!
-            \\ldp x4, x5, [sp, #16]!
-            \\ldp x2, x3, [sp, #16]!
-            \\ldp x0, x1, [sp, #16]!
+            \\ldp x29, x28, [sp], #16
+            \\ldp x27, x26, [sp], #16
+            \\ldp x25, x24, [sp], #16
+            \\ldp x23, x22, [sp], #16
+            \\ldp x21, x20, [sp], #16
+            \\ldp x19, x18, [sp], #16
+            \\ldp x17, x16, [sp], #16
+            \\ldp x15, x14, [sp], #16
+            \\ldp x13, x12, [sp], #16
+            \\ldp x11, x10, [sp], #16
+            \\ldp x9, x8, [sp], #16
+            \\ldp x7, x6, [sp], #16
+            \\ldp x5, x4, [sp], #16
+            \\ldp x3, x2, [sp], #16
+            \\ldp x1, x0, [sp], #16
             // smid regs
-            \\ldp d30, d31, [sp, #16]!
-            \\ldp d28, d29, [sp, #16]!
-            \\ldp d26, d27, [sp, #16]!
-            \\ldp d24, d25, [sp, #16]!
-            \\ldp d22, d23, [sp, #16]!
-            \\ldp d20, d21, [sp, #16]!
-            \\ldp d18, d19, [sp, #16]!
-            \\ldp d16, d17, [sp, #16]!
-            \\ldp d14, d15, [sp, #16]!
-            \\ldp d12, d13, [sp, #16]!
-            \\ldp d10, d11, [sp, #16]!
-            \\ldp d8, d9, [sp, #16]!
-            \\ldp d6, d7, [sp, #16]!
-            \\ldp d4, d5, [sp, #16]!
-            \\ldp d2, d3, [sp, #16]!
-            \\ldp d0, d1, [sp, #16]!
+            \\ldp d31, d30, [sp], #16
+            \\ldp d29, d28, [sp], #16
+            \\ldp d27, d26, [sp], #16
+            \\ldp d25, d24, [sp], #16
+            \\ldp d23, d22, [sp], #16
+            \\ldp d21, d20, [sp], #16
+            \\ldp d19, d18, [sp], #16
+            \\ldp d17, d16, [sp], #16
+            \\ldp d15, d14, [sp], #16
+            \\ldp d13, d12, [sp], #16
+            \\ldp d11, d10, [sp], #16
+            \\ldp d9, d8, [sp], #16
+            \\ldp d7, d6, [sp], #16
+            \\ldp d5, d4, [sp], #16
+            \\ldp d3, d2, [sp], #16
+            \\ldp d1, d0, [sp], #16
             // \\add sp, sp, #{d}
             \\eret
         );

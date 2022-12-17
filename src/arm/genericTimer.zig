@@ -16,6 +16,8 @@ var freq_factor: f64 = 0.02;
 
 var cnt_freq: usize = 0;
 
+// todo => handle timer overflow
+
 // initialize gic controller
 pub fn setupGt() void {
     cnt_freq = asm ("mrs %[curr], CNTFRQ_EL0"

@@ -10,6 +10,7 @@ pub const ExceptionType = enum(u64) {
     el1Fiq = 0x3,
     el1Err = 0x4,
     elxSpx = 0x5,
+    unknown = 0x6,
 };
 
 export const el1Sync = ExceptionType.el1Sync;
