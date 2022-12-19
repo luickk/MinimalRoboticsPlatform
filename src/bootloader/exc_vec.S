@@ -2,14 +2,14 @@
 
 .macro EXCEPTION_VECTOR handler int_type
     // saveCurrContextOnStack & restoreContextFromStack are fns exported from cpuContext.zig
-    ldr x2, #\int_type
+    ldr x1, #\int_type
     bl _saveCurrContextOnStack
 
     // set stack as arg
     mov x0, sp
     bl \handler
         
-    bl _restoreContextFromStack
+    b _restoreContextFromStack
 .endm
 
 // https://developer.arm.com/documentation/100933/0100/AArch64-exception-vector-table

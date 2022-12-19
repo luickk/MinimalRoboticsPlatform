@@ -12,6 +12,12 @@ const bl_bin_size = b_options.bl_bin_size;
 pub const Task = packed struct {
     pub const TaskState = enum(usize) {
         running,
+        halted,
+    };
+    pub const TaskType = enum(usize) {
+        boot,
+        kernel,
+        user,
     };
 
     pub const TaskPageInfo = packed struct {
@@ -29,6 +35,7 @@ pub const Task = packed struct {
     };
     // !has to be first for context switch to find cpu_context!
     cpu_context: CpuContext,
+    type: TaskType,
     state: TaskState,
     counter: isize,
     priority: isize,
@@ -39,6 +46,7 @@ pub const Task = packed struct {
     pub fn init() Task {
         return Task{
             .cpu_context = CpuContext.init(),
+            .type = .user,
             .state = .running,
             .counter = 0,
             .priority = 1,
@@ -59,6 +67,7 @@ const maxTasks = 10;
 
 var current_task: ?*Task = blk: {
     var init_task = Task.init();
+    init_task.type = .boot;
     break :blk &init_task;
 };
 var tasks = [_]?*Task{null} ** maxTasks;
@@ -119,9 +128,10 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
         }
 
         pub fn timerIntEvent(self: *Self, irq_context: *CpuContext) void {
+            // kprint("{any} \n", .{irq_context});
             current_task.?.counter -= 1;
             if (current_task.?.counter > 0 and current_task.?.preempt_count > 0) {
-                kprint("--------- WAIT WAIT {x} \n", .{asm volatile ("adr %[curr], ."
+                kprint("--------- WAIT WAIT {x} \n", .{asm volatile ("mov %[curr], sp"
                     : [curr] "=r" (-> usize),
                 )});
                 // return all the way back to the exc vector table where cpu state is restored from the stack
@@ -137,13 +147,14 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
         pub fn copyProcessToTaskQueue(self: *Self, flags: usize, fnp: *const fn () void) !usize {
             current_task.?.setPreempt(false);
             // todo => make configurable
-            const task_stack_size = 2048;
+            const task_stack_size = 4096;
 
             var copied_task: *Task = @ptrCast(*Task, try self.page_allocator.allocNPage(2));
             // copied_task.cpu_context.x19 = @ptrToInt(fnp);
             // arg0 is not supported for now
             // copied_task.cpu_context.x20 = 0;
             copied_task.cpu_context.elr_el1 = @ptrToInt(fnp);
+            // the sp is increased by the CpuContext size at first schedule(bc it has not been interrupted before)
             copied_task.cpu_context.sp = @ptrToInt(copied_task) + @sizeOf(Task) + task_stack_size;
 
             // setting base_pdg to allocated userspace page base
@@ -152,6 +163,7 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             copied_task.flags = flags;
             copied_task.priority = current_task.?.priority;
             copied_task.state = .running;
+            copied_task.type = .user;
             copied_task.counter = copied_task.priority;
             copied_task.preempt_count = 1;
 
@@ -187,9 +199,8 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             kprint("from: {*} to {*} \n", .{ from, to });
 
             from.cpu_context = irq_context.*;
-
+            // restore Context and erets
             CpuContext.restoreContextFromMem(&(to.cpu_context));
-            asm volatile ("eret");
         }
 
         fn switchMemContext(ttbr_0_addr: usize) void {
