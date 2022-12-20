@@ -285,9 +285,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
     }
 
     while (true) {
-        kprint("while {x} \n", .{asm volatile ("mov %[curr], sp"
-            : [curr] "=r" (-> usize),
-        )});
+        kprint("while \n", .{});
     }
 }
 
@@ -297,10 +295,13 @@ fn testUserProcess() void {
     // kprint("enable 1: {b} 2: {b} basic: {b} \n", .{ @intToPtr(*volatile u32, 0xFFFFFF8030000010).*, @intToPtr(*volatile u32, 0xFFFFFF8030000014).*, @intToPtr(*volatile u32, 0xFFFFFF8030000018).* });
     kprint("test {x} \n", .{loltest});
     while (true) {
-        kprint("test: {x} \n", .{loltest});
+        // kprint("test: {x} \n", .{loltest});
         // kprint("sp: 0x{x} \n", .{asm ("mov %[curr], sp"
         //     : [curr] "=r" (-> usize),
         // )});
+        kprint("pc: 0x{x} \n", .{asm volatile ("adr %[curr], ."
+            : [curr] "=r" (-> usize),
+        )});
         // kprint("current spsr_el: {x} \n", .{asm volatile ("mov %[curr], sp"
         //     : [curr] "=r" (-> usize),
         // )});

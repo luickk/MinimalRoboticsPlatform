@@ -131,7 +131,7 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             // kprint("{any} \n", .{irq_context});
             current_task.?.counter -= 1;
             if (current_task.?.counter > 0 and current_task.?.preempt_count > 0) {
-                kprint("--------- WAIT WAIT {x} \n", .{asm volatile ("mov %[curr], sp"
+                kprint("--------- WAIT WAIT sp: {x} \n", .{asm volatile ("mov %[curr], sp"
                     : [curr] "=r" (-> usize),
                 )});
                 // return all the way back to the exc vector table where cpu state is restored from the stack

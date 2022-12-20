@@ -87,54 +87,54 @@ pub const CpuContext = packed struct {
         return std.mem.zeroInit(CpuContext, .{});
     }
 
-    // note: x8, x1 are not fully restored!
+    // note: x1, x2 are not fully restored!
     pub export fn restoreContextFromMem(context: *CpuContext) callconv(.C) void {
         const context_addr: u64 = @ptrToInt(context);
         asm volatile (
         // base addr
-            \\mov x8, %[context_addr]
+            \\mov x2, %[context_addr]
             // debug regs
-            \\ldp x0, x1, [x8], #16
-            \\ldp x0, x1, [x8], #16
-            \\ldp x0, x1, [x8], #16
+            \\ldp x0, x1, [x2], #16
+            \\ldp x0, x1, [x2], #16
+            \\ldp x0, x1, [x2], #16
             // system regs
-            \\ldp x1, x0, [x8], #16
+            \\ldp x1, x0, [x2], #16
             \\msr elr_el1, x1
             \\mov fp, x0
-            \\ldp x1, x30, [x8], #16
+            \\ldp x1, x30, [x2], #16
             // gp regs
-            \\ldp x29, x28, [x8], #16
-            \\ldp x27, x26, [x8], #16
-            \\ldp x25, x24, [x8], #16
-            \\ldp x23, x22, [x8], #16
-            \\ldp x21, x20, [x8], #16
-            \\ldp x19, x18,[x8], #16
-            \\ldp x17, x16, [x8], #16
-            \\ldp x15, x14, [x8], #16
-            \\ldp x13, x12, [x8], #16
-            \\ldp x11, x10, [x8], #16
-            \\ldp x9, xzr, [x8], #16
-            \\ldp x7, x6, [x8], #16
-            \\ldp x5, x4, [x8], #16
-            \\ldp x3, x2, [x8], #16
-            \\ldp xzr, x0, [x8], #16
+            \\ldp x29, x28, [x2], #16
+            \\ldp x27, x26, [x2], #16
+            \\ldp x25, x24, [x2], #16
+            \\ldp x23, x22, [x2], #16
+            \\ldp x21, x20, [x2], #16
+            \\ldp x19, x18,[x2], #16
+            \\ldp x17, x16, [x2], #16
+            \\ldp x15, x14, [x2], #16
+            \\ldp x13, x12, [x2], #16
+            \\ldp x11, x10, [x2], #16
+            \\ldp x9, x8, [x2], #16
+            \\ldp x7, x6, [x2], #16
+            \\ldp x5, x4, [x2], #16
+            \\ldp x3, xzr, [x2], #16
+            \\ldp xzr, x0, [x2], #16
             // smid regs
-            \\ldp d31, d30, [x8], #16
-            \\ldp d29, d28, [x8], #16
-            \\ldp d27, d26, [x8], #16
-            \\ldp d25, d24, [x8], #16
-            \\ldp d23, d22, [x8], #16
-            \\ldp d21, d20, [x8], #16
-            \\ldp d19, d18, [x8], #16
-            \\ldp d17, d16, [x8], #16
-            \\ldp d15, d14, [x8], #16
-            \\ldp d13, d12, [x8], #16
-            \\ldp d11, d10, [x8], #16
-            \\ldp d9, d8, [x8], #16
-            \\ldp d7, d6, [x8], #16
-            \\ldp d5, d4, [x8], #16
-            \\ldp d3, d2, [x8], #16
-            \\ldp d1, d0, [x8], #16
+            \\ldp d31, d30, [x2], #16
+            \\ldp d29, d28, [x2], #16
+            \\ldp d27, d26, [x2], #16
+            \\ldp d25, d24, [x2], #16
+            \\ldp d23, d22, [x2], #16
+            \\ldp d21, d20, [x2], #16
+            \\ldp d19, d18, [x2], #16
+            \\ldp d17, d16, [x2], #16
+            \\ldp d15, d14, [x2], #16
+            \\ldp d13, d12, [x2], #16
+            \\ldp d11, d10, [x2], #16
+            \\ldp d9, d8, [x2], #16
+            \\ldp d7, d6, [x2], #16
+            \\ldp d5, d4, [x2], #16
+            \\ldp d3, d2, [x2], #16
+            \\ldp d1, d0, [x2], #16
             \\mov sp, x1
             \\eret
             :
@@ -147,7 +147,7 @@ pub const CpuContext = packed struct {
     // since the CpuState is pushed there
     comptime {
         // label restoreContextFromStack args: none
-        // x1, x8 is not restored since it's used as clobbers
+        // x2 is not restored since it's used as clobbers
         asm (
             \\.globl _restoreContextFromStack
             \\_restoreContextFromStack:
@@ -159,7 +159,7 @@ pub const CpuContext = packed struct {
             \\ldp x0, x1, [sp], #16
             \\msr elr_el1, x0
             \\mov fp, x1
-            \\ldp x8, x30, [sp], #16
+            \\ldp x2, x30, [sp], #16
             // gp regs
             \\ldp x29, x28, [sp], #16
             \\ldp x27, x26, [sp], #16
@@ -171,10 +171,10 @@ pub const CpuContext = packed struct {
             \\ldp x15, x14, [sp], #16
             \\ldp x13, x12, [sp], #16
             \\ldp x11, x10, [sp], #16
-            \\ldp x9, xzr, [sp], #16
+            \\ldp x9, x8, [sp], #16
             \\ldp x7, x6, [sp], #16
             \\ldp x5, x4, [sp], #16
-            \\ldp x3, x2, [sp], #16
+            \\ldp x3, xzr, [sp], #16
             \\ldp x1, x0, [sp], #16
             // smid regs
             \\ldp d31, d30, [sp], #16
@@ -193,16 +193,16 @@ pub const CpuContext = packed struct {
             \\ldp d5, d4, [sp], #16
             \\ldp d3, d2, [sp], #16
             \\ldp d1, d0, [sp], #16
-            \\mov sp, x8
+            \\mov sp, x2
             \\eret
         );
 
         // label sadeCurrContextOnStack args: x1: int_type
-        // x8, x1 is not saved bc it's used as arg (x2 is clobbers but after push to stack)
+        // x1, x2 is not saved bc it's used as arg (x3 is clobbers but after push to stack)
         asm (
             \\.globl _saveCurrContextOnStack
             \\_saveCurrContextOnStack:
-            \\mov x8, sp
+            \\mov x2, sp
             \\stp d1, d0, [sp, #-16]!
             \\stp d3, d2, [sp, #-16]!
             \\stp d5, d4, [sp, #-16]!
@@ -237,18 +237,18 @@ pub const CpuContext = packed struct {
             \\stp x29, x28, [sp, #-16]!
 
             // sys regs
-            \\stp x8, x30, [sp, #-16]!
+            \\stp x2, x30, [sp, #-16]!
             \\mov x0, fp
-            \\mrs x2, elr_el1
-            \\stp x2, x0, [sp, #-16]!
+            \\mrs x3, elr_el1
+            \\stp x3, x0, [sp, #-16]!
 
             // debug regs
             \\adr x0, .
-            \\mrs x2, SPSel
-            \\stp x2, x0, [sp, #-16]!
+            \\mrs x3, SPSel
+            \\stp x3, x0, [sp, #-16]!
             \\mrs x0, far_el1
-            \\mrs x2, esr_el1
-            \\stp x0, x2, [sp, #-16]!
+            \\mrs x3, esr_el1
+            \\stp x0, x3, [sp, #-16]!
             \\mrs x0, CurrentEL
             \\lsr x0, x0, #2
             \\stp x1, x0, [sp, #-16]!
