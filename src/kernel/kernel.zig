@@ -21,7 +21,7 @@ const arm = @import("arm");
 const gic = arm.gicv2.Gic(.ttbr1);
 const InterruptIds = gic.InterruptIds;
 const gt = arm.genericTimer;
-const proc = arm.processor.ProccessorRegMap(.el1);
+const ProccessorRegMap = arm.processor.ProccessorRegMap;
 const mmu = arm.mmu;
 
 // general peripherals
@@ -162,25 +162,25 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
         // old_mapping_kprint("1: {*} \n", .{ttbr1});
         // old_mapping_kprint("{any} \n", .{ttbr1.*});
 
-        proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 25, .t1sz = 25, .tg0 = 0, .tg1 = 0 }).asInt());
-        proc.MairReg.setMairEl(.el1, (proc.MairReg{ .attr0 = 0xFF, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
+        ProccessorRegMap.TcrReg.setTcrEl(.el1, (ProccessorRegMap.TcrReg{ .t0sz = 25, .t1sz = 25, .tg0 = 0, .tg1 = 0 }).asInt());
+        ProccessorRegMap.MairReg.setMairEl(.el1, (ProccessorRegMap.MairReg{ .attr0 = 0xFF, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
 
-        proc.dsb();
-        proc.isb();
+        ProccessorRegMap.dsb();
+        ProccessorRegMap.isb();
 
-        proc.invalidateOldPageTableEntries();
-        // proc.invalidateMmuTlbEl1();
-        proc.invalidateCache();
+        ProccessorRegMap.invalidateOldPageTableEntries();
+        // ProccessorRegMap.invalidateMmuTlbEl1();
+        ProccessorRegMap.invalidateCache();
 
         // updating page dirs for kernel and user space
         // toUnsec is bc we are in ttbr1 and can't change with page tables that are also in ttbr1
-        proc.setTTBR1(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset + mmu.toTtbr0(usize, @ptrToInt(ttbr1)));
-        proc.setTTBR0(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset + mmu.toTtbr0(usize, @ptrToInt(ttbr0)));
+        ProccessorRegMap.setTTBR1(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset + mmu.toTtbr0(usize, @ptrToInt(ttbr1)));
+        ProccessorRegMap.setTTBR0(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset + mmu.toTtbr0(usize, @ptrToInt(ttbr0)));
 
-        proc.dsb();
-        proc.isb();
-        proc.nop();
-        proc.nop();
+        ProccessorRegMap.dsb();
+        ProccessorRegMap.isb();
+        ProccessorRegMap.nop();
+        ProccessorRegMap.nop();
     }
     kprint("[kernel] page tables updated! \n", .{});
 
@@ -189,13 +189,13 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
             kprint("[panic] error reading _exception_vector_table label\n", .{});
             k_utils.panic();
         });
-        proc.setExceptionVec(_exc_vec_label);
+        ProccessorRegMap.setExceptionVec(_exc_vec_label);
     }
 
-    var current_el = proc.getCurrentEl();
+    var current_el = ProccessorRegMap.getCurrentEl();
     if (current_el != 1) {
         kprint("[panic] el must be 1! (it is: {d})\n", .{current_el});
-        proc.panic();
+        ProccessorRegMap.panic();
     }
 
     kprint("[kernel] kernel boot complete \n", .{});
@@ -215,7 +215,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
     //     kprint("[panic] testUserPageAlloc test error: {s} \n", .{@errorName(e)});
     //     k_utils.panic();
     // };
-    // proc.exceptionSvc();
+    // ProccessorRegMap.exceptionSvc();
 
     if (board.config.board == .qemuVirt) {
         gic.init() catch |e| {
@@ -246,7 +246,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
             k_utils.panic();
         };
 
-        proc.DaifReg.setDaifClr(.{
+        ProccessorRegMap.DaifReg.setDaifClr(.{
             .debug = true,
             .serr = true,
             .irqs = true,
@@ -285,12 +285,14 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
     }
 
     while (true) {
-        kprint("while \n", .{});
+        // kprint("while \n", .{});
+        // kprint("while {d} \n", .{loltest});
+        // kprint("while el: {d} \n", .{ProccessorRegMap.getCurrentEl()});
     }
 }
 
+const loltest: usize = 100;
 fn testUserProcess() void {
-    const loltest: usize = 100;
     kprint("userspace test print - ONE 1 \n", .{});
     // kprint("enable 1: {b} 2: {b} basic: {b} \n", .{ @intToPtr(*volatile u32, 0xFFFFFF8030000010).*, @intToPtr(*volatile u32, 0xFFFFFF8030000014).*, @intToPtr(*volatile u32, 0xFFFFFF8030000018).* });
     kprint("test {x} \n", .{loltest});
@@ -299,13 +301,11 @@ fn testUserProcess() void {
         // kprint("sp: 0x{x} \n", .{asm ("mov %[curr], sp"
         //     : [curr] "=r" (-> usize),
         // )});
-        kprint("pc: 0x{x} \n", .{asm volatile ("adr %[curr], ."
-            : [curr] "=r" (-> usize),
-        )});
+        kprint("p1 el: {d} \n\n", .{ProccessorRegMap.getCurrentEl()});
         // kprint("current spsr_el: {x} \n", .{asm volatile ("mov %[curr], sp"
         //     : [curr] "=r" (-> usize),
         // )});
-        kprint("p1 \n", .{});
+        // kprint("p1 \n", .{});
         // old_mapping_kprint("p1 old print \n", .{});
     }
 }

@@ -6,7 +6,7 @@ const arm = @import("arm");
 const kprint = periph.uart.UartWriter(.ttbr0).kprint;
 const addr = periph.rbAddr;
 const mmu = arm.mmu;
-const proc = arm.processor.ProccessorRegMap(.el1);
+const ProccessorRegMap = arm.processor.ProccessorRegMap;
 
 // simply keeps record of what is kept where, slow but safe
 pub fn KernelAllocator(comptime mem_size: usize, comptime chunk_size: usize) type {

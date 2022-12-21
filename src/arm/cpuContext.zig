@@ -50,44 +50,44 @@ pub const CpuContext = packed struct {
     x0: usize,
 
     // smid regs
-    d31: usize,
-    d30: usize,
-    d29: usize,
-    d28: usize,
-    d27: usize,
-    d26: usize,
-    d25: usize,
-    d24: usize,
-    d23: usize,
-    d22: usize,
-    d21: usize,
-    d20: usize,
-    d19: usize,
-    d18: usize,
-    d17: usize,
-    d16: usize,
-    d15: usize,
-    d14: usize,
-    d13: usize,
-    d12: usize,
-    d11: usize,
-    d10: usize,
-    d9: usize,
-    d8: usize,
-    d7: usize,
-    d6: usize,
-    d5: usize,
-    d4: usize,
-    d3: usize,
-    d2: usize,
-    d1: usize,
-    d0: usize,
+    q31: u128,
+    q30: u128,
+    q29: u128,
+    q28: u128,
+    q27: u128,
+    q26: u128,
+    q25: u128,
+    q24: u128,
+    q23: u128,
+    q22: u128,
+    q21: u128,
+    q20: u128,
+    q19: u128,
+    q18: u128,
+    q17: u128,
+    q16: u128,
+    q15: u128,
+    q14: u128,
+    q13: u128,
+    q12: u128,
+    q11: u128,
+    q10: u128,
+    q9: u128,
+    q8: u128,
+    q7: u128,
+    q6: u128,
+    q5: u128,
+    q4: u128,
+    q3: u128,
+    q2: u128,
+    q1: u128,
+    q0: u128,
 
     pub fn init() CpuContext {
         return std.mem.zeroInit(CpuContext, .{});
     }
 
-    // note: x1, x2 are not fully restored!
+    // note: x2 are not fully restored!
     pub export fn restoreContextFromMem(context: *CpuContext) callconv(.C) void {
         const context_addr: u64 = @ptrToInt(context);
         asm volatile (
@@ -102,6 +102,7 @@ pub const CpuContext = packed struct {
             \\msr elr_el1, x1
             \\mov fp, x0
             \\ldp x1, x30, [x2], #16
+            \\mov sp, x1
             // gp regs
             \\ldp x29, x28, [x2], #16
             \\ldp x27, x26, [x2], #16
@@ -117,25 +118,24 @@ pub const CpuContext = packed struct {
             \\ldp x7, x6, [x2], #16
             \\ldp x5, x4, [x2], #16
             \\ldp x3, xzr, [x2], #16
-            \\ldp xzr, x0, [x2], #16
+            \\ldp x1, x0, [x2], #16
             // smid regs
-            \\ldp d31, d30, [x2], #16
-            \\ldp d29, d28, [x2], #16
-            \\ldp d27, d26, [x2], #16
-            \\ldp d25, d24, [x2], #16
-            \\ldp d23, d22, [x2], #16
-            \\ldp d21, d20, [x2], #16
-            \\ldp d19, d18, [x2], #16
-            \\ldp d17, d16, [x2], #16
-            \\ldp d15, d14, [x2], #16
-            \\ldp d13, d12, [x2], #16
-            \\ldp d11, d10, [x2], #16
-            \\ldp d9, d8, [x2], #16
-            \\ldp d7, d6, [x2], #16
-            \\ldp d5, d4, [x2], #16
-            \\ldp d3, d2, [x2], #16
-            \\ldp d1, d0, [x2], #16
-            \\mov sp, x1
+            \\ldp q31, q30, [x2], #32
+            \\ldp q29, q28, [x2], #32
+            \\ldp q27, q26, [x2], #32
+            \\ldp q25, q24, [x2], #32
+            \\ldp q23, q22, [x2], #32
+            \\ldp q21, q20, [x2], #32
+            \\ldp q19, q18, [x2], #32
+            \\ldp q17, q16, [x2], #32
+            \\ldp q15, q14, [x2], #32
+            \\ldp q13, q12, [x2], #32
+            \\ldp q11, q10, [x2], #32
+            \\ldp q9, q8, [x2], #32
+            \\ldp q7, q6, [x2], #32
+            \\ldp q5, q4, [x2], #32
+            \\ldp q3, q2, [x2], #32
+            \\ldp q1, q0, [x2], #32
             \\eret
             :
             : [context_addr] "r" (context_addr),
@@ -146,8 +146,6 @@ pub const CpuContext = packed struct {
     // labels are not functions in cpuContext.zig since fns would manipulate the sp which needs to stay the same
     // since the CpuState is pushed there
     comptime {
-        // label restoreContextFromStack args: none
-        // x2 is not restored since it's used as clobbers
         asm (
             \\.globl _restoreContextFromStack
             \\_restoreContextFromStack:
@@ -159,7 +157,8 @@ pub const CpuContext = packed struct {
             \\ldp x0, x1, [sp], #16
             \\msr elr_el1, x0
             \\mov fp, x1
-            \\ldp x2, x30, [sp], #16
+            \\ldp x1, x30, [sp], #16
+            \\mov sp, x1
             // gp regs
             \\ldp x29, x28, [sp], #16
             \\ldp x27, x26, [sp], #16
@@ -174,54 +173,50 @@ pub const CpuContext = packed struct {
             \\ldp x9, x8, [sp], #16
             \\ldp x7, x6, [sp], #16
             \\ldp x5, x4, [sp], #16
-            \\ldp x3, xzr, [sp], #16
+            \\ldp x3, x2, [sp], #16
             \\ldp x1, x0, [sp], #16
             // smid regs
-            \\ldp d31, d30, [sp], #16
-            \\ldp d29, d28, [sp], #16
-            \\ldp d27, d26, [sp], #16
-            \\ldp d25, d24, [sp], #16
-            \\ldp d23, d22, [sp], #16
-            \\ldp d21, d20, [sp], #16
-            \\ldp d19, d18, [sp], #16
-            \\ldp d17, d16, [sp], #16
-            \\ldp d15, d14, [sp], #16
-            \\ldp d13, d12, [sp], #16
-            \\ldp d11, d10, [sp], #16
-            \\ldp d9, d8, [sp], #16
-            \\ldp d7, d6, [sp], #16
-            \\ldp d5, d4, [sp], #16
-            \\ldp d3, d2, [sp], #16
-            \\ldp d1, d0, [sp], #16
-            \\mov sp, x2
+            \\ldp q31, q30, [sp], #32
+            \\ldp q29, q28, [sp], #32
+            \\ldp q27, q26, [sp], #32
+            \\ldp q25, q24, [sp], #32
+            \\ldp q23, q22, [sp], #32
+            \\ldp q21, q20, [sp], #32
+            \\ldp q19, q18, [sp], #32
+            \\ldp q17, q16, [sp], #32
+            \\ldp q15, q14, [sp], #32
+            \\ldp q13, q12, [sp], #32
+            \\ldp q11, q10, [sp], #32
+            \\ldp q9, q8, [sp], #32
+            \\ldp q7, q6, [sp], #32
+            \\ldp q5, q4, [sp], #32
+            \\ldp q3, q2, [sp], #32
+            \\ldp q1, q0, [sp], #32
             \\eret
         );
 
-        // label sadeCurrContextOnStack args: x1: int_type
-        // x1, x2 is not saved bc it's used as arg (x3 is clobbers but after push to stack)
         asm (
             \\.globl _saveCurrContextOnStack
             \\_saveCurrContextOnStack:
-            \\mov x2, sp
-            \\stp d1, d0, [sp, #-16]!
-            \\stp d3, d2, [sp, #-16]!
-            \\stp d5, d4, [sp, #-16]!
-            \\stp d7, d6, [sp, #-16]!
-            \\stp d9, d8, [sp, #-16]!
-            \\stp d11, d10, [sp, #-16]!
-            \\stp d13, d12, [sp, #-16]!
-            \\stp d15, d14, [sp, #-16]!
-            \\stp d17, d16, [sp, #-16]!
-            \\stp d19, d18, [sp, #-16]!
-            \\stp d21, d20, [sp, #-16]!
-            \\stp d23, d22, [sp, #-16]!
-            \\stp d25, d24, [sp, #-16]!
-            \\stp d27, d26, [sp, #-16]!
-            \\stp d29, d28, [sp, #-16]!
-            \\stp d31, d30, [sp, #-16]!
+            \\stp q1, q0, [sp, #-32]!
+            \\stp q3, q2, [sp, #-32]!
+            \\stp q5, q4, [sp, #-32]!
+            \\stp q7, q6, [sp, #-32]!
+            \\stp q9, q8, [sp, #-32]!
+            \\stp q11, q10, [sp, #-32]!
+            \\stp q13, q12, [sp, #-32]!
+            \\stp q15, q14, [sp, #-32]!
+            \\stp q17, q16, [sp, #-32]!
+            \\stp q19, q18, [sp, #-32]!
+            \\stp q21, q20, [sp, #-32]!
+            \\stp q23, q22, [sp, #-32]!
+            \\stp q25, q24, [sp, #-32]!
+            \\stp q27, q26, [sp, #-32]!
+            \\stp q29, q28, [sp, #-32]!
+            \\stp q31, q30, [sp, #-32]!
             // gp regs
             \\stp x1, x0, [sp, #-16]!
-            \\stp x3, x2, [sp, #-16]!
+            \\stp x3, x1, [sp, #-16]!
             \\stp x5, x4, [sp, #-16]!
             \\stp x7, x6, [sp, #-16]!
             \\stp x9, x8, [sp, #-16]!
@@ -237,7 +232,8 @@ pub const CpuContext = packed struct {
             \\stp x29, x28, [sp, #-16]!
 
             // sys regs
-            \\stp x2, x30, [sp, #-16]!
+            \\mov x1, sp
+            \\stp x1, x30, [sp, #-16]!
             \\mov x0, fp
             \\mrs x3, elr_el1
             \\stp x3, x0, [sp, #-16]!
@@ -251,7 +247,7 @@ pub const CpuContext = packed struct {
             \\stp x0, x3, [sp, #-16]!
             \\mrs x0, CurrentEL
             \\lsr x0, x0, #2
-            \\stp x1, x0, [sp, #-16]!
+            \\stp xzr, x0, [sp, #-16]!
             \\ret
         );
     }

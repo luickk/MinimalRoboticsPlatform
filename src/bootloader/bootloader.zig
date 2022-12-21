@@ -16,7 +16,7 @@ const kprint = periph.uart.UartWriter(.ttbr0).kprint;
 
 const arm = @import("arm");
 const gic = arm.gicv2.Gic(.ttbr0);
-const proc = arm.processor.ProccessorRegMap(.el1);
+const ProccessorRegMap = arm.processor.ProccessorRegMap;
 const mmu = arm.mmu;
 
 // raspberry
@@ -36,7 +36,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
     // using userspace as stack, incase the bootloader is located in rom
     var user_space_start = blk: {
         var user_space_start = (board.config.mem.bl_load_addr orelse 0) + (board.config.mem.rom_size orelse 0) + board.config.mem.kernel_space_size;
-        proc.setSp(user_space_start + board.config.mem.bl_stack_size);
+        ProccessorRegMap.setSp(user_space_start + board.config.mem.bl_stack_size);
         // increasing user_space_start by stack_size so that later writes to the user_space don't overwrite the bl's stack
         user_space_start += board.config.mem.bl_stack_size;
         break :blk user_space_start;
@@ -151,23 +151,23 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         // kprint("ttbr0: 0x{x} \n", .{@ptrToInt(ttbr0)});
 
         // updating page dirs
-        proc.setTTBR0(@ptrToInt(ttbr0));
-        proc.setTTBR1(@ptrToInt(ttbr1));
+        ProccessorRegMap.setTTBR0(@ptrToInt(ttbr0));
+        ProccessorRegMap.setTTBR1(@ptrToInt(ttbr1));
 
-        proc.TcrReg.setTcrEl(.el1, (proc.TcrReg{ .t0sz = 25, .t1sz = 25, .tg0 = 0, .tg1 = 0 }).asInt());
+        ProccessorRegMap.TcrReg.setTcrEl(.el1, (ProccessorRegMap.TcrReg{ .t0sz = 25, .t1sz = 25, .tg0 = 0, .tg1 = 0 }).asInt());
 
         // attr0 is normal mem, not cachable
-        proc.MairReg.setMairEl(.el1, (proc.MairReg{ .attr0 = 0xFF, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
+        ProccessorRegMap.MairReg.setMairEl(.el1, (ProccessorRegMap.MairReg{ .attr0 = 0xFF, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
 
-        proc.invalidateMmuTlbEl1();
-        proc.invalidateCache();
-        proc.isb();
-        proc.dsb();
+        ProccessorRegMap.invalidateMmuTlbEl1();
+        ProccessorRegMap.invalidateCache();
+        ProccessorRegMap.isb();
+        ProccessorRegMap.dsb();
         kprint("[bootloader] enabling mmu... \n", .{});
 
-        proc.enableMmu(.el1);
-        proc.nop();
-        proc.nop();
+        ProccessorRegMap.enableMmu(.el1);
+        ProccessorRegMap.nop();
+        ProccessorRegMap.nop();
     }
 
     if (board.config.board == .raspi3b)
@@ -181,7 +181,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         };
         pl011.init();
     }
-    // proc.exceptionSvc();
+    // ProccessorRegMap.exceptionSvc();
 
     // get address of external linker script variable which marks stack-top and kernel start
     const kernel_entry: usize = bl_bin_size;
@@ -194,7 +194,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
     kernel_target_loc.ptr = @intToPtr([*]u8, board.config.mem.va_start);
     kernel_target_loc.len = kernel_bin_size;
 
-    var current_el = proc.getCurrentEl();
+    var current_el = ProccessorRegMap.getCurrentEl();
     if (current_el != 1) {
         kprint("[panic] el must be 1! (it is: {d})\n", .{current_el});
         bl_utils.panic();
@@ -215,11 +215,11 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
             bl_utils.panic();
         };
         const kernel_stack_addr = mmu.toTtbr1(usize, aligned_ksize);
-        proc.setSp(kernel_stack_addr);
+        ProccessorRegMap.setSp(kernel_stack_addr);
     }
 
     kprint("[bootloader] jumping to kernel at 0x{x}\n", .{kernel_addr});
-    proc.branchToAddr(kernel_addr);
+    ProccessorRegMap.branchToAddr(kernel_addr);
 
     while (true) {}
 }

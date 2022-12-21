@@ -1,6 +1,7 @@
 const std = @import("std");
 const bl_utils = @import("utils.zig");
 const arm = @import("arm");
+const ProccessorRegMap = arm.processor.ProccessorRegMap;
 const CpuContext = arm.cpuContext.CpuContext;
 const periph = @import("periph");
 const kprint = periph.uart.UartWriter(.ttbr0).kprint;
@@ -42,19 +43,18 @@ pub const ExceptionClass = enum(u6) {
     bkptInstExecAarch64 = 0b111100,
 };
 
-pub fn irqHandler(irq_context: *CpuContext) callconv(.C) void {
+pub fn irqHandler(temp_context: *CpuContext, tmp_int_type: usize) callconv(.C) void {
+    var int_type = tmp_int_type;
+    var int_type_en = std.meta.intToEnum(gic.ExceptionType, int_type) catch gic.ExceptionType.unknown;
+    temp_context.int_type = int_type;
     kprint("irqHandler \n", .{});
-    // std intToEnum instead of build in in order to catch err
-    var int_type = std.meta.intToEnum(gic.ExceptionType, irq_context.int_type) catch {
-        kprint("int type not found \n", .{});
-        bl_utils.panic();
-    };
 
-    if (int_type == gic.ExceptionType.el1Sync) {
-        var iss = @truncate(u25, irq_context.esr_el1);
-        var il = @truncate(u1, irq_context.esr_el1 >> 25);
-        var ec = @truncate(u6, irq_context.esr_el1 >> 26);
-        var iss2 = @truncate(u5, irq_context.esr_el1 >> 32);
+    if (int_type_en == gic.ExceptionType.el1Sync) {
+        var iss = @truncate(u25, temp_context.esr_el1);
+        var ifsc = @truncate(u6, temp_context.esr_el1);
+        var il = @truncate(u1, temp_context.esr_el1 >> 25);
+        var ec = @truncate(u6, temp_context.esr_el1 >> 26);
+        var iss2 = @truncate(u5, temp_context.esr_el1 >> 32);
         _ = iss;
         _ = iss2;
 
@@ -62,20 +62,38 @@ pub fn irqHandler(irq_context: *CpuContext) callconv(.C) void {
             kprint("esp exception class not found \n", .{});
             bl_utils.panic();
         };
+        var ifsc_en = std.meta.intToEnum(ProccessorRegMap.Esr_el1.Ifsc, ifsc) catch {
+            kprint("esp exception class not found \n", .{});
+            return;
+        };
 
-        kprint(".........sync irq_context............\n", .{});
+        kprint(".........sync exc............\n", .{});
         kprint("Exception Class(from esp reg): {s} \n", .{@tagName(ec_en)});
-        kprint("Int Type: {s} \n", .{@tagName(int_type)});
-        kprint("el: {d} \n", .{irq_context.el});
-        kprint("far_el1: {x} \n", .{irq_context.far_el1});
-        kprint("elr_el1: {x} \n", .{irq_context.elr_el1});
+        kprint("IFC(from esp reg): {s} \n", .{@tagName(ifsc_en)});
+        kprint("- debug info: \n", .{});
+        kprint("Int Type: {s} \n", .{@tagName(int_type_en)});
+        kprint("el: {d} \n", .{temp_context.el});
+        kprint("esr_el1: 0x{x} \n", .{temp_context.esr_el1});
+        kprint("far_el1: 0x{x} \n", .{temp_context.far_el1});
+        kprint("elr_el1: 0x{x} \n", .{temp_context.elr_el1});
+        kprint("- sys regs: \n", .{});
+        kprint("sp: 0x{x} \n", .{temp_context.sp});
+        kprint("spSel: {d} \n", .{temp_context.sp_sel});
+        kprint("pc: 0x{x} \n", .{temp_context.pc});
+        kprint("lr(x30): 0x{x} \n", .{temp_context.x30});
+        kprint("x0: 0x{x}, x1: 0x{x}, x2: 0x{x}, x3: 0x{x}, x4: 0x{x} \n", .{ temp_context.x0, temp_context.x1, temp_context.x2, temp_context.x3, temp_context.x4 });
+        kprint("x5: 0x{x}, x6: 0x{x}, x7: 0x{x}, x8: 0x{x}, x9: 0x{x} \n", .{ temp_context.x5, temp_context.x6, temp_context.x7, temp_context.x8, temp_context.x9 });
+        kprint("x10: 0x{x}, x11: 0x{x}, x12: 0x{x}, x13: 0x{x}, x14: 0x{x} \n", .{ temp_context.x10, temp_context.x11, temp_context.x12, temp_context.x13, temp_context.x14 });
+        kprint("x15: 0x{x}, x16: 0x{x}, x17: 0x{x}, x18: 0x{x}, x19: 0x{x} \n", .{ temp_context.x15, temp_context.x16, temp_context.x17, temp_context.x18, temp_context.x19 });
+        kprint("x20: 0x{x}, x21: 0x{x}, x22: 0x{x}, x23: 0x{x}, x24: 0x{x} \n", .{ temp_context.x20, temp_context.x21, temp_context.x22, temp_context.x23, temp_context.x24 });
+        kprint("x25: 0x{x}, x26: 0x{x}, x27: 0x{x}, x28: 0x{x}, x29: 0x{x} \n", .{ temp_context.x25, temp_context.x26, temp_context.x27, temp_context.x28, temp_context.x29 });
 
         if (il == 1) {
             kprint("32 bit instruction trapped \n", .{});
         } else {
             kprint("16 bit instruction trapped \n", .{});
         }
-        kprint(".........sync irq_context............\n", .{});
+        kprint(".........sync temp_context............\n", .{});
     }
     bl_utils.panic();
 }

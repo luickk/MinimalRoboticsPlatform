@@ -2,11 +2,11 @@
 
 .macro EXCEPTION_VECTOR handler int_type
     // saveCurrContextOnStack & restoreContextFromStack are fns exported from cpuContext.zig
-    ldr x1, #\int_type
     bl _saveCurrContextOnStack
 
     // set stack as arg
     mov x0, sp
+    ldr x1, #\int_type
     bl \handler
         
     b _restoreContextFromStack

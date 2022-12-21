@@ -2,7 +2,7 @@ const periph = @import("periph");
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 const board = @import("board");
 const arm = @import("arm");
-const proc = arm.processor.ProccessorRegMap(.el1);
+const ProccessorRegMap = arm.processor.ProccessorRegMap;
 const CpuContext = arm.cpuContext.CpuContext;
 
 const b_options = @import("build_options");
@@ -13,6 +13,7 @@ pub const Task = packed struct {
     pub const TaskState = enum(usize) {
         running,
         halted,
+        done,
     };
     pub const TaskType = enum(usize) {
         boot,
@@ -131,17 +132,16 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             // kprint("{any} \n", .{irq_context});
             current_task.?.counter -= 1;
             if (current_task.?.counter > 0 and current_task.?.preempt_count > 0) {
-                kprint("--------- WAIT WAIT sp: {x} \n", .{asm volatile ("mov %[curr], sp"
-                    : [curr] "=r" (-> usize),
-                )});
+                kprint("--------- WAIT WAIT el: {d} \n", .{ProccessorRegMap.getCurrentEl()});
+                // kprint("--------- WAIT WAIT", .{});
                 // return all the way back to the exc vector table where cpu state is restored from the stack
                 return;
             }
             current_task.?.counter = 0;
 
-            proc.DaifReg.enableIrq();
+            ProccessorRegMap.DaifReg.enableIrq();
             self.schedule(irq_context);
-            proc.DaifReg.disableIrq();
+            ProccessorRegMap.DaifReg.disableIrq();
         }
 
         pub fn copyProcessToTaskQueue(self: *Self, flags: usize, fnp: *const fn () void) !usize {
