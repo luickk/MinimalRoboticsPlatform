@@ -261,18 +261,18 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
 
     kprint("[kernel] starting scheduler \n", .{});
 
-    var test_proc_pid = scheduler.copyProcessToTaskQueue(0, &testUserProcess) catch |e| {
-        kprint("[panic] Scheduler copyProcessToTaskQueue error: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
-    var test_proc_pid_ts = scheduler.copyProcessToTaskQueue(0, &testUserProcessTheSecond) catch |e| {
-        kprint("[panic] Scheduler copyProcessToTaskQueue error: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
+    // var test_proc_pid = scheduler.copyProcessToProcessQueue(0, &testUserProcess) catch |e| {
+    //     kprint("[panic] Scheduler copyProcessToProcessQueue error: {s} \n", .{@errorName(e)});
+    //     k_utils.panic();
+    // };
+    // var test_proc_pid_ts = scheduler.copyProcessToProcessQueue(0, &testUserProcessTheSecond) catch |e| {
+    //     kprint("[panic] Scheduler copyProcessToProcessQueue error: {s} \n", .{@errorName(e)});
+    //     k_utils.panic();
+    // };
 
-    kprint("test process pid: {d}, {d} \n", .{ test_proc_pid, test_proc_pid_ts });
+    // kprint("test process pid: {d}, {d} \n", .{ test_proc_pid, test_proc_pid_ts });
 
-    scheduler.initTaskCounter();
+    scheduler.initProcessCounter();
 
     if (board.config.board == .qemuVirt) {
         gt.setupGt();
@@ -301,7 +301,7 @@ fn testUserProcess() void {
         // kprint("sp: 0x{x} \n", .{asm ("mov %[curr], sp"
         //     : [curr] "=r" (-> usize),
         // )});
-        kprint("p1 el: {d} \n\n", .{ProccessorRegMap.getCurrentEl()});
+        kprint("p1 el: {d} \n", .{ProccessorRegMap.getCurrentEl()});
         // kprint("current spsr_el: {x} \n", .{asm volatile ("mov %[curr], sp"
         //     : [curr] "=r" (-> usize),
         // )});

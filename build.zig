@@ -83,6 +83,8 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.addCSourceFile("src/kernel/exc_vec.S", &.{});
     kernel_exe.install();
 
+    const app1 = try addApp(b, build_mode, "app1");
+
     // compilation steps
     var concat_step = ConcateBinsStep.create(b, "zig-out/bin/bootloader.bin", "zig-out/bin/kernel.bin", "zig-out/bin/mergedKernel");
     var update_linker_scripts_bl = UpdateLinkerScripts.create(b, .bootloader, temp_bl_ld, temp_kernel_ld, currBoard.config);
@@ -96,6 +98,10 @@ pub fn build(b: *std.build.Builder) !void {
     run_step_serial.dependOn(&update_linker_scripts_k.step);
     run_step_serial.dependOn(&kernel_exe.install_step.?.step);
     run_step_serial.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = .bin, .pad_to_size = kernel_bin_size }).step);
+
+    run_step_serial.dependOn(&app1.install_step.?.step);
+    run_step_serial.dependOn(&app1.installRaw("app1.bin", .{ .format = .bin }).step);
+
     run_step_serial.dependOn(&concat_step.step);
     run_step_serial.dependOn(&b.addSystemCommand(currBoard.config.qemu_launch_command).step);
 
@@ -110,6 +116,10 @@ pub fn build(b: *std.build.Builder) !void {
     run_step_serial_gdb.dependOn(&update_linker_scripts_k.step);
     run_step_serial_gdb.dependOn(&kernel_exe.install_step.?.step);
     run_step_serial_gdb.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = .bin, .pad_to_size = kernel_bin_size }).step);
+
+    run_step_serial_gdb.dependOn(&app1.install_step.?.step);
+    run_step_serial_gdb.dependOn(&app1.installRaw("app1.bin", .{ .format = .bin }).step);
+
     run_step_serial_gdb.dependOn(&concat_step.step);
     run_step_serial_gdb.dependOn(&gdb_qemu.step);
 
@@ -223,6 +233,18 @@ const UpdateLinkerScripts = struct {
         }
     }
 };
+
+pub fn addApp(b: *std.build.Builder, build_mode: std.builtin.Mode, comptime name: []const u8) !*std.build.LibExeObjStep {
+    const app = b.addExecutable(name, null);
+    app.force_pic = false;
+    app.pie = false;
+    app.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
+    app.setBuildMode(build_mode);
+    app.setLinkerScriptPath(std.build.FileSource{ .path = "src/apps/" ++ name ++ "/linker.ld" });
+    app.addObjectFile("src/apps/" ++ name ++ "/main.zig");
+    app.install();
+    return app;
+}
 
 fn getFileSize(path: []const u8) !usize {
     var file = try std.fs.cwd().openFile(path, .{});
