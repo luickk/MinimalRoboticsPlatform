@@ -13,8 +13,6 @@ const k_utils = @import("utils.zig");
 const tests = @import("tests.zig");
 const intHandle = @import("kernelIntHandler.zig");
 const b_options = @import("build_options");
-const kernel_bin_size = b_options.kernel_bin_size;
-const bl_bin_size = b_options.bl_bin_size;
 
 // arm specific periphs
 const arm = @import("arm");
@@ -42,22 +40,16 @@ export var scheduler: *Scheduler = undefined;
 export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noreturn {
     // !! kernel sp is inited in the Bootloader!!
 
-    // if there is rom, the bootloader binary has to be taken into account for the offset
-    comptime var no_rom_bl_bin_offset = 0;
-    if (!board.config.mem.has_rom) no_rom_bl_bin_offset = bl_bin_size;
+    const _kernel_space_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernel_space_start" }) orelse {
+        old_mapping_kprint("[panic] error reading _kernel_space_start label\n", .{});
+        k_utils.panic();
+    });
+    const kernel_bin_size = mmu.toTtbr0(usize, _kernel_space_start);
 
     // kernelspace allocator test
-    var kspace_alloc = blk: {
-        const _kernel_space_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernel_space_start" }) orelse {
-            old_mapping_kprint("[panic] error reading _kernel_space_start label\n", .{});
-            k_utils.panic();
-        });
-
-        var kernel_alloc = KernelAllocator.init(_kernel_space_start + board.config.mem.k_stack_size) catch |e| {
-            old_mapping_kprint("[panic] KernelAllocator init error: {s}\n", .{@errorName(e)});
-            k_utils.panic();
-        };
-        break :blk kernel_alloc;
+    var kspace_alloc = KernelAllocator.init(_kernel_space_start + board.config.mem.k_stack_size + 0x50000, board.config.mem.kernel_space_size - kernel_bin_size - board.config.mem.k_stack_size, 0x100000) catch |e| {
+        old_mapping_kprint("[panic] KernelAllocator init error: {s}\n", .{@errorName(e)});
+        k_utils.panic();
     };
 
     // mmu config block
@@ -77,7 +69,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
             var ttbr1_write = (mmu.PageTable(board.config.mem.va_layout.va_kernel_space_size, board.config.mem.va_layout.va_kernel_space_gran) catch |e| {
                 old_mapping_kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
-            }).init(ttbr1_arr, board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset) catch |e| {
+            }).init(ttbr1_arr, board.config.mem.ram_start_addr) catch |e| {
                 old_mapping_kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
             };
@@ -86,7 +78,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
                 // creating virtual address space for kernel
                 const kernel_space_mapping = mmu.Mapping{
                     .mem_size = board.config.mem.kernel_space_size,
-                    .pointing_addr_start = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset,
+                    .pointing_addr_start = board.config.mem.ram_start_addr,
                     .virt_addr_start = 0,
                     .granule = board.config.mem.va_layout.va_kernel_space_gran,
                     .addr_space = .ttbr1,
@@ -136,14 +128,14 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
             var ttbr0_write = (mmu.PageTable(board.config.mem.va_layout.va_user_space_size, board.config.mem.va_layout.va_user_space_gran) catch |e| {
                 old_mapping_kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
-            }).init(ttbr0_arr, board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset) catch |e| {
+            }).init(ttbr0_arr, board.config.mem.ram_start_addr) catch |e| {
                 old_mapping_kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
             };
 
             const user_space_mapping = mmu.Mapping{
                 .mem_size = board.config.mem.user_space_size,
-                .pointing_addr_start = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset + board.config.mem.kernel_space_size,
+                .pointing_addr_start = board.config.mem.ram_start_addr,
                 .virt_addr_start = 0,
                 .granule = board.config.mem.va_layout.va_user_space_gran,
                 .addr_space = .ttbr0,
@@ -174,8 +166,8 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
 
         // updating page dirs for kernel and user space
         // toUnsec is bc we are in ttbr1 and can't change with page tables that are also in ttbr1
-        ProccessorRegMap.setTTBR1(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset + mmu.toTtbr0(usize, @ptrToInt(ttbr1)));
-        ProccessorRegMap.setTTBR0(board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset + mmu.toTtbr0(usize, @ptrToInt(ttbr0)));
+        ProccessorRegMap.setTTBR1(board.config.mem.ram_start_addr + mmu.toTtbr0(usize, @ptrToInt(ttbr1)));
+        ProccessorRegMap.setTTBR0(board.config.mem.ram_start_addr + mmu.toTtbr0(usize, @ptrToInt(ttbr0)));
 
         ProccessorRegMap.dsb();
         ProccessorRegMap.isb();

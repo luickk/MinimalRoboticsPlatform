@@ -8,7 +8,7 @@ pub const config = boardConfig.BoardConfig{
         .va_start = vaStart,
 
         .bl_stack_size = 0x10000,
-        .k_stack_size = 0x100000,
+        .k_stack_size = 0x10000,
 
         .has_rom = true,
         // qemus machine has a rom with 1 gb size
@@ -38,7 +38,7 @@ pub const config = boardConfig.BoardConfig{
     },
     // arm_gt, gic
     // "-d", "trace:gic*", "-D", "./log.txt"
-    .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "virt", "-m", "10G", "-cpu", "cortex-a53", "-device", "loader,file=zig-out/bin/mergedKernel,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
+    .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "virt", "-m", "10G", "-cpu", "cortex-a53", "-device", "loader,file=zig-out/bin/bootloader.bin,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
 };
 
 pub fn PeriphConfig(comptime addr_space: boardConfig.AddrSpace) type {

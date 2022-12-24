@@ -25,8 +25,8 @@ const bcm2835IntController = arm.bcm2835IntController.InterruptController(.ttbr0
 const Granule = board.boardConfig.Granule;
 const GranuleParams = board.boardConfig.GranuleParams;
 const TransLvl = board.boardConfig.TransLvl;
-const kernel_bin_size = b_options.kernel_bin_size;
-const bl_bin_size = b_options.bl_bin_size;
+
+const kernel_bin = @embedFile("bins/kernel.bin");
 
 // todo => single link section! with .only_section in build.zig to not have extra padding in bootloader binary...
 
@@ -45,9 +45,6 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
     // mmu configuration...
     {
         const ttbr1 = blk: {
-            comptime var no_rom_bl_bin_offset = 0;
-            if (!board.config.mem.has_rom) no_rom_bl_bin_offset = bl_bin_size;
-
             var ttbr1_arr = blk_arr: {
                 // writing page dirs to userspace in ram. Writing to userspace because it would be overwritten in kernel space, when copying
                 // the kernel. Additionally, on mmu turn on, the mmu would try to read from the page tables without mmu kernel space identifier bits on
@@ -77,7 +74,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
             // creating virtual address space for kernel
             const kernel_mapping = mmu.Mapping{
                 .mem_size = board.config.mem.ram_size,
-                .pointing_addr_start = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset,
+                .pointing_addr_start = board.config.mem.ram_start_addr,
                 .virt_addr_start = 0,
                 .granule = Granule.Fourk,
                 .addr_space = .ttbr1,
@@ -181,18 +178,6 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         };
         pl011.init();
     }
-    // ProccessorRegMap.exceptionSvc();
-
-    // get address of external linker script variable which marks stack-top and kernel start
-    const kernel_entry: usize = bl_bin_size;
-
-    var kernel_bl: []u8 = undefined;
-    kernel_bl.ptr = @intToPtr([*]u8, kernel_entry);
-    kernel_bl.len = kernel_bin_size;
-
-    var kernel_target_loc: []u8 = undefined;
-    kernel_target_loc.ptr = @intToPtr([*]u8, board.config.mem.va_start);
-    kernel_target_loc.len = kernel_bin_size;
 
     var current_el = ProccessorRegMap.getCurrentEl();
     if (current_el != 1) {
@@ -200,26 +185,29 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         bl_utils.panic();
     }
 
-    if (board.config.mem.has_rom) {
-        kprint("[bootloader] setup mmu, el1, exc table. \n", .{});
-        kprint("[bootloader] Copying kernel to addr_space: 0x{x}, with size: {d} \n", .{ @ptrToInt(kernel_target_loc.ptr), kernel_target_loc.len });
-        std.mem.copy(u8, kernel_target_loc, kernel_bl);
-        kprint("[bootloader] kernel copied \n", .{});
-    }
-
-    var kernel_addr = @ptrToInt(kernel_target_loc.ptr);
-
     {
-        const aligned_ksize = utils.ceilRoundToMultiple(kernel_bin_size, 0x8) catch |e| {
-            kprint("[panic] kernel stack address calc error: {s} \n", .{@errorName(e)});
-            bl_utils.panic();
-        };
-        const kernel_stack_addr = mmu.toTtbr1(usize, aligned_ksize);
-        ProccessorRegMap.setSp(kernel_stack_addr);
-    }
+        var kernel_target_loc: []u8 = undefined;
+        kernel_target_loc.ptr = @intToPtr([*]u8, board.config.mem.va_start);
+        kernel_target_loc.len = kernel_bin.len;
 
-    kprint("[bootloader] jumping to kernel at 0x{x}\n", .{kernel_addr});
-    ProccessorRegMap.branchToAddr(kernel_addr);
+        kprint("[bootloader] setup mmu, el1, exc table done. \n", .{});
+        kprint("[bootloader] Copying kernel to addr_space: 0x{x}, with size: {d} \n", .{ @ptrToInt(kernel_target_loc.ptr), kernel_target_loc.len });
+        std.mem.copy(u8, kernel_target_loc, kernel_bin);
+        kprint("[bootloader] kernel copied \n", .{});
+
+        var kernel_addr = @ptrToInt(kernel_target_loc.ptr);
+        {
+            const aligned_ksize = utils.ceilRoundToMultiple(kernel_target_loc.len, 0x8) catch |e| {
+                kprint("[panic] kernel stack address calc error: {s} \n", .{@errorName(e)});
+                bl_utils.panic();
+            };
+            const kernel_stack_addr = mmu.toTtbr1(usize, aligned_ksize + board.config.mem.k_stack_size);
+            ProccessorRegMap.setSp(kernel_stack_addr);
+        }
+
+        kprint("[bootloader] jumping to kernel at 0x{x}\n", .{kernel_addr});
+        ProccessorRegMap.branchToAddr(kernel_addr);
+    }
 
     while (true) {}
 }

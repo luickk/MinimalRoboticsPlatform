@@ -15,7 +15,7 @@ pub const config = boardConfig.BoardConfig{
         .rom_start_addr = null,
         .rom_size = null,
         // address to which the bl is loaded if there is NO rom(which is the case for the raspberry 3b)!
-        // if there is rom, the bootloader must be loaded to 0x0 (and bl_load_addr = null!)
+        // if there is rom, the bootloader must be loaded to 0x0 (and bl_load_addr = null)
         .bl_load_addr = 0x80000,
 
         // the raspberries addressable memory is all ram
@@ -36,7 +36,7 @@ pub const config = boardConfig.BoardConfig{
         .storage_size = 0,
     },
     // , "-d", "trace:bcm2835_systmr*", "-D", "./log.txt"
-    .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "raspi3b", "-device", "loader,addr=0x80000,file=zig-out/bin/mergedKernel,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
+    .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "raspi3b", "-device", "loader,addr=0x80000,file=zig-out/bin/bootloader.bin,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
 };
 
 pub fn PeriphConfig(comptime addr_space: boardConfig.AddrSpace) type {

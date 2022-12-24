@@ -10,17 +10,11 @@ const qemuVirt = @import("src/boards/qemuVirt.zig");
 
 const currBoard = qemuVirt;
 
-// both binaries are padded to that size and zig throws an exception if too small.
-const kernel_bin_size: usize = 0x2000000;
-const bl_bin_size: usize = 0x2000000;
-
 pub fn build(b: *std.build.Builder) !void {
     currBoard.config.checkConfig();
     const build_mode = std.builtin.Mode.ReleaseFast;
 
     var build_options = b.addOptions();
-    build_options.addOption(usize, "kernel_bin_size", kernel_bin_size);
-    build_options.addOption(usize, "bl_bin_size", bl_bin_size);
 
     // SOC builtin features
     var arm = std.build.Pkg{ .name = "arm", .source = .{ .path = "src/arm/arm.zig" } };
@@ -59,9 +53,6 @@ pub fn build(b: *std.build.Builder) !void {
     bl_exe.addCSourceFile("src/bootloader/board/" ++ @tagName(currBoard.config.board) ++ "/boot.S", &.{});
     bl_exe.addCSourceFile("src/bootloader/exc_vec.S", &.{});
     bl_exe.install();
-    if (currBoard.config.mem.rom_size) |rs|
-        if (bl_bin_size + kernel_bin_size > rs)
-            return Error.BlExceedsRomSize;
 
     // kernel
     const kernel_exe = b.addExecutable("kernel", null);
@@ -83,102 +74,67 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.addCSourceFile("src/kernel/exc_vec.S", &.{});
     kernel_exe.install();
 
-    const app1 = try addApp(b, build_mode, "app1");
-
     // compilation steps
-    var concat_step = ConcateBinsStep.create(b, "zig-out/bin/bootloader.bin", "zig-out/bin/kernel.bin", "zig-out/bin/mergedKernel");
     var update_linker_scripts_bl = UpdateLinkerScripts.create(b, .bootloader, temp_bl_ld, temp_kernel_ld, currBoard.config);
     var update_linker_scripts_k = UpdateLinkerScripts.create(b, .kernel, temp_bl_ld, temp_kernel_ld, currBoard.config);
     const run_step_serial = b.step("qemu", "emulate the kernel with no graphics and output uart to console");
-    // run_step_serial.dependOn(b.getInstallStep());
+
+    const app1 = try addApp(b, build_mode, "app1");
+    run_step_serial.dependOn(&app1.install_step.?.step);
+    run_step_serial.dependOn(&app1.installRaw("app1.bin", .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/" } }).step);
+
+    run_step_serial.dependOn(&update_linker_scripts_k.step);
+    run_step_serial.dependOn(&kernel_exe.install_step.?.step);
+    run_step_serial.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = .bin, .dest_dir = .{ .custom = "../src/bootloader/bins/" } }).step);
+
     run_step_serial.dependOn(&update_linker_scripts_bl.step);
     // compiling elfs as well, but only for gdb debugging
     run_step_serial.dependOn(&bl_exe.install_step.?.step);
-    run_step_serial.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = .bin, .pad_to_size = bl_bin_size }).step);
-    run_step_serial.dependOn(&update_linker_scripts_k.step);
-    run_step_serial.dependOn(&kernel_exe.install_step.?.step);
-    run_step_serial.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = .bin, .pad_to_size = kernel_bin_size }).step);
+    run_step_serial.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = .bin }).step);
 
-    run_step_serial.dependOn(&app1.install_step.?.step);
-    run_step_serial.dependOn(&app1.installRaw("app1.bin", .{ .format = .bin }).step);
-
-    run_step_serial.dependOn(&concat_step.step);
+    // run_step_serial.dependOn(&concat_step.step);
     run_step_serial.dependOn(&b.addSystemCommand(currBoard.config.qemu_launch_command).step);
 
-    const run_step_serial_gdb = b.step("qemu-gdb", "emulate the kernel with no graphics and output uart to console");
-    var gdb_qemu = b.addSystemCommand(currBoard.config.qemu_launch_command);
-    gdb_qemu.addArg("-s");
-    gdb_qemu.addArg("-S");
-    run_step_serial_gdb.dependOn(&update_linker_scripts_bl.step);
-    // compiling elfs as well, but only for gdb debugging
-    run_step_serial_gdb.dependOn(&bl_exe.install_step.?.step);
-    run_step_serial_gdb.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = .bin, .pad_to_size = bl_bin_size }).step);
-    run_step_serial_gdb.dependOn(&update_linker_scripts_k.step);
-    run_step_serial_gdb.dependOn(&kernel_exe.install_step.?.step);
-    run_step_serial_gdb.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = .bin, .pad_to_size = kernel_bin_size }).step);
+    // const run_step_serial_gdb = b.step("qemu-gdb", "emulate the kernel with no graphics and output uart to console");
+    // var gdb_qemu = b.addSystemCommand(currBoard.config.qemu_launch_command);
+    // gdb_qemu.addArg("-s");
+    // gdb_qemu.addArg("-S");
+    // run_step_serial_gdb.dependOn(&update_linker_scripts_bl.step);
+    // // compiling elfs as well, but only for gdb debugging
+    // run_step_serial_gdb.dependOn(&bl_exe.install_step.?.step);
+    // run_step_serial_gdb.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = .bin, .pad_to_size = bl_bin_size }).step);
+    // run_step_serial_gdb.dependOn(&update_linker_scripts_k.step);
+    // run_step_serial_gdb.dependOn(&kernel_exe.install_step.?.step);
+    // run_step_serial_gdb.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = .bin, .pad_to_size = kernel_bin_size }).step);
 
-    run_step_serial_gdb.dependOn(&app1.install_step.?.step);
-    run_step_serial_gdb.dependOn(&app1.installRaw("app1.bin", .{ .format = .bin }).step);
+    // run_step_serial_gdb.dependOn(&app1.install_step.?.step);
+    // run_step_serial_gdb.dependOn(&app1.installRaw("app1.bin", .{ .format = .bin }).step);
 
-    run_step_serial_gdb.dependOn(&concat_step.step);
-    run_step_serial_gdb.dependOn(&gdb_qemu.step);
+    // run_step_serial_gdb.dependOn(&concat_step.step);
+    // run_step_serial_gdb.dependOn(&gdb_qemu.step);
 
     const test_obj_step = b.addTest("src/utils.zig");
     const test_step = b.step("test", "Run tests for testable kernel parts");
     test_step.dependOn(&test_obj_step.step);
 }
 
-/// concatenates two files to one. (f1+f2)
-const ConcateBinsStep = struct {
-    step: std.build.Step,
-    f1_path: []const u8,
-    f2_path: []const u8,
-    out_file_path: []const u8,
+pub fn addApp(b: *std.build.Builder, build_mode: std.builtin.Mode, comptime name: []const u8) !*std.build.LibExeObjStep {
+    const app = b.addExecutable(name, null);
+    app.force_pic = false;
+    app.pie = false;
+    app.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
+    app.setBuildMode(build_mode);
+    app.setLinkerScriptPath(std.build.FileSource{ .path = "src/apps/" ++ name ++ "/linker.ld" });
+    app.addObjectFile("src/apps/" ++ name ++ "/main.zig");
+    app.install();
+    return app;
+}
 
-    pub fn create(b: *std.build.Builder, f1: []const u8, f2: []const u8, out_file_path: []const u8) *ConcateBinsStep {
-        const self = b.allocator.create(ConcateBinsStep) catch unreachable;
-        self.* = .{
-            .step = std.build.Step.init(.custom, "binConcat", b.allocator, ConcateBinsStep.doStep),
-            .f1_path = f1,
-            .f2_path = f2,
-            .out_file_path = out_file_path,
-        };
-        return self;
-    }
-
-    fn doStep(step: *std.build.Step) !void {
-        const self = @fieldParentPtr(ConcateBinsStep, "step", step);
-        var f1_opened = try std.fs.cwd().openFile(self.f1_path, .{});
-        var in_stream_1_ = std.io.bufferedReader(f1_opened.reader());
-        var in_stream_1 = in_stream_1_.reader();
-        defer f1_opened.close();
-        // std.debug.print("bootloader size: {d} \n", .{(try f1_opened.stat()).size});
-
-        var f2_opened = try std.fs.cwd().openFile(self.f2_path, .{});
-        var in_stream_2_ = std.io.bufferedReader(f2_opened.reader());
-        var in_stream_2 = in_stream_2_.reader();
-        defer f2_opened.close();
-        // std.debug.print("kernel size: {d} \n", .{(try f2_opened.stat()).size});
-
-        var f_concated = try std.fs.cwd().createFile(self.out_file_path, .{ .read = true });
-        defer f_concated.close();
-
-        var buf = [_]u8{0} ** 1024;
-        var read_size: usize = 0;
-        var at: usize = 0;
-        while (true) {
-            read_size = try in_stream_1.readAll(&buf);
-            try f_concated.writeAll(buf[0..read_size]);
-            at += read_size;
-            if (read_size < buf.len) break;
-        }
-        while (true) {
-            read_size = try in_stream_2.readAll(&buf);
-            try f_concated.writeAll(buf[0..read_size]);
-            if (read_size < buf.len) break;
-        }
-    }
-};
+fn getFileSize(path: []const u8) !usize {
+    var file = try std.fs.cwd().openFile(path, .{});
+    defer file.close();
+    return (try file.stat()).size;
+}
 
 /// concatenates two files to one. (f1+f2)
 const UpdateLinkerScripts = struct {
@@ -201,6 +157,49 @@ const UpdateLinkerScripts = struct {
             .allocator = b.allocator,
         };
         return self;
+    }
+
+    /// inserts args variables (in order), defined in inp_linker_script_path in outp_linker_script_path
+    // bc file reads cannot be comptime (and the loop not be unrolled), arr size is static and elements optional
+    // if more args are required just increase arr size (will have to pad all fn calls with fewer args in list!.)
+    fn writeVarsToLinkerScript(a: std.mem.Allocator, inp_linker_script_path: []const u8, outp_linker_script_path: []const u8, args: [3]?usize) !void {
+        var in_file = try std.fs.cwd().openFile(inp_linker_script_path, .{});
+        defer in_file.close();
+        var buf_reader = std.io.bufferedReader(in_file.reader());
+        var in_stream = buf_reader.reader();
+
+        const out_file = try std.fs.cwd().createFile(outp_linker_script_path, .{});
+        defer out_file.close();
+
+        var buf: [1024]u8 = undefined;
+        var args_conv_buff: [1024]u8 = undefined;
+        var args_i: usize = 0;
+        var outp_line = std.ArrayList(u8).init(a);
+        var j: usize = 0;
+        var to_insert: []u8 = undefined;
+        while (try in_stream.readUntilDelimiterOrEof(&buf, '\n')) |line| {
+            try outp_line.appendSlice(line);
+            for (line) |c, i| {
+                if (c == '{' and i + 4 <= line.len) {
+                    if (std.mem.eql(u8, line[i .. i + 6], "{@zig}")) {
+                        while (j < 6) : (j += 1) {
+                            _ = outp_line.orderedRemove(i);
+                        }
+                        j = 0;
+                        if (args[args_i]) |arg| {
+                            to_insert = std.fmt.bufPrintIntToSlice(&args_conv_buff, arg, 10, .lower, .{});
+                            try outp_line.insertSlice(i, to_insert);
+                        } else {
+                            return (error{TooFewArgs}).TooFewArgs;
+                        }
+                        args_i += 1;
+                    }
+                }
+            }
+            try out_file.writeAll(outp_line.items);
+            try out_file.writeAll("\n");
+            outp_line.clearAndFree();
+        }
     }
 
     fn doStep(step: *std.build.Step) !void {
@@ -233,64 +232,3 @@ const UpdateLinkerScripts = struct {
         }
     }
 };
-
-pub fn addApp(b: *std.build.Builder, build_mode: std.builtin.Mode, comptime name: []const u8) !*std.build.LibExeObjStep {
-    const app = b.addExecutable(name, null);
-    app.force_pic = false;
-    app.pie = false;
-    app.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
-    app.setBuildMode(build_mode);
-    app.setLinkerScriptPath(std.build.FileSource{ .path = "src/apps/" ++ name ++ "/linker.ld" });
-    app.addObjectFile("src/apps/" ++ name ++ "/main.zig");
-    app.install();
-    return app;
-}
-
-fn getFileSize(path: []const u8) !usize {
-    var file = try std.fs.cwd().openFile(path, .{});
-    defer file.close();
-    return (try file.stat()).size;
-}
-
-/// inserts args variables (in order), defined in inp_linker_script_path in outp_linker_script_path
-// bc file reads cannot be comptime (and the loop not be unrolled), arr size is static and elements optional
-// if more args are required just increase arr size (will have to pad all fn calls with fewer args in list!.)
-pub fn writeVarsToLinkerScript(a: std.mem.Allocator, inp_linker_script_path: []const u8, outp_linker_script_path: []const u8, args: [3]?usize) !void {
-    var in_file = try std.fs.cwd().openFile(inp_linker_script_path, .{});
-    defer in_file.close();
-    var buf_reader = std.io.bufferedReader(in_file.reader());
-    var in_stream = buf_reader.reader();
-
-    const out_file = try std.fs.cwd().createFile(outp_linker_script_path, .{});
-    defer out_file.close();
-
-    var buf: [1024]u8 = undefined;
-    var args_conv_buff: [1024]u8 = undefined;
-    var args_i: usize = 0;
-    var outp_line = std.ArrayList(u8).init(a);
-    var j: usize = 0;
-    var to_insert: []u8 = undefined;
-    while (try in_stream.readUntilDelimiterOrEof(&buf, '\n')) |line| {
-        try outp_line.appendSlice(line);
-        for (line) |c, i| {
-            if (c == '{' and i + 4 <= line.len) {
-                if (std.mem.eql(u8, line[i .. i + 6], "{@zig}")) {
-                    while (j < 6) : (j += 1) {
-                        _ = outp_line.orderedRemove(i);
-                    }
-                    j = 0;
-                    if (args[args_i]) |arg| {
-                        to_insert = std.fmt.bufPrintIntToSlice(&args_conv_buff, arg, 10, .lower, .{});
-                        try outp_line.insertSlice(i, to_insert);
-                    } else {
-                        return (error{TooFewArgs}).TooFewArgs;
-                    }
-                    args_i += 1;
-                }
-            }
-        }
-        try out_file.writeAll(outp_line.items);
-        try out_file.writeAll("\n");
-        outp_line.clearAndFree();
-    }
-}

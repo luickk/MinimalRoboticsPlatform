@@ -35,4 +35,8 @@ SECTIONS {
         *(.data);
         *(.data.*);
     }
+
+    .bl_space (NOLOAD) : ALIGN(8)  {
+        _bl_space_start = .;
+    }
 }
