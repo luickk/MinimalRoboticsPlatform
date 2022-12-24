@@ -28,11 +28,8 @@ pub fn build(b: *std.build.Builder) !void {
     var sharedKServices = std.build.Pkg{ .name = "sharedKServices", .source = .{ .path = "src/kernel/sharedKServices/sharedKServices.zig" } };
 
     sharedKServices.dependencies = &.{ board, build_options.*.getPackage("build_options"), arm, utils, periph };
-
     periph.dependencies = &.{board};
-
     utils.dependencies = &.{ board, arm };
-
     arm.dependencies = &.{ periph, utils, board, sharedKServices };
 
     // bootloader
@@ -75,50 +72,33 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.install();
 
     // compilation steps
-    var update_linker_scripts_bl = UpdateLinkerScripts.create(b, .bootloader, temp_bl_ld, temp_kernel_ld, currBoard.config);
-    var update_linker_scripts_k = UpdateLinkerScripts.create(b, .kernel, temp_bl_ld, temp_kernel_ld, currBoard.config);
-    const run_step_serial = b.step("qemu", "emulate the kernel with no graphics and output uart to console");
+    const update_linker_scripts_bl = UpdateLinkerScripts.create(b, .bootloader, temp_bl_ld, temp_kernel_ld, currBoard.config);
+    const update_linker_scripts_k = UpdateLinkerScripts.create(b, .kernel, temp_bl_ld, temp_kernel_ld, currBoard.config);
+
+    const build_and_run = b.step("qemu", "emulate the kernel with no graphics and output uart to console");
+    const launch_with_gdb = b.option(bool, "gdb", "Launch qemu with -s -S to allow for net gdb debugging") orelse false;
 
     const app1 = try addApp(b, build_mode, "app1");
-    run_step_serial.dependOn(&app1.install_step.?.step);
-    run_step_serial.dependOn(&app1.installRaw("app1.bin", .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/" } }).step);
+    build_and_run.dependOn(&app1.install_step.?.step);
+    build_and_run.dependOn(&app1.installRaw("app1.bin", .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/" } }).step);
 
-    run_step_serial.dependOn(&update_linker_scripts_k.step);
-    run_step_serial.dependOn(&kernel_exe.install_step.?.step);
-    run_step_serial.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = .bin, .dest_dir = .{ .custom = "../src/bootloader/bins/" } }).step);
+    build_and_run.dependOn(&update_linker_scripts_k.step);
+    build_and_run.dependOn(&kernel_exe.install_step.?.step);
+    build_and_run.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = .bin, .dest_dir = .{ .custom = "../src/bootloader/bins/" } }).step);
 
-    run_step_serial.dependOn(&update_linker_scripts_bl.step);
-    // compiling elfs as well, but only for gdb debugging
-    run_step_serial.dependOn(&bl_exe.install_step.?.step);
-    run_step_serial.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = .bin }).step);
+    build_and_run.dependOn(&update_linker_scripts_bl.step);
+    build_and_run.dependOn(&bl_exe.install_step.?.step);
+    build_and_run.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = .bin }).step);
 
-    // run_step_serial.dependOn(&concat_step.step);
-    run_step_serial.dependOn(&b.addSystemCommand(currBoard.config.qemu_launch_command).step);
-
-    // const run_step_serial_gdb = b.step("qemu-gdb", "emulate the kernel with no graphics and output uart to console");
-    // var gdb_qemu = b.addSystemCommand(currBoard.config.qemu_launch_command);
-    // gdb_qemu.addArg("-s");
-    // gdb_qemu.addArg("-S");
-    // run_step_serial_gdb.dependOn(&update_linker_scripts_bl.step);
-    // // compiling elfs as well, but only for gdb debugging
-    // run_step_serial_gdb.dependOn(&bl_exe.install_step.?.step);
-    // run_step_serial_gdb.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = .bin, .pad_to_size = bl_bin_size }).step);
-    // run_step_serial_gdb.dependOn(&update_linker_scripts_k.step);
-    // run_step_serial_gdb.dependOn(&kernel_exe.install_step.?.step);
-    // run_step_serial_gdb.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = .bin, .pad_to_size = kernel_bin_size }).step);
-
-    // run_step_serial_gdb.dependOn(&app1.install_step.?.step);
-    // run_step_serial_gdb.dependOn(&app1.installRaw("app1.bin", .{ .format = .bin }).step);
-
-    // run_step_serial_gdb.dependOn(&concat_step.step);
-    // run_step_serial_gdb.dependOn(&gdb_qemu.step);
-
-    const test_obj_step = b.addTest("src/utils.zig");
-    const test_step = b.step("test", "Run tests for testable kernel parts");
-    test_step.dependOn(&test_obj_step.step);
+    const qemu_launch_cmd = b.addSystemCommand(currBoard.config.qemu_launch_command);
+    if (launch_with_gdb) {
+        qemu_launch_cmd.addArg("-s");
+        qemu_launch_cmd.addArg("-S");
+    }
+    build_and_run.dependOn(&qemu_launch_cmd.step);
 }
 
-pub fn addApp(b: *std.build.Builder, build_mode: std.builtin.Mode, comptime name: []const u8) !*std.build.LibExeObjStep {
+fn addApp(b: *std.build.Builder, build_mode: std.builtin.Mode, comptime name: []const u8) !*std.build.LibExeObjStep {
     const app = b.addExecutable(name, null);
     app.force_pic = false;
     app.pie = false;
@@ -128,12 +108,6 @@ pub fn addApp(b: *std.build.Builder, build_mode: std.builtin.Mode, comptime name
     app.addObjectFile("src/apps/" ++ name ++ "/main.zig");
     app.install();
     return app;
-}
-
-fn getFileSize(path: []const u8) !usize {
-    var file = try std.fs.cwd().openFile(path, .{});
-    defer file.close();
-    return (try file.stat()).size;
 }
 
 /// concatenates two files to one. (f1+f2)

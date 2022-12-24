@@ -181,7 +181,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
 
     var current_el = ProccessorRegMap.getCurrentEl();
     if (current_el != 1) {
-        kprint("[panic] el must be 1! (it is: {d})\n", .{current_el});
+        kprint("[panic] el must be 1! (it's: {d})\n", .{current_el});
         bl_utils.panic();
     }
 
