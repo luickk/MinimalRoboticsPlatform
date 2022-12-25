@@ -2,6 +2,7 @@ const std = @import("std");
 const periph = @import("periph");
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 const board = @import("board");
+const b_options = @import("build_options");
 const arm = @import("arm");
 const ProccessorRegMap = arm.processor.ProccessorRegMap;
 const CpuContext = arm.cpuContext.CpuContext;
@@ -140,6 +141,42 @@ pub fn Scheduler(comptime UserPageAllocator: type) type {
             ProccessorRegMap.DaifReg.enableIrq();
             self.schedule(irq_context);
             ProccessorRegMap.DaifReg.disableIrq();
+        }
+        // var test_proc_pid = scheduler.copyProcessToProcessQueue(0, &testUserProcess) catch |e| {
+        //         kprint("[panic] Scheduler copyProcessToProcessQueue error: {s} \n", .{@errorName(e)});
+        //         k_utils.panic();
+        //     };
+
+        pub fn initAppsInScheduler(self: *Self, flags: usize, apps: []const []const u8) !void {
+            // todo => make configurable
+            const process_stack_size = 0x10000;
+            current_process.?.setPreempt(false);
+            for (apps) |app| {
+                var app_mem: []u8 = undefined;
+                app_mem.ptr = @ptrCast([*]u8, try self.page_allocator.allocNPage(2));
+                app_mem.len = app.len + @sizeOf(Process) + process_stack_size;
+
+                std.mem.copy(u8, app_mem, app);
+                var copied_process: *Process = @intToPtr(*Process, app.len + @ptrToInt(app_mem.ptr));
+                copied_process.cpu_context.elr_el1 = @ptrToInt(app_mem.ptr);
+                // the sp is increased by the CpuContext size at first schedule(bc it has not been interrupted before)
+                copied_process.cpu_context.sp = @ptrToInt(copied_process) + @sizeOf(Process) + process_stack_size;
+
+                // setting base_pdg to allocated userspace page base
+                copied_process.page_info.base_pgd = @ptrToInt(copied_process);
+
+                copied_process.flags = flags;
+                copied_process.priority = current_process.?.priority;
+                copied_process.state = .running;
+                copied_process.type = .user;
+                copied_process.counter = copied_process.priority;
+                copied_process.preempt_count = 1;
+
+                var pid = running_processs;
+                processs[pid] = copied_process;
+                running_processs += 1;
+            }
+            current_process.?.setPreempt(true);
         }
 
         pub fn copyProcessToProcessQueue(self: *Self, flags: usize, processs_entry_addr: usize) !usize {

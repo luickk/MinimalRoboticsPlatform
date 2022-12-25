@@ -37,6 +37,16 @@ const bcm2835Timer = @import("board/raspi3b/timer.zig");
 // globals
 export var scheduler: *Scheduler = undefined;
 
+const apps = blk: {
+    var apps_addresses = [_][]const u8{undefined} ** b_options.apps.len;
+    for (b_options.apps) |app, i| {
+        const app_file = @embedFile("bins/" ++ app);
+        apps_addresses[i] = app_file;
+    }
+
+    break :blk apps_addresses;
+};
+
 export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noreturn {
     // !! kernel sp is inited in the Bootloader!!
 
@@ -253,16 +263,10 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
 
     kprint("[kernel] starting scheduler \n", .{});
 
-    // var test_proc_pid = scheduler.copyProcessToProcessQueue(0, &testUserProcess) catch |e| {
-    //     kprint("[panic] Scheduler copyProcessToProcessQueue error: {s} \n", .{@errorName(e)});
-    //     k_utils.panic();
-    // };
-    // var test_proc_pid_ts = scheduler.copyProcessToProcessQueue(0, &testUserProcessTheSecond) catch |e| {
-    //     kprint("[panic] Scheduler copyProcessToProcessQueue error: {s} \n", .{@errorName(e)});
-    //     k_utils.panic();
-    // };
-
-    // kprint("test process pid: {d}, {d} \n", .{ test_proc_pid, test_proc_pid_ts });
+    scheduler.initAppsInScheduler(0, &apps) catch |e| {
+        kprint("[panic] Scheduler initAppsInScheduler error: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
 
     scheduler.initProcessCounter();
 
@@ -277,39 +281,9 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
     }
 
     while (true) {
-        // kprint("while \n", .{});
+        kprint("while \n", .{});
         // kprint("while {d} \n", .{loltest});
         // kprint("while el: {d} \n", .{ProccessorRegMap.getCurrentEl()});
-    }
-}
-
-const loltest: usize = 100;
-fn testUserProcess() void {
-    kprint("userspace test print - ONE 1 \n", .{});
-    // kprint("enable 1: {b} 2: {b} basic: {b} \n", .{ @intToPtr(*volatile u32, 0xFFFFFF8030000010).*, @intToPtr(*volatile u32, 0xFFFFFF8030000014).*, @intToPtr(*volatile u32, 0xFFFFFF8030000018).* });
-    kprint("test {x} \n", .{loltest});
-    while (true) {
-        // kprint("test: {x} \n", .{loltest});
-        // kprint("sp: 0x{x} \n", .{asm ("mov %[curr], sp"
-        //     : [curr] "=r" (-> usize),
-        // )});
-        kprint("p1 el: {d} \n", .{ProccessorRegMap.getCurrentEl()});
-        // kprint("current spsr_el: {x} \n", .{asm volatile ("mov %[curr], sp"
-        //     : [curr] "=r" (-> usize),
-        // )});
-        // kprint("p1 \n", .{});
-        // old_mapping_kprint("p1 old print \n", .{});
-    }
-}
-
-fn testUserProcessTheSecond() void {
-    kprint("userspace test print - TWO 2 \n", .{});
-    // kprint("enable 1: {b} 2: {b} basic: {b} \n", .{ @intToPtr(*volatile u32, 0xFFFFFF8030000010).*, @intToPtr(*volatile u32, 0xFFFFFF8030000014).*, @intToPtr(*volatile u32, 0xFFFFFF8030000018).* });
-    // kprint("current spsr_el: {x} \n", .{loltest});
-    while (true) {
-        // kprint("cs: {b} \n", .{@intToPtr(*volatile u32, 0xFFFFFF8030003000).*});
-        kprint("p2 \n", .{});
-        // old_mapping_kprint("p2 old print \n", .{});
     }
 }
 

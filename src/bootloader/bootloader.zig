@@ -41,6 +41,14 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         user_space_start += board.config.mem.bl_stack_size;
         break :blk user_space_start;
     };
+    // const _bl_end: usize = @ptrToInt(@extern(?*u8, .{ .name = "_bl_end" }) orelse {
+    //     kprint("[panic] error reading _bl_end label\n", .{});
+    //     bl_utils.panic();
+    // });
+    const _bl_bin_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "_bl_bin_start" }) orelse {
+        kprint("[panic] error reading _bl_bin_start label\n", .{});
+        bl_utils.panic();
+    });
 
     // mmu configuration...
     {
@@ -194,6 +202,17 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         kprint("[bootloader] Copying kernel to addr_space: 0x{x}, with size: {d} \n", .{ @ptrToInt(kernel_target_loc.ptr), kernel_target_loc.len });
         std.mem.copy(u8, kernel_target_loc, kernel_bin);
         kprint("[bootloader] kernel copied \n", .{});
+
+        // ! for a board without rom, the bootloader assumes that Zigs builtin @embedFile stores the kernel at the beginning of the binary
+        // the block below checks if the bootloader executable code is located(embedded) behind the kernel. @embedFile uses the .rdata section which
+        // needs to be located before the bootloader code!. If so, and the code does not utilise any data from sections in or before the data section,
+        // it's safe to copy the kernel to the beginning of the address space without overwriting parts of the bootloader !
+        if (!board.config.mem.has_rom) {
+            if (_bl_bin_start < kernel_bin.len) {
+                kprint("[panic] !the bootloader would overwrite itself on kernel copy! abort... \n", .{});
+                bl_utils.panic();
+            }
+        }
 
         var kernel_addr = @ptrToInt(kernel_target_loc.ptr);
         {

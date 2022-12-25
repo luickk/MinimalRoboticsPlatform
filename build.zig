@@ -8,24 +8,23 @@ const Error = error{BlExceedsRomSize};
 const raspi3b = @import("src/boards/raspi3b.zig");
 const qemuVirt = @import("src/boards/qemuVirt.zig");
 
-const currBoard = qemuVirt;
+const currBoard = raspi3b;
+
+// SOC builtin features
+var arm = std.build.Pkg{ .name = "arm", .source = .{ .path = "src/arm/arm.zig" } };
+// functions generally required
+var utils = std.build.Pkg{ .name = "utils", .source = .{ .path = "src/utils/utils.zig" } };
+// board pkg contains the configuration "template"(boardConfig.zig) and different configuration files for different boards
+var board = std.build.Pkg{ .name = "board", .source = .{ .path = "src/boards/" ++ @tagName(currBoard.config.board) ++ ".zig" } };
+// peripheral drivers
+var periph = std.build.Pkg{ .name = "periph", .source = .{ .path = "src/periph/periph.zig" } };
+// services that need to be accessed by kernel and other instances. the kernel allocator e.g.
+var sharedKServices = std.build.Pkg{ .name = "sharedKServices", .source = .{ .path = "src/kernel/sharedKServices/sharedKServices.zig" } };
 
 pub fn build(b: *std.build.Builder) !void {
     currBoard.config.checkConfig();
     const build_mode = std.builtin.Mode.ReleaseFast;
-
     var build_options = b.addOptions();
-
-    // SOC builtin features
-    var arm = std.build.Pkg{ .name = "arm", .source = .{ .path = "src/arm/arm.zig" } };
-    // functions generally required
-    var utils = std.build.Pkg{ .name = "utils", .source = .{ .path = "src/utils/utils.zig" } };
-    // board pkg contains the configuration "template"(boardConfig.zig) and different configuration files for different boards
-    var board = std.build.Pkg{ .name = "board", .source = .{ .path = "src/boards/" ++ @tagName(currBoard.config.board) ++ ".zig" } };
-    // peripheral drivers
-    var periph = std.build.Pkg{ .name = "periph", .source = .{ .path = "src/periph/periph.zig" } };
-    // peripheral drivers
-    var sharedKServices = std.build.Pkg{ .name = "sharedKServices", .source = .{ .path = "src/kernel/sharedKServices/sharedKServices.zig" } };
 
     sharedKServices.dependencies = &.{ board, build_options.*.getPackage("build_options"), arm, utils, periph };
     periph.dependencies = &.{board};
@@ -53,6 +52,22 @@ pub fn build(b: *std.build.Builder) !void {
 
     // kernel
     const kernel_exe = b.addExecutable("kernel", null);
+    // searching for apps in apps/
+    {
+        var apps = std.ArrayList([]const u8).init(b.allocator);
+        defer apps.deinit();
+
+        var dir = try std.fs.cwd().openIterableDir("src/kernel/bins/", .{});
+        var it = dir.iterate();
+        while (try it.next()) |file| {
+            if (file.kind != .File) {
+                continue;
+            }
+            try apps.append(file.name);
+        }
+
+        build_options.addOption([]const []const u8, "apps", apps.items);
+    }
     kernel_exe.force_pic = false;
     kernel_exe.pie = false;
     kernel_exe.code_model = .large;
@@ -82,6 +97,10 @@ pub fn build(b: *std.build.Builder) !void {
     build_and_run.dependOn(&app1.install_step.?.step);
     build_and_run.dependOn(&app1.installRaw("app1.bin", .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/" } }).step);
 
+    const app2 = try addApp(b, build_mode, "app2");
+    build_and_run.dependOn(&app2.install_step.?.step);
+    build_and_run.dependOn(&app2.installRaw("app2.bin", .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/" } }).step);
+
     build_and_run.dependOn(&update_linker_scripts_k.step);
     build_and_run.dependOn(&kernel_exe.install_step.?.step);
     build_and_run.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = .bin, .dest_dir = .{ .custom = "../src/bootloader/bins/" } }).step);
@@ -96,6 +115,16 @@ pub fn build(b: *std.build.Builder) !void {
         qemu_launch_cmd.addArg("-S");
     }
     build_and_run.dependOn(&qemu_launch_cmd.step);
+
+    const clean = b.step("clean", "deletes zig-cache, zig-out, src/bootloader/bins/*, src/kernel/bins/*");
+    const delete_zig_cache = b.addSystemCommand(&[_][]const u8{ "/bin/rm", "-r", "zig-cache" });
+    const delete_zig_out = b.addSystemCommand(&[_][]const u8{ "/bin/rm", "-r", "zig-out" });
+    const delete_bl_bins = b.addSystemCommand(&[_][]const u8{ "/bin/rm", "src/bootloader/bins/*" });
+    const delete_kernel_bins = b.addSystemCommand(&[_][]const u8{ "/bin/rm", "src/kernel/bins/*" });
+    clean.dependOn(&delete_zig_cache.step);
+    clean.dependOn(&delete_zig_out.step);
+    clean.dependOn(&delete_bl_bins.step);
+    clean.dependOn(&delete_kernel_bins.step);
 }
 
 fn addApp(b: *std.build.Builder, build_mode: std.builtin.Mode, comptime name: []const u8) !*std.build.LibExeObjStep {
@@ -106,6 +135,7 @@ fn addApp(b: *std.build.Builder, build_mode: std.builtin.Mode, comptime name: []
     app.setBuildMode(build_mode);
     app.setLinkerScriptPath(std.build.FileSource{ .path = "src/apps/" ++ name ++ "/linker.ld" });
     app.addObjectFile("src/apps/" ++ name ++ "/main.zig");
+    app.addPackage(periph);
     app.install();
     return app;
 }
