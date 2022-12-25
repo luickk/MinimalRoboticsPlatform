@@ -37,7 +37,7 @@ pub fn UserPageAllocator(comptime mem_size: usize, comptime granule: GranulePara
             };
         }
 
-        pub fn allocNPage(self: *Self, n: usize) !*align(4096) anyopaque {
+        pub fn allocNPage(self: *Self, n: usize) ![]u8 {
             if (self.curr_page_pointer + n > self.kernel_mem.len) {
                 return try self.searchFreePages(n);
             }
@@ -45,10 +45,13 @@ pub fn UserPageAllocator(comptime mem_size: usize, comptime granule: GranulePara
                 page.* = true;
             }
             self.curr_page_pointer += n;
-            return @alignCast(4096, @intToPtr(*anyopaque, self.mem_start + self.curr_page_pointer * self.granule.page_size));
+            var ret_slice: []u8 = undefined;
+            ret_slice.ptr = @alignCast(4096, @intToPtr([*]u8, self.mem_start + self.curr_page_pointer * self.granule.page_size));
+            ret_slice.len = granule.page_size * n;
+            return ret_slice;
         }
 
-        fn searchFreePages(self: *Self, req_pages: usize) !*align(4096) anyopaque {
+        fn searchFreePages(self: *Self, req_pages: usize) ![]u8 {
             var free_pages_in_row: usize = 0;
             for (self.kernel_mem) |*page, i| {
                 if (!page.*) {
@@ -57,7 +60,10 @@ pub fn UserPageAllocator(comptime mem_size: usize, comptime granule: GranulePara
                     free_pages_in_row = 0;
                 }
                 if (free_pages_in_row >= req_pages) {
-                    return @alignCast(4096, @intToPtr(*anyopaque, (i - req_pages) * self.granule.page_size));
+                    var ret_slice: []u8 = undefined;
+                    ret_slice.ptr = @alignCast(4096, @intToPtr([*]u8, (i - req_pages) * self.granule.page_size));
+                    ret_slice.len = granule.page_size * req_pages;
+                    return ret_slice;
                 }
             }
             return Error.OutOfMem;
