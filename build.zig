@@ -8,7 +8,7 @@ const Error = error{BlExceedsRomSize};
 const raspi3b = @import("src/boards/raspi3b.zig");
 const qemuVirt = @import("src/boards/qemuVirt.zig");
 
-const currBoard = raspi3b;
+const currBoard = qemuVirt;
 
 // SOC builtin features
 var arm = std.build.Pkg{ .name = "arm", .source = .{ .path = "src/arm/arm.zig" } };
@@ -52,22 +52,6 @@ pub fn build(b: *std.build.Builder) !void {
 
     // kernel
     const kernel_exe = b.addExecutable("kernel", null);
-    // searching for apps in apps/
-    {
-        var apps = std.ArrayList([]const u8).init(b.allocator);
-        defer apps.deinit();
-
-        var dir = try std.fs.cwd().openIterableDir("src/kernel/bins/", .{});
-        var it = dir.iterate();
-        while (try it.next()) |file| {
-            if (file.kind != .File) {
-                continue;
-            }
-            try apps.append(file.name);
-        }
-
-        build_options.addOption([]const []const u8, "apps", apps.items);
-    }
     kernel_exe.force_pic = false;
     kernel_exe.pie = false;
     kernel_exe.code_model = .large;
@@ -89,6 +73,7 @@ pub fn build(b: *std.build.Builder) !void {
     // compilation steps
     const update_linker_scripts_bl = UpdateLinkerScripts.create(b, .bootloader, temp_bl_ld, temp_kernel_ld, currBoard.config);
     const update_linker_scripts_k = UpdateLinkerScripts.create(b, .kernel, temp_bl_ld, temp_kernel_ld, currBoard.config);
+    const scan_for_apps = ScanForApps.create(b, build_options);
 
     const build_and_run = b.step("qemu", "emulate the kernel with no graphics and output uart to console");
     const launch_with_gdb = b.option(bool, "gdb", "Launch qemu with -s -S to allow for net gdb debugging") orelse false;
@@ -102,6 +87,7 @@ pub fn build(b: *std.build.Builder) !void {
     build_and_run.dependOn(&app2.installRaw("app2.bin", .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/" } }).step);
 
     build_and_run.dependOn(&update_linker_scripts_k.step);
+    build_and_run.dependOn(&scan_for_apps.step);
     build_and_run.dependOn(&kernel_exe.install_step.?.step);
     build_and_run.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = .bin, .dest_dir = .{ .custom = "../src/bootloader/bins/" } }).step);
 
@@ -117,14 +103,19 @@ pub fn build(b: *std.build.Builder) !void {
     build_and_run.dependOn(&qemu_launch_cmd.step);
 
     const clean = b.step("clean", "deletes zig-cache, zig-out, src/bootloader/bins/*, src/kernel/bins/*");
-    const delete_zig_cache = b.addSystemCommand(&[_][]const u8{ "/bin/rm", "-r", "zig-cache" });
-    const delete_zig_out = b.addSystemCommand(&[_][]const u8{ "/bin/rm", "-r", "zig-out" });
-    const delete_bl_bins = b.addSystemCommand(&[_][]const u8{ "/bin/rm", "src/bootloader/bins/*" });
-    const delete_kernel_bins = b.addSystemCommand(&[_][]const u8{ "/bin/rm", "src/kernel/bins/*" });
+    const delete_zig_cache = b.addRemoveDirTree("zig-cache");
+    const delete_zig_out = b.addRemoveDirTree("zig-out");
+    const delete_bl_bins = b.addRemoveDirTree("src/bootloader/bins");
+    const delete_kernel_bins = b.addRemoveDirTree("src/kernel/bins");
+    const create_bins = CreateTmpSrcBins.create(b);
+
+    clean.dependOn(&delete_zig_cache.step);
+    clean.dependOn(&delete_zig_out.step);
     clean.dependOn(&delete_zig_cache.step);
     clean.dependOn(&delete_zig_out.step);
     clean.dependOn(&delete_bl_bins.step);
     clean.dependOn(&delete_kernel_bins.step);
+    clean.dependOn(&create_bins.step);
 }
 
 fn addApp(b: *std.build.Builder, build_mode: std.builtin.Mode, comptime name: []const u8) !*std.build.LibExeObjStep {
@@ -140,7 +131,6 @@ fn addApp(b: *std.build.Builder, build_mode: std.builtin.Mode, comptime name: []
     return app;
 }
 
-/// concatenates two files to one. (f1+f2)
 const UpdateLinkerScripts = struct {
     pub const ToUpdate = enum { bootloader, kernel };
     step: std.build.Step,
@@ -153,7 +143,7 @@ const UpdateLinkerScripts = struct {
     pub fn create(b: *std.build.Builder, to_update: ToUpdate, temp_bl_ld: []const u8, temp_kernel_ld: []const u8, board_config: currBoard.boardConfig.BoardConfig) *UpdateLinkerScripts {
         const self = b.allocator.create(UpdateLinkerScripts) catch unreachable;
         self.* = .{
-            .step = std.build.Step.init(.custom, "binConcat", b.allocator, UpdateLinkerScripts.doStep),
+            .step = std.build.Step.init(.custom, "UpdateLinkerScript", b.allocator, UpdateLinkerScripts.doStep),
             .temp_bl_ld = temp_bl_ld,
             .temp_kernel_ld = temp_kernel_ld,
             .board_config = board_config,
@@ -233,6 +223,53 @@ const UpdateLinkerScripts = struct {
                     null,
                 });
             },
+        }
+    }
+};
+
+const CreateTmpSrcBins = struct {
+    step: std.build.Step,
+
+    pub fn create(b: *std.build.Builder) *CreateTmpSrcBins {
+        const self = b.allocator.create(CreateTmpSrcBins) catch unreachable;
+        self.* = .{ .step = std.build.Step.init(.custom, "CreateTmpSrcBins", b.allocator, CreateTmpSrcBins.doStep) };
+        return self;
+    }
+
+    fn doStep(step: *std.build.Step) !void {
+        _ = step;
+        try std.fs.cwd().makeDir("src/kernel/bins/");
+        try std.fs.cwd().makeDir("src/bootloader/bins/");
+    }
+};
+
+const ScanForApps = struct {
+    step: std.build.Step,
+    builder: *std.build.Builder,
+    build_options: *std.build.OptionsStep,
+
+    pub fn create(b: *std.build.Builder, build_options: *std.build.OptionsStep) *ScanForApps {
+        const self = b.allocator.create(ScanForApps) catch unreachable;
+        self.* = .{ .step = std.build.Step.init(.custom, "ScanForApps", b.allocator, ScanForApps.doStep), .builder = b, .build_options = build_options };
+        return self;
+    }
+
+    fn doStep(step: *std.build.Step) !void {
+        const self = @fieldParentPtr(ScanForApps, "step", step);
+        // searching for apps in apps/
+        {
+            var apps = std.ArrayList([]const u8).init(self.builder.allocator);
+            defer apps.deinit();
+
+            var dir = try std.fs.cwd().openIterableDir("src/kernel/bins/", .{});
+            var it = dir.iterate();
+            while (try it.next()) |file| {
+                if (file.kind != .File) {
+                    continue;
+                }
+                try apps.append(file.name);
+            }
+            self.build_options.addOption([]const []const u8, "apps", apps.items);
         }
     }
 };

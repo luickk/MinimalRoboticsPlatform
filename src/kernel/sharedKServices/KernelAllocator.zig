@@ -10,7 +10,6 @@ const ProccessorRegMap = arm.processor.ProccessorRegMap;
 
 const maxChunks = 10000;
 
-//     const maxChunks = try std.math.divTrunc(usize, mem_size, self.chunk_size);
 pub const KernelAllocator = struct {
     const Error = error{
         OutOfChunks,
@@ -26,7 +25,7 @@ pub const KernelAllocator = struct {
     used_chunks: usize,
 
     pub fn init(mem_base: usize, mem_size: usize, chunk_size: usize) !KernelAllocator {
-        const req_chunks = try std.math.divTrunc(usize, mem_size, chunk_size);
+        const req_chunks = try std.math.divCeil(usize, mem_size, chunk_size);
         if (req_chunks > maxChunks) return Error.OutOfChunks;
         if (mem_base % 8 != 0) return Error.MemBaseNotAligned;
         var ka = KernelAllocator{

@@ -54,7 +54,7 @@ pub const ProccessorRegMap = struct {
         pub inline fn setTcrEl(comptime el: ExceptionLevels, val: usize) void {
             asm volatile ("msr tcr_" ++ @tagName(el) ++ ", %[val]"
                 :
-                : [val] "rax" (val),
+                : [val] "r" (val),
             );
         }
         pub fn readTcrEl(comptime el: ExceptionLevels) usize {
@@ -115,7 +115,6 @@ pub const ProccessorRegMap = struct {
         };
 
         pub const ExceptionClass = enum(u6) {
-            unknownReason = 0b000000,
             trappedWF = 0b000001,
             trappedMCR = 0b000011,
             trappedMcrr = 0b000100,
@@ -149,6 +148,21 @@ pub const ProccessorRegMap = struct {
             bkptInstExecAarch64 = 0b111100,
         };
     };
+
+    pub const SpsrReg = packed struct {
+        pub inline fn setSpsrReg(comptime el: ExceptionLevels, val: usize) void {
+            asm volatile ("msr spsr_" ++ @tagName(el) ++ ", %[val]"
+                :
+                : [val] "r" (val),
+            );
+        }
+        pub inline fn readSpsrReg(comptime el: ExceptionLevels) usize {
+            return asm volatile ("mrs %[curr], spsr_" ++ @tagName(el)
+                : [curr] "=r" (-> usize),
+            );
+        }
+    };
+
     pub const MairReg = packed struct {
         attr0: u8 = 0,
         attr1: u8 = 0,
@@ -166,7 +180,7 @@ pub const ProccessorRegMap = struct {
         pub inline fn setMairEl(comptime el: ExceptionLevels, val: usize) void {
             asm volatile ("msr mair_" ++ @tagName(el) ++ ", %[val]"
                 :
-                : [val] "rax" (val),
+                : [val] "r" (val),
             );
         }
 
@@ -181,7 +195,7 @@ pub const ProccessorRegMap = struct {
         pub inline fn setSctlrEl(comptime el: ExceptionLevels, val: usize) void {
             asm volatile ("msr sctlr_" ++ @tagName(el) ++ ", %[val]"
                 :
-                : [val] "rax" (val),
+                : [val] "r" (val),
             );
         }
 
@@ -211,7 +225,7 @@ pub const ProccessorRegMap = struct {
     pub inline fn setSp(addr: usize) void {
         asm volatile ("mov sp, %[addr]"
             :
-            : [addr] "rax" (addr),
+            : [addr] "r" (addr),
         );
         isb();
     }
@@ -219,7 +233,7 @@ pub const ProccessorRegMap = struct {
     pub inline fn branchToAddr(addr: usize) void {
         asm volatile ("br %[pc_addr]"
             :
-            : [pc_addr] "rax" (addr),
+            : [pc_addr] "r" (addr),
         );
     }
 
@@ -231,14 +245,14 @@ pub const ProccessorRegMap = struct {
     pub fn setTTBR1(addr: usize) void {
         asm volatile ("msr ttbr1_el1, %[addr]"
             :
-            : [addr] "rax" (addr),
+            : [addr] "r" (addr),
         );
     }
 
     pub fn setTTBR0(addr: usize) void {
         asm volatile ("msr ttbr0_el1, %[addr]"
             :
-            : [addr] "rax" (addr),
+            : [addr] "r" (addr),
         );
     }
 
@@ -255,11 +269,11 @@ pub const ProccessorRegMap = struct {
 
         asm volatile ("dc civac, %[addr]"
             :
-            : [addr] "rax" (ttbr0),
+            : [addr] "r" (ttbr0),
         );
         asm volatile ("dc civac, %[addr]"
             :
-            : [addr] "rax" (ttbr1),
+            : [addr] "r" (ttbr1),
         );
     }
 
@@ -272,7 +286,7 @@ pub const ProccessorRegMap = struct {
     pub inline fn setExceptionVec(exc_vec_addr: usize) void {
         asm volatile ("msr vbar_el1, %[exc_vec]"
             :
-            : [exc_vec] "rax" (exc_vec_addr),
+            : [exc_vec] "r" (exc_vec_addr),
         );
         asm volatile ("isb");
     }
@@ -287,6 +301,13 @@ pub const ProccessorRegMap = struct {
             : [curr] "=r" (-> usize),
         );
         return x >> 2;
+    }
+
+    // ! is inlined and volatile !
+    pub inline fn getPc() usize {
+        return asm volatile ("adr %[pc], ."
+            : [pc] "=r" (-> usize),
+        );
     }
 
     pub inline fn nop() void {

@@ -53,28 +53,20 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
     // mmu configuration...
     {
         const ttbr1 = blk: {
-            var ttbr1_arr = blk_arr: {
-                // writing page dirs to userspace in ram. Writing to userspace because it would be overwritten in kernel space, when copying
-                // the kernel. Additionally, on mmu turn on, the mmu would try to read from the page tables without mmu kernel space identifier bits on
-                var ttbr1_addr = utils.ceilRoundToMultiple(user_space_start, Granule.Fourk.page_size) catch |e| {
-                    kprint("[panic] Page table _ttbr1_dir alignment calc error: {s}\n", .{@errorName(e)});
-                    bl_utils.panic();
-                };
-
-                // ttbr0 (rom) mapps both rom and ram
-                comptime var ttbr1_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.Fourk, board.config.mem.ram_size) catch |e| {
-                    kprint("[panic] Page table size calc error: {s}\n", .{@errorName(e)});
-                    bl_utils.panic();
-                });
-
-                break :blk_arr @intToPtr(*volatile [ttbr1_size]usize, ttbr1_addr);
-            };
-
-            // mapping general kernel mem (inlcuding device base)
-            var ttbr1_write = (mmu.PageTable(board.config.mem.ram_size, Granule.Fourk) catch |e| {
+            const page_table = mmu.PageTable(board.config.mem.ram_size, Granule.Fourk) catch |e| {
                 kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 bl_utils.panic();
-            }).init(ttbr1_arr, 0) catch |e| {
+            };
+
+            // writing page dirs to userspace in ram. Writing to userspace because it would be overwritten in kernel space, when copying
+            // the kernel. Additionally, on mmu turn on, the mmu would try to read from the page tables without mmu kernel space identifier bits on
+            var ttbr1_mem = @intToPtr(*volatile [page_table.totaPageTableSize]usize, utils.ceilRoundToMultiple(user_space_start, Granule.Fourk.page_size) catch |e| {
+                kprint("[panic] Page table _ttbr1_dir alignment calc error: {s}\n", .{@errorName(e)});
+                bl_utils.panic();
+            });
+
+            // mapping general kernel mem (inlcuding device base)
+            var ttbr1_write = page_table.init(ttbr1_mem, 0) catch |e| {
                 kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 bl_utils.panic();
             };
@@ -93,7 +85,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
                 kprint("[panic] Page table write error: {s}\n", .{@errorName(e)});
                 bl_utils.panic();
             };
-            break :blk ttbr1_arr;
+            break :blk ttbr1_mem;
         };
 
         const ttbr0 = blk: {
@@ -106,29 +98,24 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
                 mapping_bl_offset = board.config.mem.ram_start_addr;
             }
 
-            var ttbr0_arr = blk_arr: {
-                // ttbr0 (rom) mapps both rom and ram
-                comptime var ttbr0_size = (board.boardConfig.calcPageTableSizeTotal(board.boardConfig.Granule.FourkSection, mapping_bl_phys_size) catch |e| {
-                    kprint("[panic] Page table size calc error: {s}\n", .{@errorName(e)});
-                    bl_utils.panic();
-                });
-
-                var ttbr0_addr = user_space_start + (ttbr1.len * @sizeOf(usize));
-
-                ttbr0_addr = utils.ceilRoundToMultiple(ttbr0_addr, Granule.Fourk.page_size) catch |e| {
-                    kprint("[panic] Page table ttbr0 address alignment error: {s}\n", .{@errorName(e)});
-                    bl_utils.panic();
-                };
-
-                break :blk_arr @intToPtr(*volatile [ttbr0_size]usize, ttbr0_addr);
+            const page_table = mmu.PageTable(mapping_bl_phys_size, Granule.FourkSection) catch |e| {
+                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
+                bl_utils.panic();
             };
+
+            var ttbr0_addr = user_space_start + (ttbr1.len * @sizeOf(usize));
+
+            ttbr0_addr = utils.ceilRoundToMultiple(ttbr0_addr, Granule.Fourk.page_size) catch |e| {
+                kprint("[panic] Page table ttbr0 address alignment error: {s}\n", .{@errorName(e)});
+                bl_utils.panic();
+            };
+
+            var ttbr0_mem = @intToPtr(*volatile [page_table.totaPageTableSize]usize, ttbr0_addr);
+
             // MMU page dir config
 
             // identity mapped memory for bootloader and kernel contrtol handover!
-            var ttbr0_write = (mmu.PageTable(mapping_bl_phys_size, Granule.FourkSection) catch |e| {
-                kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
-                bl_utils.panic();
-            }).init(ttbr0_arr, 0) catch |e| {
+            var ttbr0_write = page_table.init(ttbr0_mem, 0) catch |e| {
                 kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 bl_utils.panic();
             };
@@ -149,7 +136,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
                 bl_utils.panic();
             };
 
-            break :blk ttbr0_arr;
+            break :blk ttbr0_mem;
         };
 
         // kprint("ttbr1: 0x{x} \n", .{@ptrToInt(ttbr1)});

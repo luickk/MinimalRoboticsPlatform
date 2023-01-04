@@ -2,6 +2,8 @@ const std = @import("std");
 const board = @import("board");
 const kprint = @import("periph").uart.UartWriter(.ttbr0).kprint;
 
+const ProccessorRegMap = @import("processor.zig").ProccessorRegMap;
+
 const Granule = board.boardConfig.Granule;
 const GranuleParams = board.boardConfig.Granule.GranuleParams;
 const TransLvl = board.boardConfig.TransLvl;
@@ -81,9 +83,10 @@ pub const TableDescriptorAttr = packed struct {
 };
 
 pub fn PageTable(comptime total_mem_size: usize, comptime gran: GranuleParams) !type {
-    comptime var req_table_total = try board.boardConfig.calctotalTablesReq(gran, total_mem_size);
+    comptime var req_table_total = try calctotalTablesReq(gran, total_mem_size);
     return struct {
         const Self = @This();
+        pub const totaPageTableSize = req_table_total * gran.table_size;
         lma_offset: usize,
         total_size: usize,
         page_table_gran: GranuleParams,
@@ -132,7 +135,7 @@ pub fn PageTable(comptime total_mem_size: usize, comptime gran: GranuleParams) !
                 const to_map_in_tables = try std.math.divCeil(usize, to_map_in_descriptors, mapping.granule.table_size);
                 const to_map_in_descriptors_rest = try std.math.mod(usize, to_map_in_descriptors, mapping.granule.table_size);
 
-                const total_mem_size_padding_in_descriptors = try std.math.divExact(usize, total_mem_size, curr_lvl_desc_size);
+                const total_mem_size_padding_in_descriptors = try std.math.divFloor(usize, total_mem_size, curr_lvl_desc_size);
                 var total_mem_size_padding_in_tables = try std.math.divFloor(usize, total_mem_size_padding_in_descriptors, mapping.granule.table_size);
                 if (total_mem_size_padding_in_tables >= to_map_in_tables) total_mem_size_padding_in_tables -= to_map_in_tables;
 
@@ -165,6 +168,17 @@ pub fn PageTable(comptime total_mem_size: usize, comptime gran: GranuleParams) !
             }
         }
     };
+}
+
+fn calctotalTablesReq(comptime granule: Granule.GranuleParams, comptime mem_size: usize) !usize {
+    const req_descriptors = try std.math.divExact(usize, mem_size, granule.page_size);
+
+    var req_table_total_: usize = 0;
+    var ci_lvl: usize = 1;
+    while (ci_lvl <= @enumToInt(granule.lvls_required) + 1) : (ci_lvl += 1) {
+        req_table_total_ += try std.math.divCeil(usize, req_descriptors, std.math.pow(usize, granule.table_size, ci_lvl));
+    }
+    return req_table_total_;
 }
 
 pub inline fn toTtbr1(comptime T: type, inp: T) T {

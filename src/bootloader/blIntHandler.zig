@@ -45,7 +45,7 @@ pub const ExceptionClass = enum(u6) {
 
 pub fn irqHandler(temp_context: *CpuContext, tmp_int_type: usize) callconv(.C) void {
     var int_type = tmp_int_type;
-    var int_type_en = std.meta.intToEnum(gic.ExceptionType, int_type) catch gic.ExceptionType.unknown;
+    var int_type_en = std.meta.intToEnum(gic.ExceptionType, int_type) catch return;
     temp_context.int_type = int_type;
     kprint("irqHandler \n", .{});
 

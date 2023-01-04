@@ -23,21 +23,6 @@ pub const Granule = struct {
     pub const Sixtyfourk: GranuleParams = .{ .page_size = 65536, .table_size = 8192, .lvls_required = .second_lvl };
 };
 
-pub fn calctotalTablesReq(granule: Granule.GranuleParams, mem_size: usize) !usize {
-    const req_descriptors = try std.math.divExact(usize, mem_size, granule.page_size);
-
-    var req_table_total: usize = 0;
-    var ci_lvl: usize = 1;
-    while (ci_lvl <= @enumToInt(granule.lvls_required) + 1) : (ci_lvl += 1) {
-        req_table_total += try std.math.divCeil(usize, req_descriptors, std.math.pow(usize, granule.table_size, ci_lvl));
-    }
-    return req_table_total;
-}
-
-pub fn calcPageTableSizeTotal(gran: Granule.GranuleParams, mem_size: usize) !usize {
-    return (try calctotalTablesReq(gran, mem_size)) * gran.table_size;
-}
-
 pub const TransLvl = enum(usize) { first_lvl = 0, second_lvl = 1, third_lvl = 2 };
 
 pub const BoardConfig = struct {
@@ -59,6 +44,8 @@ pub const BoardConfig = struct {
 
         bl_stack_size: usize,
         k_stack_size: usize,
+        app_stack_size: usize,
+        app_vm_mem_size: usize,
 
         has_rom: bool,
         rom_start_addr: ?usize,

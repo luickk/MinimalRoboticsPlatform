@@ -9,15 +9,42 @@ pub const ExceptionType = enum(u64) {
     el1Irq = 0x2,
     el1Fiq = 0x3,
     el1Err = 0x4,
-    elxSpx = 0x5,
-    unknown = 0x6,
+
+    el1Sp0Sync = 0x5,
+    el1Sp0Irq = 0x6,
+    el1Sp0Fiq = 0x7,
+    el1Sp0Err = 0x8,
+
+    el0Sync = 0x9,
+    el0Irq = 0xA,
+    el0Fiq = 0xB,
+    el0Err = 0xC,
+
+    el032Sync = 0xD,
+    el032Irq = 0xE,
+    el032Fiq = 0xF,
+    el032Err = 0x10,
 };
 
 export const el1Sync = ExceptionType.el1Sync;
 export const el1Err = ExceptionType.el1Err;
 export const el1Fiq = ExceptionType.el1Fiq;
 export const el1Irq = ExceptionType.el1Irq;
-export const elxSpx = ExceptionType.elxSpx;
+
+export const el1Sp0Sync = ExceptionType.el1Sp0Sync;
+export const el1Sp0Irq = ExceptionType.el1Sp0Irq;
+export const el1Sp0Fiq = ExceptionType.el1Sp0Fiq;
+export const el1Sp0Err = ExceptionType.el1Sp0Err;
+
+export const el0Sync = ExceptionType.el0Sync;
+export const el0Irq = ExceptionType.el0Irq;
+export const el0Fiq = ExceptionType.el0Fiq;
+export const el0Err = ExceptionType.el0Err;
+
+export const el032Sync = ExceptionType.el032Sync;
+export const el032Irq = ExceptionType.el032Irq;
+export const el032Fiq = ExceptionType.el032Fiq;
+export const el032Err = ExceptionType.el032Err;
 
 pub fn Gic(comptime addr_space: AddrSpace) type {
     const gicCfg = @import("board").PeriphConfig(addr_space).GicV2;

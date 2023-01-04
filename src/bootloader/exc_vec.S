@@ -16,20 +16,20 @@
 .globl _exception_vector_table
 .balign 0x80
 _exception_vector_table:
-    EXCEPTION_VECTOR irqElxSpx elxSpx // el1_sp0_sync
+    EXCEPTION_VECTOR irqElxSpx el1Sp0Sync // el1_sp0_sync
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx elxSpx // el1_sp0_irq
+    EXCEPTION_VECTOR irqElxSpx el1Sp0Irq // el1_sp0_irq
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx elxSpx // el1_sp0_fiq
+    EXCEPTION_VECTOR irqElxSpx el1Sp0Fiq // el1_sp0_fiq
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx elxSpx // el1_sp0_error
+    EXCEPTION_VECTOR irqElxSpx el1Sp0Err // el1_sp0_error
 
 
 .balign 0x80
-    EXCEPTION_VECTOR irqHandler el1Sync // el1Sync
+    EXCEPTION_VECTOR irqHandler el1Sync // el1Sync 
 
 .balign 0x80
     EXCEPTION_VECTOR irqHandler el1Irq // el1Irq
@@ -42,28 +42,28 @@ _exception_vector_table:
 
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx elxSpx // el0_sync
+    EXCEPTION_VECTOR irqElxSpx el0Sync // el0_sync
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx elxSpx // el0_irq
+    EXCEPTION_VECTOR irqElxSpx el0Irq // el0_irq
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx elxSpx // el0_fiq
+    EXCEPTION_VECTOR irqElxSpx el0Fiq // el0_fiq
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx elxSpx // el0_error
+    EXCEPTION_VECTOR irqElxSpx el0Err // el0_error
 
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx elxSpx // el0_32_sync
+    EXCEPTION_VECTOR irqElxSpx el032Sync // el0_32_sync
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx elxSpx // el0_32_irq
+    EXCEPTION_VECTOR irqElxSpx el032Irq // el0_32_irq
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx elxSpx // el0_32_fiq
+    EXCEPTION_VECTOR irqElxSpx el032Fiq // el0_32_fiq
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx elxSpx // el0_32_error
+    EXCEPTION_VECTOR irqElxSpx el032Err // el0_32_error
 
 .balign 0x80

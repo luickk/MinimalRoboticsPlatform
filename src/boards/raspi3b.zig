@@ -9,6 +9,8 @@ pub const config = boardConfig.BoardConfig{
 
         .bl_stack_size = 0x10000,
         .k_stack_size = 0x10000,
+        .app_stack_size = 0x10000,
+        .app_vm_mem_size = 0x100000,
 
         .has_rom = false,
         // the kernel is loaded by into 0x8000 ram by the gpu, so no relocation (or rom) required

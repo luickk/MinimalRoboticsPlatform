@@ -87,64 +87,7 @@ pub const CpuContext = packed struct {
         return std.mem.zeroInit(CpuContext, .{});
     }
 
-    // note: x2 are not fully restored!
-    // todo => USE SP as reg to store context_addr in to restore ALL regs!
-    pub export fn restoreContextFromMem(context: *CpuContext) callconv(.C) void {
-        const context_addr: u64 = @ptrToInt(context);
-        asm volatile (
-        // base addr
-            \\mov x18, %[context_addr]
-            // debug regs
-            \\ldp x0, x1, [x18], #16
-            \\ldp x0, x1, [x18], #16
-            \\ldp x0, x1, [x18], #16
-            // system regs
-            \\ldp x1, x0, [x18], #16
-            \\msr elr_el1, x1
-            \\mov fp, x0
-            \\ldp x1, x30, [x18], #16
-            \\mov sp, x1
-            // gp regs
-            \\ldp x29, x28, [x18], #16
-            \\ldp x27, x26, [x18], #16
-            \\ldp x25, x24, [x18], #16
-            \\ldp x23, x22, [x18], #16
-            \\ldp x21, x20, [x18], #16
-            \\ldp x19, xzr,[x18], #16
-            \\ldp x17, x16, [x18], #16
-            \\ldp x15, x14, [x18], #16
-            \\ldp x13, x12, [x18], #16
-            \\ldp x11, x10, [x18], #16
-            \\ldp x9, x8, [x18], #16
-            \\ldp x7, x6, [x18], #16
-            \\ldp x5, x4, [x18], #16
-            \\ldp x3, x2, [x18], #16
-            \\ldp x1, x0, [x18], #16
-            // smid regs
-            \\ldp q31, q30, [x18], #32
-            \\ldp q29, q28, [x18], #32
-            \\ldp q27, q26, [x18], #32
-            \\ldp q25, q24, [x18], #32
-            \\ldp q23, q22, [x18], #32
-            \\ldp q21, q20, [x18], #32
-            \\ldp q19, q18, [x18], #32
-            \\ldp q17, q16, [x18], #32
-            \\ldp q15, q14, [x18], #32
-            \\ldp q13, q12, [x18], #32
-            \\ldp q11, q10, [x18], #32
-            \\ldp q9, q8, [x18], #32
-            \\ldp q7, q6, [x18], #32
-            \\ldp q5, q4, [x18], #32
-            \\ldp q3, q2, [x18], #32
-            \\ldp q1, q0, [x18], #32
-            \\eret
-            :
-            : [context_addr] "r" (context_addr),
-            : "x*"
-        );
-    }
-
-    // labels are not functions in cpuContext.zig since fns would manipulate the sp which needs to stay the same
+    // the labels are not functions since fns would manipulate the sp which needs to stay the same
     // since the CpuState is pushed there
     comptime {
         asm (

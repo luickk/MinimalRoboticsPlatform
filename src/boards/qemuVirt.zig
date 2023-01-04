@@ -9,9 +9,11 @@ pub const config = boardConfig.BoardConfig{
 
         .bl_stack_size = 0x10000,
         .k_stack_size = 0x10000,
+        .app_stack_size = 0x10000,
+        .app_vm_mem_size = 0x1000000,
 
         .has_rom = true,
-        // qemus machine has a rom with 1 gb size
+        // qemus virt machine has no rom
         .rom_start_addr = 0,
         .rom_size = 0x40000000,
         // since the bootloader is loaded at 0x no bl_load_addr is required
