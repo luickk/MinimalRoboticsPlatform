@@ -12,6 +12,7 @@ const UserPageAllocator = sharedKServices.UserPageAllocator;
 const k_utils = @import("utils.zig");
 const tests = @import("tests.zig");
 const intHandle = @import("kernelIntHandler.zig");
+const sysCalls = @import("sysCalls.zig");
 const b_options = @import("build_options");
 
 // arm specific periphs
@@ -249,7 +250,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
 
     kprint("[kernel] starting scheduler \n", .{});
 
-    scheduler.initAppsInScheduler(0, &apps) catch |e| {
+    scheduler.initAppsInScheduler(&apps) catch |e| {
         kprint("[panic] Scheduler initAppsInScheduler error: {s} \n", .{@errorName(e)});
         k_utils.panic();
     };
@@ -276,4 +277,5 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
 comptime {
     @export(intHandle.irqHandler, .{ .name = "irqHandler", .linkage = .Strong });
     @export(intHandle.irqElxSpx, .{ .name = "irqElxSpx", .linkage = .Strong });
+    @export(sysCalls.sysCallPrint, .{ .name = "sysCallPrint", .linkage = .Weak });
 }

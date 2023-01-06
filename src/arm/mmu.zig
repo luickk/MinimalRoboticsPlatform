@@ -1,6 +1,6 @@
 const std = @import("std");
 const board = @import("board");
-const kprint = @import("periph").uart.UartWriter(.ttbr0).kprint;
+const kprint = @import("periph").uart.UartWriter(.ttbr1).kprint;
 
 const ProccessorRegMap = @import("processor.zig").ProccessorRegMap;
 

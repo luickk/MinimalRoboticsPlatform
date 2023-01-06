@@ -67,3 +67,10 @@ _exception_vector_table:
     EXCEPTION_VECTOR irqElxSpx el032Err // el0_32_error
 
 .balign 0x80
+
+
+// todo => REMOVE
+.global tmps
+tmps:
+bl sysCallPrint
+ret

@@ -1,6 +1,8 @@
 ENTRY(app_main)
 
 SECTIONS {
+    . = 0x0;
+    
     .text : ALIGN(16) {
         *(.text.main)
     }

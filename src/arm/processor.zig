@@ -256,6 +256,12 @@ pub const ProccessorRegMap = struct {
         );
     }
 
+    pub fn readTTBR0() usize {
+        return asm ("mrs %[curr], ttbr0_el1"
+            : [curr] "=r" (-> usize),
+        );
+    }
+
     pub fn invalidateCache() void {
         asm volatile ("IC IALLUIS");
     }

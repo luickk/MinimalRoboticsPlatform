@@ -2,6 +2,7 @@ const std = @import("std");
 const periph = @import("periph");
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 const board = @import("board");
+const utils = @import("utils");
 const b_options = @import("build_options");
 const arm = @import("arm");
 const mmu = arm.mmu;
@@ -11,9 +12,9 @@ const UserPageAllocator = @import("UserPageAllocator.zig").UserPageAllocator;
 
 const bl_bin_size = 0x2000000;
 
-const app_page_table_size = (mmu.PageTable(board.config.mem.app_vm_mem_size, board.boardConfig.Granule.FourkSection) catch |e| {
+const app_page_table = mmu.PageTable(board.config.mem.app_vm_mem_size, board.boardConfig.Granule.FourkSection) catch |e| {
     @compileError(@errorName(e));
-}).totaPageTableSize;
+};
 
 pub const Process = struct {
     pub const ProcessState = enum(usize) {
@@ -26,29 +27,13 @@ pub const Process = struct {
         kernel,
         user,
     };
-
-    pub const ProcessPageInfo = packed struct {
-        base_pgd: usize,
-        n_pages: usize,
-
-        pub fn init() ProcessPageInfo {
-            comptime var no_rom_bl_bin_offset = 0;
-            if (!board.config.mem.has_rom) no_rom_bl_bin_offset = bl_bin_size;
-            return ProcessPageInfo{
-                .base_pgd = board.config.mem.ram_start_addr + (board.config.mem.bl_load_addr orelse 0) + no_rom_bl_bin_offset + board.config.mem.kernel_space_size,
-                .n_pages = 0,
-            };
-        }
-    };
     cpu_context: CpuContext,
     proc_type: ProcessType,
     state: ProcessState,
     counter: isize,
     priority: isize,
     preempt_count: isize,
-    flags: usize,
-    page_info: ProcessPageInfo,
-    page_table: *volatile [app_page_table_size]usize,
+    page_table: [app_page_table.totaPageTableSize]usize align(4096),
 
     pub fn init() Process {
         return Process{
@@ -58,9 +43,7 @@ pub const Process = struct {
             .counter = 0,
             .priority = 1,
             .preempt_count = 1,
-            .flags = 0x00000002,
-            .page_info = ProcessPageInfo.init(),
-            .page_table = undefined,
+            .page_table = [_]usize{0} ** app_page_table.totaPageTableSize,
         };
     }
     pub fn setPreempt(self: *Process, state: bool) void {
@@ -143,7 +126,7 @@ pub const Scheduler = struct {
         ProccessorRegMap.DaifReg.disableIrq();
     }
 
-    pub fn initAppsInScheduler(self: *Scheduler, flags: usize, apps: []const []const u8) !void {
+    pub fn initAppsInScheduler(self: *Scheduler, apps: []const []const u8) !void {
         current_process.setPreempt(false);
         for (apps) |app| {
             const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, self.page_allocator.granule.page_size);
@@ -153,18 +136,13 @@ pub const Scheduler = struct {
 
             var pid = running_processs;
 
-            processs[pid].cpu_context.elr_el1 = @ptrToInt(app_mem.ptr);
-            processs[pid].cpu_context.sp = @ptrToInt(app_mem.ptr) + app.len + board.config.mem.app_stack_size;
-            processs[pid].page_table = @intToPtr(*volatile [app_page_table_size]usize, @ptrToInt(app_mem.ptr) + app.len + board.config.mem.app_stack_size);
+            processs[pid].cpu_context.elr_el1 = 0;
+            processs[pid].cpu_context.sp = app.len + board.config.mem.app_stack_size;
 
             // initing the apps page-table
             {
-                const page_table = mmu.PageTable(board.config.mem.app_vm_mem_size, board.boardConfig.Granule.FourkSection) catch |e| {
-                    @compileError(@errorName(e));
-                };
-
                 // MMU page dir config
-                var page_table_write = try page_table.init(processs[pid].page_table, 0);
+                var page_table_write = try app_page_table.init(&processs[pid].page_table, board.config.mem.ram_start_addr);
 
                 const user_space_mapping = mmu.Mapping{
                     .mem_size = board.config.mem.app_vm_mem_size,
@@ -172,16 +150,12 @@ pub const Scheduler = struct {
                     .virt_addr_start = 0,
                     .granule = board.boardConfig.Granule.FourkSection,
                     .addr_space = .ttbr0,
-                    .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .attrIndex = .mair0 },
-                    .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write },
+                    .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .read_write, .attrIndex = .mair0 },
+                    .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .read_write },
                 };
                 try page_table_write.mapMem(user_space_mapping);
             }
-            // var x: usize = 0;            // while (x <= 10000) : (x += 1) {
-            //     kprint("{x}: {x}, \n", .{ @ptrToInt(&processs[pid].page_table[x]), processs[pid].page_table[x] });
-            // }
 
-            processs[pid].flags = flags;
             processs[pid].priority = current_process.priority;
             processs[pid].state = .running;
             processs[pid].proc_type = .user;
@@ -193,24 +167,21 @@ pub const Scheduler = struct {
         current_process.setPreempt(true);
     }
 
-    fn retFromFork() callconv(.C) void {
-        current_process.setPreempt(false);
-        asm volatile ("mov x0, x20");
-        asm volatile ("blr x19");
-    }
-
     // args (process pointers) are past via registers
     fn switchContextToProcess(next_process: *Process, irq_context: *CpuContext) void {
-        // if (current_process == next_process) {
-        //     kprint("[kernel][scheduler] last processed executed \n", .{});
-        //     return;
-        // }
         var prev_process = current_process;
         current_process = next_process;
-        // changing ttbr0 page desc
 
         switchCpuState(next_process);
-        switchMemContext(@ptrToInt(next_process.page_table));
+
+        {
+            var ttbr0_addr: usize = 0;
+            switch (next_process.proc_type) {
+                .user => ttbr0_addr = board.config.mem.ram_start_addr + mmu.toTtbr0(usize, @ptrToInt(&next_process.page_table)),
+                .boot, .kernel => ttbr0_addr = ProccessorRegMap.readTTBR0(),
+            }
+            switchMemContext(ttbr0_addr);
+        }
 
         switchCpuContext(prev_process, next_process, irq_context);
     }
@@ -218,19 +189,16 @@ pub const Scheduler = struct {
     fn switchCpuState(next_process: *Process) void {
         switch (next_process.proc_type) {
             .user => {
-                // ProccessorRegMap.SpsrReg.setSpsrReg(.el1, ProccessorRegMap.SpsrReg.readSpsrReg(.el1) & (~@as(usize, 0b0111)));
-                next_process.cpu_context.sp_sel = 0;
+                ProccessorRegMap.SpsrReg.setSpsrReg(.el1, ProccessorRegMap.SpsrReg.readSpsrReg(.el1) & (~@as(usize, 0b0111)));
             },
             .kernel, .boot => {
                 ProccessorRegMap.SpsrReg.setSpsrReg(.el1, ProccessorRegMap.SpsrReg.readSpsrReg(.el1) | 0b0101);
-                next_process.cpu_context.sp_sel = 1;
             },
         }
     }
 
     fn switchCpuContext(from: *Process, to: *Process, irq_context: *CpuContext) void {
         kprint("from: {*} to {*} \n", .{ from, to });
-        // kprint("to: {any} \n", .{to.elr_el1});
         from.cpu_context = irq_context.*;
         kprint("text {x} \n", .{ProccessorRegMap.getPc()});
         // restore Context and erets

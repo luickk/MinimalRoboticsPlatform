@@ -103,6 +103,7 @@ pub const CpuContext = packed struct {
             \\mov fp, x1
             \\ldp x1, x30, [sp], #16
             \\mov sp, x1
+            \\msr sp_el0, x1
             // gp regs
             \\ldp x29, x28, [sp], #16
             \\ldp x27, x26, [sp], #16

@@ -22,6 +22,7 @@ pub fn irqHandler(temp_context: *CpuContext, tmp_int_type: usize) callconv(.C) v
     };
 
     switch (int_type_en) {
+        // el1_sync (important for exception debug handling...) and everything else
         else => {
             var iss = @truncate(u25, context.esr_el1);
             var ifsc = @truncate(u6, context.esr_el1);
@@ -59,11 +60,18 @@ pub fn irqHandler(temp_context: *CpuContext, tmp_int_type: usize) callconv(.C) v
                 while (true) {}
             }
         },
+        // timer interrupts with custom timers per voard
         gic.ExceptionType.el1Irq, gic.ExceptionType.el1Fiq => {
             if (board.config.board == .raspi3b)
                 bcm2835IntHandle.irqHandler(&context);
             if (board.config.board == .qemuVirt)
                 gt.timerInt(&context);
+        },
+        // syscalls from el0
+        gic.ExceptionType.el0Sync, gic.ExceptionType.el032Sync => {
+            asm volatile (
+                \\bl sysCallPrint
+            );
         },
     }
 }

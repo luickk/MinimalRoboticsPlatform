@@ -1,11 +1,11 @@
 const std = @import("std");
 
-const periph = @import("periph");
-const kprint = periph.uart.UartWriter(.ttbr1).kprint;
+const kprint = @import("userSysCallInterface").SysCallPrint.kprint;
 
 export fn app_main() linksection(".text.main") callconv(.Naked) noreturn {
     while (true) {
-        kprint("app1 test print > {d} < \n", .{getCurrentEl()});
+        // kprint("app1 test print > {d} < \n", .{getCurrentEl()});
+        kprint("app1 test print \n", .{});
     }
 }
 
