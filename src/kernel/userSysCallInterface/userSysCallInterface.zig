@@ -1,8 +1,4 @@
-const periph = @import("periph");
-const kprint = periph.uart.UartWriter(.ttbr1).kprint;
-
 const std = @import("std");
-const board = @import("board");
 
 pub const SysCallPrint = struct {
     const Self = @This();
@@ -13,10 +9,13 @@ pub const SysCallPrint = struct {
     }
 
     fn callKernelPrint(data: [*]const u8, len: usize) callconv(.C) void {
-        _ = data;
-        _ = len;
         asm volatile (
-            \\svc 0x0
+            \\mov x0, %[data_addr]
+            \\mov x1, %[len]
+            \\svc #0
+            :
+            : [data_addr] "r" (@ptrToInt(data)),
+              [len] "r" (len),
         );
     }
     /// Same as `append` except it returns the number of bytes written, which is always the same

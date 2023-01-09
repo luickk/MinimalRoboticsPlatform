@@ -316,6 +316,13 @@ pub const ProccessorRegMap = struct {
         );
     }
 
+    pub inline fn setSpsel(exc_l: ExceptionLevels) void {
+        asm volatile ("msr spsel, %[el]"
+            :
+            : [el] "r" (@enumToInt(exc_l)),
+        );
+    }
+
     pub inline fn nop() void {
         asm volatile ("nop");
     }
@@ -355,14 +362,14 @@ pub const ProccessorRegMap = struct {
             );
         }
 
-        pub fn enableIrq() void {
+        pub export fn enableIrq() void {
             asm volatile ("msr daifclr, %[conf]"
                 :
                 : [conf] "I" (DaifReg{ .debug = false, .serr = false, .irqs = true, .fiqs = false }),
             );
         }
 
-        pub fn disableIrq() void {
+        pub export fn disableIrq() void {
             asm volatile ("msr daifset, %[conf]"
                 :
                 : [conf] "I" (DaifReg{ .debug = false, .serr = false, .irqs = true, .fiqs = false }),

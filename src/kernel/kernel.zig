@@ -277,5 +277,4 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
 comptime {
     @export(intHandle.irqHandler, .{ .name = "irqHandler", .linkage = .Strong });
     @export(intHandle.irqElxSpx, .{ .name = "irqElxSpx", .linkage = .Strong });
-    @export(sysCalls.sysCallPrint, .{ .name = "sysCallPrint", .linkage = .Weak });
 }

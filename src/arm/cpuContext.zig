@@ -102,8 +102,8 @@ pub const CpuContext = packed struct {
             \\msr elr_el1, x0
             \\mov fp, x1
             \\ldp x1, x30, [sp], #16
-            \\mov sp, x1
             \\msr sp_el0, x1
+
             // gp regs
             \\ldp x29, x28, [sp], #16
             \\ldp x27, x26, [sp], #16
@@ -138,6 +138,70 @@ pub const CpuContext = packed struct {
             \\ldp q3, q2, [sp], #32
             \\ldp q1, q0, [sp], #32
             \\eret
+        );
+        asm (
+            \\.globl _restoreContextFromMem
+            \\_restoreContextFromMem:
+            // pop and discard debug info
+            \\ldp x0, x1, [sp], #16
+            \\ldp x0, x1, [sp], #16
+            \\ldp x0, x1, [sp], #16
+            // sys regs
+            \\ldp x0, x1, [sp], #16
+            \\msr elr_el1, x0
+            \\mov fp, x1
+            \\ldp x1, x30, [sp], #16
+            // loading context sp to correct sp(sel)
+            \\mrs x0, spsel
+            // spsel == 0
+            \\cmp x0, #0
+            \\beq load_sp_to_el1
+
+            // spsel == 1
+            \\msr sp_el0, x1
+
+            // spsel == 0
+            \\cmp x0, #0
+            \\bne skip_sp_to_el1_load
+            \\load_sp_to_el1:
+            \\msr sp_el1, x1
+            \\skip_sp_to_el1_load:
+
+            // gp regs
+            \\ldp x29, x28, [sp], #16
+            \\ldp x27, x26, [sp], #16
+            \\ldp x25, x24, [sp], #16
+            \\ldp x23, x22, [sp], #16
+            \\ldp x21, x20, [sp], #16
+            \\ldp x19, x18, [sp], #16
+            \\ldp x17, x16, [sp], #16
+            \\ldp x15, x14, [sp], #16
+            \\ldp x13, x12, [sp], #16
+            \\ldp x11, x10, [sp], #16
+            \\ldp x9, x8, [sp], #16
+            \\ldp x7, x6, [sp], #16
+            \\ldp x5, x4, [sp], #16
+            \\ldp x3, x2, [sp], #16
+            \\ldp x1, x0, [sp], #16
+            // smid regs
+            \\ldp q31, q30, [sp], #32
+            \\ldp q29, q28, [sp], #32
+            \\ldp q27, q26, [sp], #32
+            \\ldp q25, q24, [sp], #32
+            \\ldp q23, q22, [sp], #32
+            \\ldp q21, q20, [sp], #32
+            \\ldp q19, q18, [sp], #32
+            \\ldp q17, q16, [sp], #32
+            \\ldp q15, q14, [sp], #32
+            \\ldp q13, q12, [sp], #32
+            \\ldp q11, q10, [sp], #32
+            \\ldp q9, q8, [sp], #32
+            \\ldp q7, q6, [sp], #32
+            \\ldp q5, q4, [sp], #32
+            \\ldp q3, q2, [sp], #32
+            \\ldp q1, q0, [sp], #32
+            \\eret
+            \\ret
         );
 
         asm (

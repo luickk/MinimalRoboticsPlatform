@@ -115,7 +115,7 @@ pub const Scheduler = struct {
         // kprint("{any} \n", .{irq_context});
         current_process.counter -= 1;
         if (current_process.counter > 0 and current_process.preempt_count > 0) {
-            kprint("--------- WAIT WAIT el: {d} \n", .{ProccessorRegMap.getPc()});
+            kprint("--------- WAIT WAIT el: {d} \n", .{ProccessorRegMap.getCurrentEl()});
             // return all the way back to the exc vector table where cpu state is restored from the stack
             return;
         }
@@ -190,21 +190,23 @@ pub const Scheduler = struct {
         switch (next_process.proc_type) {
             .user => {
                 ProccessorRegMap.SpsrReg.setSpsrReg(.el1, ProccessorRegMap.SpsrReg.readSpsrReg(.el1) & (~@as(usize, 0b0111)));
+                ProccessorRegMap.setSpsel(.el1);
             },
             .kernel, .boot => {
                 ProccessorRegMap.SpsrReg.setSpsrReg(.el1, ProccessorRegMap.SpsrReg.readSpsrReg(.el1) | 0b0101);
+                ProccessorRegMap.setSpsel(.el0);
             },
         }
     }
 
     fn switchCpuContext(from: *Process, to: *Process, irq_context: *CpuContext) void {
         kprint("from: {*} to {*} \n", .{ from, to });
+        kprint("pc: {x} \n", .{ProccessorRegMap.getPc()});
         from.cpu_context = irq_context.*;
-        kprint("text {x} \n", .{ProccessorRegMap.getPc()});
         // restore Context and erets
         asm volatile (
             \\ mov sp, %[sp_addr]
-            \\ b _restoreContextFromStack
+            \\ b _restoreContextFromMem
             :
             : [sp_addr] "r" (&to.cpu_context),
         );

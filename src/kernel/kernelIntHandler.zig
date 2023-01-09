@@ -5,6 +5,7 @@ const CpuContext = arm.cpuContext.CpuContext;
 const periph = @import("periph");
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 const board = @import("board");
+const sysCalls = @import("sysCalls.zig");
 const bcm2835IntHandle = @import("board/raspi3b/bcm2835IntHandle.zig");
 const gic = arm.gicv2;
 const gt = arm.genericTimer;
@@ -22,8 +23,29 @@ pub fn irqHandler(temp_context: *CpuContext, tmp_int_type: usize) callconv(.C) v
     };
 
     switch (int_type_en) {
-        // el1_sync (important for exception debug handling...) and everything else
+        .el0Sync => {
+            var ec = @truncate(u6, context.esr_el1 >> 26);
+            var ec_en = std.meta.intToEnum(ProccessorRegMap.Esr_el1.ExceptionClass, ec) catch {
+                kprint("Error decoding ExceptionClass 0x{x} \n", .{ec});
+                printContext(&context);
+                return;
+            };
+            if (ec_en == .svcInstExAArch64) {
+                sysCalls.sysCallPrint(&context);
+            } else {
+                kprint("- el0 sync exception \n", .{});
+                printContext(&context);
+            }
+        },
+        // timer interrupts with custom timers per voard
+        .el1Irq, .el0Irq => {
+            if (board.config.board == .raspi3b)
+                bcm2835IntHandle.irqHandler(&context);
+            if (board.config.board == .qemuVirt)
+                gt.timerInt(&context);
+        },
         else => {
+            // printing debug information
             var iss = @truncate(u25, context.esr_el1);
             var ifsc = @truncate(u6, context.esr_el1);
             var il = @truncate(u1, context.esr_el1 >> 25);
@@ -60,23 +82,9 @@ pub fn irqHandler(temp_context: *CpuContext, tmp_int_type: usize) callconv(.C) v
                 while (true) {}
             }
         },
-        // timer interrupts with custom timers per voard
-        gic.ExceptionType.el1Irq, gic.ExceptionType.el1Fiq => {
-            if (board.config.board == .raspi3b)
-                bcm2835IntHandle.irqHandler(&context);
-            if (board.config.board == .qemuVirt)
-                gt.timerInt(&context);
-        },
-        // syscalls from el0
-        gic.ExceptionType.el0Sync, gic.ExceptionType.el032Sync => {
-            asm volatile (
-                \\bl sysCallPrint
-            );
-        },
     }
 }
 pub fn irqElxSpx(temp_context: *CpuContext, tmp_int_type: usize) callconv(.C) void {
-    kprint("!elx/ spx interrupt fired! \n", .{});
     irqHandler(temp_context, tmp_int_type);
 }
 

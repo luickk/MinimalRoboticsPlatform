@@ -3,12 +3,14 @@
 .macro EXCEPTION_VECTOR handler int_type
     // saveCurrContextOnStack & restoreContextFromStack are fns exported from cpuContext.zig
     bl _saveCurrContextOnStack
+    bl disableIrq
     
     // set stack as arg
     ldr x1, #\int_type
     mov x0, sp
     bl \handler
     
+    bl enableIrq
     b _restoreContextFromStack
 .endm
 
@@ -67,10 +69,3 @@ _exception_vector_table:
     EXCEPTION_VECTOR irqElxSpx el032Err // el0_32_error
 
 .balign 0x80
-
-
-// todo => REMOVE
-.global tmps
-tmps:
-bl sysCallPrint
-ret
