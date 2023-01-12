@@ -267,10 +267,10 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
         kprint("[kernel] timer inited \n", .{});
     }
 
+    var counter: usize = 0;
     while (true) {
-        // kprint("while \n", .{});
-        // kprint("while {d} \n", .{loltest});
-        // kprint("while el: {d} \n", .{ProccessorRegMap.getCurrentEl()});
+        kprint("while el: {d}, counter: {d} \n", .{ ProccessorRegMap.getCurrentEl(), counter });
+        counter += 1;
     }
 }
 

@@ -18,7 +18,7 @@ pub fn irqHandler(temp_context: *CpuContext, tmp_int_type: usize) callconv(.C) v
     context.int_type = int_type;
 
     var int_type_en = std.meta.intToEnum(gic.ExceptionType, int_type) catch {
-        printContext(&context);
+        printExc(&context, null);
         return;
     };
 
@@ -27,14 +27,23 @@ pub fn irqHandler(temp_context: *CpuContext, tmp_int_type: usize) callconv(.C) v
             var ec = @truncate(u6, context.esr_el1 >> 26);
             var ec_en = std.meta.intToEnum(ProccessorRegMap.Esr_el1.ExceptionClass, ec) catch {
                 kprint("Error decoding ExceptionClass 0x{x} \n", .{ec});
-                printContext(&context);
+                printExc(&context, int_type_en);
                 return;
             };
             if (ec_en == .svcInstExAArch64) {
-                sysCalls.sysCallPrint(&context);
+                var sys_call_found: bool = false;
+                for (sysCalls.sysCallTable) |*sys_call| {
+                    if (sys_call.id == context.x8) {
+                        sys_call.fn_call(.{ .x0 = context.x0, .x1 = context.x1, .x2 = context.x2, .x3 = context.x3, .x4 = context.x4, .x5 = context.x5, .x6 = context.x6, .x7 = context.x7 });
+                        sys_call_found = true;
+                    }
+                }
+                if (!sys_call_found) {
+                    kprint("[kernel] SysCall id not FOUND! \n", .{});
+                    printExc(&context, int_type_en);
+                }
             } else {
-                kprint("- el0 sync exception \n", .{});
-                printContext(&context);
+                printExc(&context, int_type_en);
             }
         },
         // timer interrupts with custom timers per voard
@@ -45,47 +54,51 @@ pub fn irqHandler(temp_context: *CpuContext, tmp_int_type: usize) callconv(.C) v
                 gt.timerInt(&context);
         },
         else => {
-            // printing debug information
-            var iss = @truncate(u25, context.esr_el1);
-            var ifsc = @truncate(u6, context.esr_el1);
-            var il = @truncate(u1, context.esr_el1 >> 25);
-            var ec = @truncate(u6, context.esr_el1 >> 26);
-            var iss2 = @truncate(u5, context.esr_el1 >> 32);
-            _ = iss;
-            _ = iss2;
-
-            kprint(".........sync exc............\n", .{});
-            kprint("Int Type: {s} \n", .{@tagName(int_type_en)});
-            var ec_en = std.meta.intToEnum(ProccessorRegMap.Esr_el1.ExceptionClass, ec) catch {
-                kprint("Error decoding ExceptionClass 0x{x} \n", .{ec});
-                printContext(&context);
-                return;
-            };
-            var ifsc_en = std.meta.intToEnum(ProccessorRegMap.Esr_el1.Ifsc, ifsc) catch {
-                kprint("Error decoding ExceptionClass IFSC 0x{x} \n", .{ifsc});
-                printContext(&context);
-                return;
-            };
-            kprint("Exception Class(from esp reg): {s} \n", .{@tagName(ec_en)});
-            kprint("IFC(from esp reg): {s} \n", .{@tagName(ifsc_en)});
-            kprint("- debug info: \n", .{});
-            printContext(&context);
-
-            if (il == 1) {
-                kprint("32 bit instruction trapped \n", .{});
-            } else {
-                kprint("16 bit instruction trapped \n", .{});
-            }
-            kprint(".........sync exc............\n", .{});
-            if (ec_en == ProccessorRegMap.Esr_el1.ExceptionClass.bkptInstExecAarch64) {
-                kprint("[kernel] halting execution due to debug trap\n", .{});
-                while (true) {}
-            }
+            printExc(&context, int_type_en);
         },
     }
 }
 pub fn irqElxSpx(temp_context: *CpuContext, tmp_int_type: usize) callconv(.C) void {
     irqHandler(temp_context, tmp_int_type);
+}
+
+fn printExc(context: *CpuContext, int_type_en: ?gic.ExceptionType) void {
+    // printing debug information
+    var iss = @truncate(u25, context.esr_el1);
+    var ifsc = @truncate(u6, context.esr_el1);
+    var il = @truncate(u1, context.esr_el1 >> 25);
+    var ec = @truncate(u6, context.esr_el1 >> 26);
+    var iss2 = @truncate(u5, context.esr_el1 >> 32);
+    _ = iss;
+    _ = iss2;
+
+    kprint(".........sync exc............\n", .{});
+    if (int_type_en) |int_type| kprint("Int Type: {s} \n", .{@tagName(int_type)});
+    var ec_en = std.meta.intToEnum(ProccessorRegMap.Esr_el1.ExceptionClass, ec) catch {
+        kprint("Error decoding ExceptionClass 0x{x} \n", .{ec});
+        printContext(context);
+        return;
+    };
+    var ifsc_en = std.meta.intToEnum(ProccessorRegMap.Esr_el1.Ifsc, ifsc) catch {
+        kprint("Error decoding ExceptionClass IFSC 0x{x} \n", .{ifsc});
+        printContext(context);
+        return;
+    };
+    kprint("Exception Class(from esp reg): {s} \n", .{@tagName(ec_en)});
+    kprint("IFC(from esp reg): {s} \n", .{@tagName(ifsc_en)});
+    kprint("- debug info: \n", .{});
+    printContext(context);
+
+    if (il == 1) {
+        kprint("32 bit instruction trapped \n", .{});
+    } else {
+        kprint("16 bit instruction trapped \n", .{});
+    }
+    kprint(".........sync exc............\n", .{});
+    if (ec_en == ProccessorRegMap.Esr_el1.ExceptionClass.bkptInstExecAarch64) {
+        kprint("[kernel] halting execution due to debug trap\n", .{});
+        while (true) {}
+    }
 }
 
 fn printContext(context: *CpuContext) void {

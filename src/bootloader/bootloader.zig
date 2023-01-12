@@ -36,15 +36,11 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
     // using userspace as stack, incase the bootloader is located in rom
     var user_space_start = blk: {
         var user_space_start = (board.config.mem.bl_load_addr orelse 0) + (board.config.mem.rom_size orelse 0) + board.config.mem.kernel_space_size;
-        ProccessorRegMap.setSp(user_space_start + board.config.mem.bl_stack_size);
         // increasing user_space_start by stack_size so that later writes to the user_space don't overwrite the bl's stack
         user_space_start += board.config.mem.bl_stack_size;
+        ProccessorRegMap.setSp(user_space_start);
         break :blk user_space_start;
     };
-    // const _bl_end: usize = @ptrToInt(@extern(?*u8, .{ .name = "_bl_end" }) orelse {
-    //     kprint("[panic] error reading _bl_end label\n", .{});
-    //     bl_utils.panic();
-    // });
     const _bl_bin_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "_bl_bin_start" }) orelse {
         kprint("[panic] error reading _bl_bin_start label\n", .{});
         bl_utils.panic();
@@ -92,11 +88,6 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
             // in case there is no rom(rom_size is equal to zero) and the kernel(and bl) are directly loaded to memory by some rom bootloader
             // the ttbr0 memory is also identity mapped to the ram
             comptime var mapping_bl_phys_size: usize = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_size;
-            comptime var mapping_bl_offset: usize = (board.config.mem.bl_load_addr orelse 0);
-            if (!board.config.mem.has_rom) {
-                mapping_bl_phys_size = board.config.mem.ram_size;
-                mapping_bl_offset = board.config.mem.ram_start_addr;
-            }
 
             const page_table = mmu.PageTable(mapping_bl_phys_size, Granule.FourkSection) catch |e| {
                 kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
@@ -140,6 +131,10 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         };
 
         // kprint("ttbr1: 0x{x} \n", .{@ptrToInt(ttbr1)});
+        // var i: usize = 0;
+        // while (i < ttbr1.len) : (i += 1) {
+        //     kprint("{x} \n", .{ttbr1[i]});
+        // }
         // kprint("ttbr0: 0x{x} \n", .{@ptrToInt(ttbr0)});
 
         // updating page dirs
@@ -181,19 +176,24 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
     }
 
     {
-        var kernel_target_loc: []u8 = undefined;
-        kernel_target_loc.ptr = @intToPtr([*]u8, board.config.mem.va_start);
+        var kernel_target_loc: []volatile u8 = undefined;
+        kernel_target_loc.ptr = @intToPtr([*]volatile u8, board.config.mem.va_start);
         kernel_target_loc.len = kernel_bin.len;
 
-        kprint("[bootloader] setup mmu, el1, exc table done. \n", .{});
+        kprint("{any} \n", .{kernel_bin});
+
         kprint("[bootloader] Copying kernel to addr_space: 0x{x}, with size: {d} \n", .{ @ptrToInt(kernel_target_loc.ptr), kernel_target_loc.len });
-        std.mem.copy(u8, kernel_target_loc, kernel_bin);
+        // std.mem.copy(u8, kernel_target_loc, kernel_bin);
+        for (kernel_bin) |s, i| {
+            kernel_target_loc[i] = s;
+            // kprint("{x} \n", .{kernel_bin[i]});
+        }
         kprint("[bootloader] kernel copied \n", .{});
 
-        // ! for a board without rom, the bootloader assumes that Zigs builtin @embedFile stores the kernel at the beginning of the binary
+        // ! for a board without rom, the bootloader assumes that Zigs builtin @embedFile stores the kernel at the beginning of the binary.
         // the block below checks if the bootloader executable code is located(embedded) behind the kernel. @embedFile uses the .rdata section which
         // needs to be located before the bootloader code!. If so, and the code does not utilise any data from sections in or before the data section,
-        // it's safe to copy the kernel to the beginning of the address space without overwriting parts of the bootloader !
+        // it's safe to copy the kernel to the beginning of the address space without overwriting parts of the copy mechanism of the bootloader !
         if (!board.config.mem.has_rom) {
             if (_bl_bin_start < kernel_bin.len) {
                 kprint("[panic] !the bootloader would overwrite itself on kernel copy! abort... \n", .{});
@@ -212,6 +212,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         }
 
         kprint("[bootloader] jumping to kernel at 0x{x}\n", .{kernel_addr});
+        kprint("pc: {x} \n", .{ProccessorRegMap.getPc()});
         ProccessorRegMap.branchToAddr(kernel_addr);
     }
 

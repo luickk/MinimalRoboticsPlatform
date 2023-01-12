@@ -52,6 +52,9 @@ pub const Process = struct {
     }
 };
 
+pub const Error = error{
+    PidNotFound,
+};
 const maxProcesss = 10;
 
 // globals
@@ -112,10 +115,9 @@ pub const Scheduler = struct {
     }
 
     pub fn timerIntEvent(self: *Scheduler, irq_context: *CpuContext) void {
-        // kprint("{any} \n", .{irq_context});
         current_process.counter -= 1;
         if (current_process.counter > 0 and current_process.preempt_count > 0) {
-            kprint("--------- WAIT WAIT el: {d} \n", .{ProccessorRegMap.getCurrentEl()});
+            // kprint("--------- WAIT WAIT el: {d} \n", .{ProccessorRegMap.getPc()});
             // return all the way back to the exc vector table where cpu state is restored from the stack
             return;
         }
@@ -132,10 +134,16 @@ pub const Scheduler = struct {
             const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, self.page_allocator.granule.page_size);
             var app_mem = try self.page_allocator.allocNPage(req_pages);
 
-            std.mem.copy(u8, app_mem, app);
-
             var pid = running_processs;
 
+            // pid is stored at process virt mem 0
+            // @ptrCast(*usize, @alignCast(8, &app_mem[0])).* = pid;
+            // std.mem.copy(u8, app_mem[@sizeOf(usize)..], app);
+
+            // execution starts at virt mem 0 + pid size
+            // processs[pid].cpu_context.elr_el1 = @sizeOf(usize);
+
+            std.mem.copy(u8, app_mem, app);
             processs[pid].cpu_context.elr_el1 = 0;
             processs[pid].cpu_context.sp = app.len + board.config.mem.app_stack_size;
 
@@ -167,12 +175,21 @@ pub const Scheduler = struct {
         current_process.setPreempt(true);
     }
 
+    pub fn killTask(self: *Scheduler, pid: usize) !void {
+        _ = self;
+        try checkForPid(pid);
+        processs[pid].state = .done;
+    }
+
+    // todo => optionally implement check for pid state
+    fn checkForPid(pid: usize) !void {
+        if (pid > maxProcesss) return Error.PidNotFound;
+    }
+
     // args (process pointers) are past via registers
     fn switchContextToProcess(next_process: *Process, irq_context: *CpuContext) void {
         var prev_process = current_process;
         current_process = next_process;
-
-        switchCpuState(next_process);
 
         {
             var ttbr0_addr: usize = 0;
@@ -201,12 +218,12 @@ pub const Scheduler = struct {
 
     fn switchCpuContext(from: *Process, to: *Process, irq_context: *CpuContext) void {
         kprint("from: {*} to {*} \n", .{ from, to });
-        kprint("pc: {x} \n", .{ProccessorRegMap.getPc()});
         from.cpu_context = irq_context.*;
+        switchCpuState(to);
         // restore Context and erets
         asm volatile (
             \\ mov sp, %[sp_addr]
-            \\ b _restoreContextFromMem
+            \\ b _restoreContextFromSp
             :
             : [sp_addr] "r" (&to.cpu_context),
         );

@@ -10,6 +10,7 @@ const qemuVirt = @import("src/boards/qemuVirt.zig");
 
 const currBoard = qemuVirt;
 
+// packages...
 // SOC builtin features
 var arm = std.build.Pkg{ .name = "arm", .source = .{ .path = "src/arm/arm.zig" } };
 // functions generally required
@@ -28,6 +29,7 @@ pub fn build(b: *std.build.Builder) !void {
     const build_mode = std.builtin.Mode.ReleaseFast;
     var build_options = b.addOptions();
 
+    // inter package dependencies
     sharedKServices.dependencies = &.{ board, build_options.*.getPackage("build_options"), arm, utils, periph };
     periph.dependencies = &.{board};
     utils.dependencies = &.{ board, arm };

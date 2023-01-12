@@ -47,7 +47,7 @@ pub fn irqHandler(temp_context: *CpuContext, tmp_int_type: usize) callconv(.C) v
     var int_type = tmp_int_type;
     var int_type_en = std.meta.intToEnum(gic.ExceptionType, int_type) catch return;
     temp_context.int_type = int_type;
-    kprint("irqHandler \n", .{});
+    kprint("bl irqHandler \n", .{});
 
     if (int_type_en == gic.ExceptionType.el1Sync) {
         var iss = @truncate(u25, temp_context.esr_el1);
