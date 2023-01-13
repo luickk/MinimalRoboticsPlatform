@@ -136,13 +136,6 @@ pub const Scheduler = struct {
 
             var pid = running_processs;
 
-            // pid is stored at process virt mem 0
-            // @ptrCast(*usize, @alignCast(8, &app_mem[0])).* = pid;
-            // std.mem.copy(u8, app_mem[@sizeOf(usize)..], app);
-
-            // execution starts at virt mem 0 + pid size
-            // processs[pid].cpu_context.elr_el1 = @sizeOf(usize);
-
             std.mem.copy(u8, app_mem, app);
             processs[pid].cpu_context.elr_el1 = 0;
             processs[pid].cpu_context.sp = app.len + board.config.mem.app_stack_size;

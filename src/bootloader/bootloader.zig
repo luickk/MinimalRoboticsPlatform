@@ -105,7 +105,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
 
             // MMU page dir config
 
-            // identity mapped memory for bootloader and kernel contrtol handover!
+            // identity mapped memory for bootloader and kernel control handover!
             var ttbr0_write = page_table.init(ttbr0_mem, 0) catch |e| {
                 kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 bl_utils.panic();
@@ -131,10 +131,6 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         };
 
         // kprint("ttbr1: 0x{x} \n", .{@ptrToInt(ttbr1)});
-        // var i: usize = 0;
-        // while (i < ttbr1.len) : (i += 1) {
-        //     kprint("{x} \n", .{ttbr1[i]});
-        // }
         // kprint("ttbr0: 0x{x} \n", .{@ptrToInt(ttbr0)});
 
         // updating page dirs
@@ -184,6 +180,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
 
         kprint("[bootloader] Copying kernel to addr_space: 0x{x}, with size: {d} \n", .{ @ptrToInt(kernel_target_loc.ptr), kernel_target_loc.len });
         // std.mem.copy(u8, kernel_target_loc, kernel_bin);
+        kprint("size: {d} \n", .{kernel_bin.len});
         for (kernel_bin) |s, i| {
             kernel_target_loc[i] = s;
             // kprint("{x} \n", .{kernel_bin[i]});
@@ -202,18 +199,25 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         }
 
         var kernel_addr = @ptrToInt(kernel_target_loc.ptr);
-        {
+
+        kprint("[bootloader] jumping to kernel at 0x{x}\n", .{kernel_addr});
+        kprint("pc: {x} \n", .{ProccessorRegMap.getPc()});
+
+        const kernel_sp = blk: {
             const aligned_ksize = utils.ceilRoundToMultiple(kernel_target_loc.len, 0x8) catch |e| {
                 kprint("[panic] kernel stack address calc error: {s} \n", .{@errorName(e)});
                 bl_utils.panic();
             };
-            const kernel_stack_addr = mmu.toTtbr1(usize, aligned_ksize + board.config.mem.k_stack_size);
-            ProccessorRegMap.setSp(kernel_stack_addr);
-        }
+            break :blk mmu.toTtbr1(usize, aligned_ksize + board.config.mem.k_stack_size);
+        };
 
-        kprint("[bootloader] jumping to kernel at 0x{x}\n", .{kernel_addr});
-        kprint("pc: {x} \n", .{ProccessorRegMap.getPc()});
-        ProccessorRegMap.branchToAddr(kernel_addr);
+        asm volatile (
+            \\mov sp, %[sp]
+            \\br %[pc_addr]
+            :
+            : [sp] "r" (kernel_sp),
+              [pc_addr] "r" (kernel_addr),
+        );
     }
 
     while (true) {}
