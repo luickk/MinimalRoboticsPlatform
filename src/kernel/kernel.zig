@@ -35,8 +35,12 @@ const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 const bcm2835IntController = arm.bcm2835IntController.InterruptController(.ttbr1);
 const bcm2835Timer = @import("board/raspi3b/timer.zig");
 
-// globals
-export var scheduler: *Scheduler = undefined;
+var user_page_alloc = UserPageAllocator.init(board.config.mem.user_space_size, board.config.mem.va_layout.va_user_space_gran) catch |e| {
+    @compileError(@errorName(e));
+};
+
+// pointer is now global, ! kernel main lifetime needs to be equal to schedulers.. !
+var scheduler = Scheduler.init(&user_page_alloc);
 
 const apps = blk: {
     var apps_addresses = [_][]const u8{undefined} ** b_options.apps.len;
@@ -189,15 +193,6 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
 
     kprint("[kernel] kernel boot complete \n", .{});
 
-    var user_page_alloc = UserPageAllocator.init(board.config.mem.user_space_size, board.config.mem.va_layout.va_user_space_gran) catch |e| {
-        kprint("[panic] UserSpaceAllocator init error: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
-
-    // pointer is now global, ! kernel main lifetime needs to be equal to schedulers.. !
-    var scheduler_tmp = Scheduler.init(&user_page_alloc);
-    scheduler = &scheduler_tmp;
-
     // // tests
     // tests.testUserSpaceMem(10);
     // tests.testUserPageAlloc(&user_page_alloc) catch |e| {
@@ -250,6 +245,8 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
 
     kprint("[kernel] starting scheduler \n", .{});
 
+    scheduler.setUpSchedulerStartConf();
+
     scheduler.initAppsInScheduler(&apps) catch |e| {
         kprint("[panic] Scheduler initAppsInScheduler error: {s} \n", .{@errorName(e)});
         k_utils.panic();
@@ -269,12 +266,11 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
 
     var counter: usize = 0;
     while (true) {
-        kprint("while el: {d}, counter: {d} \n", .{ ProccessorRegMap.getCurrentEl(), counter });
+        kprint("while el: {d}, sp: {x}, counter: {d} \n", .{ ProccessorRegMap.getCurrentEl(), ProccessorRegMap.getCurrentSp(), counter });
         counter += 1;
     }
 }
 
 comptime {
-    @export(intHandle.irqHandler, .{ .name = "irqHandler", .linkage = .Strong });
-    @export(intHandle.irqElxSpx, .{ .name = "irqElxSpx", .linkage = .Strong });
+    @export(intHandle.trapHandler, .{ .name = "trapHandler", .linkage = .Strong });
 }

@@ -9,9 +9,9 @@ pub const CpuContext = packed struct {
     far_el1: usize,
     esr_el1: usize,
     sp_sel: usize,
-    pc: usize,
 
     // sys regs
+    sp_el0: usize,
     elr_el1: usize,
     fp: usize,
     sp: usize,
@@ -99,7 +99,7 @@ pub const CpuContext = packed struct {
             // pop and discard debug info
             \\ldp x0, x1, [sp], #16
             \\ldp x0, x1, [sp], #16
-            \\ldp x0, x1, [sp], #16
+            \\ldp x0, x2, [sp], #16
             // sys regs
             \\ldp x0, x1, [sp], #16
             \\msr elr_el1, x0
@@ -111,7 +111,7 @@ pub const CpuContext = packed struct {
             \\cmp x0, #0
             \\beq load_sp_to_el1
             // spsel == 1
-            \\msr sp_el0, x1
+            \\msr sp_el0, x2
             // spsel == 0
             \\cmp x0, #0
             \\bne skip_sp_to_el1_load
@@ -165,11 +165,12 @@ pub const CpuContext = packed struct {
             \\ldp x0, x1, [sp], #16
             \\ldp x0, x1, [sp], #16
             // sys regs
+            \\msr sp_el0, x1
             \\ldp x0, x1, [sp], #16
             \\msr elr_el1, x0
             \\mov fp, x1
             \\ldp x1, x30, [sp], #16
-            \\msr sp_el0, x1
+            // \\msr sp_el0, x1
             // gp regs
             \\ldp x29, x28, [sp], #16
             \\ldp x27, x26, [sp], #16
@@ -205,6 +206,8 @@ pub const CpuContext = packed struct {
             \\ldp q1, q0, [sp], #32
             \\eret
         );
+        // _saveCurrContextOnStack is now embedded in bl&kernel exc_vector.S
+        // todo => move it back here (without trashing x30...)
         asm (
             \\.globl _saveCurrContextOnStack
             \\_saveCurrContextOnStack:
@@ -247,9 +250,9 @@ pub const CpuContext = packed struct {
             \\mov x0, fp
             \\mrs x3, elr_el1
             \\stp x3, x0, [sp, #-16]!
+            \\mrs x0, sp_el0
 
             // debug regs
-            \\adr x0, .
             \\mrs x3, SPSel
             \\stp x3, x0, [sp, #-16]!
             \\mrs x0, far_el1

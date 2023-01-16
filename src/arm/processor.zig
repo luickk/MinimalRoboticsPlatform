@@ -309,8 +309,15 @@ pub const ProccessorRegMap = struct {
         return x >> 2;
     }
 
+    pub fn getCurrentSp() usize {
+        var x: usize = asm ("mov %[curr], sp"
+            : [curr] "=r" (-> usize),
+        );
+        return x;
+    }
+
     // ! is inlined and volatile !
-    pub inline fn getPc() usize {
+    pub inline fn getCurrentPc() usize {
         return asm volatile ("adr %[pc], ."
             : [pc] "=r" (-> usize),
         );

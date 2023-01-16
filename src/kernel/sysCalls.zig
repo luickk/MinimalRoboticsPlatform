@@ -41,10 +41,12 @@ fn sysCallPrint(params_args: ParamArgRegs) void {
     var sliced_data: []u8 = undefined;
     sliced_data.len = len;
     sliced_data.ptr = @intToPtr([*]u8, data);
+    // kprint("data: {s} \n", .{sliced_data});
     pl011.write(sliced_data);
 }
 
 fn exitProcess(params_args: ParamArgRegs) void {
+    kprint("pid: {x} \n", .{params_args.x0});
     scheduler.killTask(params_args.x0) catch |e| {
         kprint("[panic] killTask error: {s}\n", .{@errorName(e)});
         k_utils.panic();

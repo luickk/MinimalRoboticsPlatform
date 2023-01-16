@@ -78,8 +78,8 @@ pub fn irqHandler(temp_context: *CpuContext, tmp_int_type: usize) callconv(.C) v
         kprint("elr_el1: 0x{x} \n", .{temp_context.elr_el1});
         kprint("- sys regs: \n", .{});
         kprint("sp: 0x{x} \n", .{temp_context.sp});
+        kprint("sp_el0: 0x{x} \n", .{temp_context.sp_el0});
         kprint("spSel: {d} \n", .{temp_context.sp_sel});
-        kprint("pc: 0x{x} \n", .{temp_context.pc});
         kprint("lr(x30): 0x{x} \n", .{temp_context.x30});
         kprint("x0: 0x{x}, x1: 0x{x}, x2: 0x{x}, x3: 0x{x}, x4: 0x{x} \n", .{ temp_context.x0, temp_context.x1, temp_context.x2, temp_context.x3, temp_context.x4 });
         kprint("x5: 0x{x}, x6: 0x{x}, x7: 0x{x}, x8: 0x{x}, x9: 0x{x} \n", .{ temp_context.x5, temp_context.x6, temp_context.x7, temp_context.x8, temp_context.x9 });

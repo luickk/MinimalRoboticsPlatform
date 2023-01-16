@@ -20,11 +20,13 @@ pub const SysCallPrint = struct {
             : [data_addr] "r" (@ptrToInt(data)),
               [len] "r" (len),
         );
+        // asm volatile ("brk 0xdead");
     }
     /// Same as `append` except it returns the number of bytes written, which is always the same
     /// as `m.len`. The purpose of this function existing is to match `std.io.Writer` API.
     fn appendWrite(self: *Self, data: []const u8) error{}!usize {
         _ = self;
+        // asm volatile ("brk 0xdead");
         callKernelPrint(data.ptr, data.len);
         return data.len;
     }

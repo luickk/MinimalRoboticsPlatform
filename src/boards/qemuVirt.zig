@@ -9,7 +9,7 @@ pub const config = boardConfig.BoardConfig{
 
         .bl_stack_size = 0x10000,
         .k_stack_size = 0x10000,
-        .app_stack_size = 0x10000,
+        .app_stack_size = 0x20000,
         .app_vm_mem_size = 0x1000000,
 
         .has_rom = true,

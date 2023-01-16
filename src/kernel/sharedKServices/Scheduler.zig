@@ -68,14 +68,18 @@ pub const Scheduler = struct {
     page_allocator: *UserPageAllocator,
 
     pub fn init(page_allocator: *UserPageAllocator) Scheduler {
+        return Scheduler{
+            .page_allocator = page_allocator,
+        };
+    }
+
+    pub fn setUpSchedulerStartConf(self: *Scheduler) void {
+        _ = self;
         // the init process contains all relevant mem&cpu context information of the "main" kernel process
         // and as such has the highest priority
         current_process.priority = 15;
         current_process.proc_type = .boot;
         running_processs += 1;
-        return Scheduler{
-            .page_allocator = page_allocator,
-        };
     }
 
     // assumes that all process counter were inited to 0
@@ -117,7 +121,7 @@ pub const Scheduler = struct {
     pub fn timerIntEvent(self: *Scheduler, irq_context: *CpuContext) void {
         current_process.counter -= 1;
         if (current_process.counter > 0 and current_process.preempt_count > 0) {
-            // kprint("--------- WAIT WAIT el: {d} \n", .{ProccessorRegMap.getPc()});
+            kprint("--------- WAIT WAIT pc: {x} \n", .{ProccessorRegMap.getCurrentPc()});
             // return all the way back to the exc vector table where cpu state is restored from the stack
             return;
         }
@@ -138,7 +142,8 @@ pub const Scheduler = struct {
 
             std.mem.copy(u8, app_mem, app);
             processs[pid].cpu_context.elr_el1 = 0;
-            processs[pid].cpu_context.sp = app.len + board.config.mem.app_stack_size;
+            processs[pid].cpu_context.sp_el0 = try utils.ceilRoundToMultiple(app.len + board.config.mem.app_stack_size, 16);
+            processs[pid].cpu_context.x0 = 0xdead;
 
             // initing the apps page-table
             {
@@ -210,7 +215,9 @@ pub const Scheduler = struct {
     }
 
     fn switchCpuContext(from: *Process, to: *Process, irq_context: *CpuContext) void {
-        kprint("from: {*} to {*} \n", .{ from, to });
+        kprint("from: ({s}, {s}, {*}) to ({s}, {s}, {*}) \n", .{ @tagName(from.proc_type), @tagName(from.state), from, @tagName(to.proc_type), @tagName(to.state), to });
+
+        kprint("pc: {x} \n", .{ProccessorRegMap.getCurrentPc()});
         from.cpu_context = irq_context.*;
         switchCpuState(to);
         // restore Context and erets
