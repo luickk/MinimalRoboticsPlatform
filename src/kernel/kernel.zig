@@ -266,7 +266,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
 
     var counter: usize = 0;
     while (true) {
-        kprint("while el: {d}, sp: {x}, counter: {d} \n", .{ ProccessorRegMap.getCurrentEl(), ProccessorRegMap.getCurrentSp(), counter });
+        kprint("while counter: {d} \n", .{counter});
         counter += 1;
     }
 }

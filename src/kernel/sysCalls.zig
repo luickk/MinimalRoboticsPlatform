@@ -46,7 +46,7 @@ fn sysCallPrint(params_args: ParamArgRegs) void {
 }
 
 fn exitProcess(params_args: ParamArgRegs) void {
-    kprint("pid: {x} \n", .{params_args.x0});
+    kprint("[kernel] killing task with pid: {d} \n", .{params_args.x0});
     scheduler.killTask(params_args.x0) catch |e| {
         kprint("[panic] killTask error: {s}\n", .{@errorName(e)});
         k_utils.panic();

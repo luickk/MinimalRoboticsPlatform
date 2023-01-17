@@ -8,7 +8,7 @@ pub const SysCallPrint = struct {
         return .{ .context = self };
     }
 
-    fn callKernelPrint(data: [*]const u8, len: usize) callconv(.C) void {
+    fn callKernelPrint(data: [*]const u8, len: usize) void {
         asm volatile (
         // args
             \\mov x0, %[data_addr]
@@ -19,6 +19,7 @@ pub const SysCallPrint = struct {
             :
             : [data_addr] "r" (@ptrToInt(data)),
               [len] "r" (len),
+            : "x0", "x1", "x8"
         );
         // asm volatile ("brk 0xdead");
     }
@@ -48,6 +49,7 @@ pub fn killProcess(pid: usize) noreturn {
         \\svc #0
         :
         : [pid] "r" (pid),
+        : "x0", "x8"
     );
     while (true) {}
 }

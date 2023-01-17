@@ -105,21 +105,22 @@ pub const CpuContext = packed struct {
             \\msr elr_el1, x0
             \\mov fp, x1
             \\ldp x1, x30, [sp], #16
-            // loading context struct sp to correct el sp
+
+            // * loading context struct sp to correct el sp *
             \\mrs x0, spsel
             // spsel == 0
             \\cmp x0, #0
             \\beq load_sp_to_el1
             // spsel == 1
             \\msr sp_el0, x2
+            \\b skip_sp_to_el1_load
             // spsel == 0
-            \\cmp x0, #0
-            \\bne skip_sp_to_el1_load
             \\load_sp_to_el1:
             \\msr spsel, #1
             \\mov sp, x1
             \\msr spsel, #0
             \\skip_sp_to_el1_load:
+            // * *
 
             // gp regs
             \\ldp x29, x28, [sp], #16
@@ -155,7 +156,6 @@ pub const CpuContext = packed struct {
             \\ldp q3, q2, [sp], #32
             \\ldp q1, q0, [sp], #32
             \\eret
-            \\ret
         );
         asm (
             \\.globl _restoreContextWithoutSwitchFromSp
@@ -170,7 +170,7 @@ pub const CpuContext = packed struct {
             \\msr elr_el1, x0
             \\mov fp, x1
             \\ldp x1, x30, [sp], #16
-            // \\msr sp_el0, x1
+            // \\mov sp, x1
             // gp regs
             \\ldp x29, x28, [sp], #16
             \\ldp x27, x26, [sp], #16

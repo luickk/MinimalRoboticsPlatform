@@ -16,7 +16,9 @@ pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(
     // copy away from stack top
     var context = on_stack_context.*;
     context.int_type = int_type;
-
+    // kprint("cpucontext size: {d} \n", .{@sizeOf(CpuContext)});
+    // kprint("context: {any} \n", .{context});
+    // kprint("pc: {x} \n", .{ProccessorRegMap.getCurrentPc()});
     var int_type_en = std.meta.intToEnum(gic.ExceptionType, int_type) catch {
         printExc(&context, null);
         return;
@@ -49,12 +51,7 @@ pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(
                     kprint("[app] halting execution due to debug trap\n", .{});
                     printContext(&context);
                     kprint("pc: 0x{x}\n", .{ProccessorRegMap.getCurrentPc()});
-                    const halt_execution = false;
-                    if (!halt_execution) {
-                        on_stack_context.elr_el1 += 4;
-                    } else {
-                        while (true) {}
-                    }
+                    haltExec(true, on_stack_context);
                 },
                 else => {
                     printExc(&context, int_type_en);
@@ -72,7 +69,7 @@ pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(
                 .bkptInstExecAarch64 => {
                     kprint("[kernel] halting execution due to debug trap\n", .{});
                     printContext(&context);
-                    while (true) {}
+                    haltExec(true, on_stack_context);
                 },
                 else => {
                     printExc(&context, int_type_en);
@@ -145,4 +142,12 @@ fn printContext(context: *CpuContext) void {
     kprint("x20: 0x{x}, x21: 0x{x}, x22: 0x{x}, x23: 0x{x}, x24: 0x{x} \n", .{ context.x20, context.x21, context.x22, context.x23, context.x24 });
     kprint("x25: 0x{x}, x26: 0x{x}, x27: 0x{x}, x28: 0x{x}, x29: 0x{x} \n", .{ context.x25, context.x26, context.x27, context.x28, context.x29 });
     kprint("--------- context --------- \n", .{});
+}
+
+fn haltExec(halt_execution: bool, on_stack_context: *CpuContext) void {
+    if (!halt_execution) {
+        on_stack_context.elr_el1 += 4;
+    } else {
+        while (true) {}
+    }
 }

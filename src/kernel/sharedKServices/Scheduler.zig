@@ -62,7 +62,7 @@ const maxProcesss = 10;
 var processs = [_]Process{Process.init()} ** maxProcesss;
 var current_process: *Process = &processs[0];
 
-var running_processs: usize = 0;
+var pid_counter: usize = 0;
 
 pub const Scheduler = struct {
     page_allocator: *UserPageAllocator,
@@ -79,7 +79,7 @@ pub const Scheduler = struct {
         // and as such has the highest priority
         current_process.priority = 15;
         current_process.proc_type = .boot;
-        running_processs += 1;
+        pid_counter += 1;
     }
 
     // assumes that all process counter were inited to 0
@@ -100,7 +100,7 @@ pub const Scheduler = struct {
         var c: isize = -1;
         while (true) {
             for (processs) |*process, i| {
-                if (i >= running_processs) break;
+                if (i >= pid_counter) break;
                 // kprint("process {d}: {any} \n", .{ i, process.* });
                 if (process.state == .running and process.counter > c) {
                     c = process.counter;
@@ -110,7 +110,7 @@ pub const Scheduler = struct {
 
             if (c != 0) break;
             for (processs) |*process, i| {
-                if (i >= running_processs) break;
+                if (i >= pid_counter) break;
                 process.counter = (process.counter >> 1) + process.priority;
             }
         }
@@ -123,7 +123,9 @@ pub const Scheduler = struct {
         if (current_process.counter > 0 and current_process.preempt_count > 0) {
             kprint("--------- WAIT WAIT pc: {x} \n", .{ProccessorRegMap.getCurrentPc()});
             // return all the way back to the exc vector table where cpu state is restored from the stack
-            return;
+            // if the task is done already, we don't return back to the process but schedule the next task
+            if (current_process.state != .done)
+                return;
         }
         current_process.counter = 0;
 
@@ -138,12 +140,12 @@ pub const Scheduler = struct {
             const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, self.page_allocator.granule.page_size);
             var app_mem = try self.page_allocator.allocNPage(req_pages);
 
-            var pid = running_processs;
+            var pid = pid_counter;
 
             std.mem.copy(u8, app_mem, app);
             processs[pid].cpu_context.elr_el1 = 0;
             processs[pid].cpu_context.sp_el0 = try utils.ceilRoundToMultiple(app.len + board.config.mem.app_stack_size, 16);
-            processs[pid].cpu_context.x0 = 0xdead;
+            processs[pid].cpu_context.x0 = pid;
 
             // initing the apps page-table
             {
@@ -168,7 +170,7 @@ pub const Scheduler = struct {
             processs[pid].counter = processs[pid].priority;
             processs[pid].preempt_count = 1;
 
-            running_processs += 1;
+            pid_counter += 1;
         }
         current_process.setPreempt(true);
     }
@@ -179,7 +181,7 @@ pub const Scheduler = struct {
         processs[pid].state = .done;
     }
 
-    // todo => optionally implement check for pid state
+    // todo => optionally implement check for pid's process state
     fn checkForPid(pid: usize) !void {
         if (pid > maxProcesss) return Error.PidNotFound;
     }

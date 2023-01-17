@@ -58,7 +58,7 @@
     mov x0, sp
     ldr x1, #\int_type
     bl \handler
-        
+    
     // restoreContextFromStack are fns exported from CpuContext.zig
     b _restoreContextWithoutSwitchFromSp
 .endm
