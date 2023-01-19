@@ -40,7 +40,7 @@ var user_page_alloc = UserPageAllocator.init(board.config.mem.user_space_size, b
 };
 
 // pointer is now global, ! kernel main lifetime needs to be equal to schedulers.. !
-var scheduler = Scheduler.init(&user_page_alloc);
+export var scheduler: *Scheduler = undefined;
 
 const apps = blk: {
     var apps_addresses = [_][]const u8{undefined} ** b_options.apps.len;
@@ -52,8 +52,10 @@ const apps = blk: {
     break :blk apps_addresses;
 };
 
-export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noreturn {
+export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text.kernel_main") callconv(.C) noreturn {
     // !! kernel sp is inited in the Bootloader!!
+
+    const kernel_lma_offset = boot_without_rom_new_kernel_loc + board.config.mem.ram_start_addr;
 
     const _kernel_space_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernel_space_start" }) orelse {
         old_mapping_kprint("[panic] error reading _kernel_space_start label\n", .{});
@@ -66,7 +68,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
         old_mapping_kprint("[panic] KernelAllocator init error: {s}\n", .{@errorName(e)});
         k_utils.panic();
     };
-
+    old_mapping_kprint("boot_without_rom_new_kernel_loc: {x} \n", .{boot_without_rom_new_kernel_loc});
     // mmu config block
     {
         const ttbr1 = blk: {
@@ -81,7 +83,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
             }).ptr);
 
             // mapping general kernel mem (inlcuding device base)
-            var ttbr1_write = page_table.init(ttbr1_mem, board.config.mem.ram_start_addr) catch |e| {
+            var ttbr1_write = page_table.init(ttbr1_mem, kernel_lma_offset) catch |e| {
                 old_mapping_kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
             };
@@ -90,7 +92,7 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
                 // creating virtual address space for kernel
                 const kernel_space_mapping = mmu.Mapping{
                     .mem_size = board.config.mem.kernel_space_size,
-                    .pointing_addr_start = board.config.mem.ram_start_addr,
+                    .pointing_addr_start = kernel_lma_offset,
                     .virt_addr_start = 0,
                     .granule = board.config.mem.va_layout.va_kernel_space_gran,
                     .addr_space = .ttbr1,
@@ -134,14 +136,14 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
             }).ptr);
 
             // MMU page dir config
-            var page_table_write = page_table.init(ttbr0_mem, board.config.mem.ram_start_addr) catch |e| {
+            var page_table_write = page_table.init(ttbr0_mem, kernel_lma_offset) catch |e| {
                 old_mapping_kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
             };
 
             const user_space_mapping = mmu.Mapping{
                 .mem_size = board.config.mem.user_space_size,
-                .pointing_addr_start = board.config.mem.ram_start_addr + board.config.mem.kernel_space_size,
+                .pointing_addr_start = kernel_lma_offset + board.config.mem.kernel_space_size,
                 .virt_addr_start = 0,
                 .granule = board.config.mem.va_layout.va_user_space_gran,
                 .addr_space = .ttbr0,
@@ -155,6 +157,9 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
             break :blk ttbr0_mem;
         };
 
+        // old_mapping_kprint("ttbr1: {*} \n", .{ttbr1});
+        // old_mapping_kprint("ttbr0: {*} \n", .{ttbr0});
+
         ProccessorRegMap.TcrReg.setTcrEl(.el1, (ProccessorRegMap.TcrReg{ .t0sz = 25, .t1sz = 25, .tg0 = 0, .tg1 = 0 }).asInt());
         ProccessorRegMap.MairReg.setMairEl(.el1, (ProccessorRegMap.MairReg{ .attr0 = 0xFF, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
 
@@ -167,14 +172,15 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
 
         // updating page dirs for kernel and user space
         // toUnsec is bc we are in ttbr1 and can't change with page tables that are also in ttbr1
-        ProccessorRegMap.setTTBR1(board.config.mem.ram_start_addr + mmu.toTtbr0(usize, @ptrToInt(ttbr1)));
-        ProccessorRegMap.setTTBR0(board.config.mem.ram_start_addr + mmu.toTtbr0(usize, @ptrToInt(ttbr0)));
+        ProccessorRegMap.setTTBR1(kernel_lma_offset + mmu.toTtbr0(usize, @ptrToInt(ttbr1)));
+        ProccessorRegMap.setTTBR0(kernel_lma_offset + mmu.toTtbr0(usize, @ptrToInt(ttbr0)));
 
         ProccessorRegMap.dsb();
         ProccessorRegMap.isb();
         ProccessorRegMap.nop();
         ProccessorRegMap.nop();
     }
+
     kprint("[kernel] page tables updated! \n", .{});
 
     {
@@ -244,6 +250,9 @@ export fn kernel_main() linksection(".text.kernel_main") callconv(.Naked) noretu
     }
 
     kprint("[kernel] starting scheduler \n", .{});
+
+    var scheduler_tmp = Scheduler.init(&user_page_alloc, kernel_lma_offset);
+    scheduler = &scheduler_tmp;
 
     scheduler.setUpSchedulerStartConf();
 

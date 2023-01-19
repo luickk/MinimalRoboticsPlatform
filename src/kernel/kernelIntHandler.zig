@@ -126,7 +126,7 @@ fn printExc(context: *CpuContext, int_type_en: ?gic.ExceptionType) void {
 
 fn printContext(context: *CpuContext) void {
     kprint("--------- context --------- \n", .{});
-    kprint("el: {d} \n", .{context.el});
+    kprint("irq el: {d} \n", .{context.el});
     kprint("far_el1: 0x{x} \n", .{context.far_el1});
     kprint("irq esr_el1: 0x{x} \n", .{context.esr_el1});
     kprint("irq elr_el1: 0x{x} \n", .{context.elr_el1});

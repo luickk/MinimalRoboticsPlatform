@@ -1,6 +1,6 @@
 .section .text.exc_vec
 
-.macro EXCEPTION_VECTOR handler int_type
+.macro EXCEPTION_VECTOR int_type
     // storing CpuContext src/arm/CpuContext.zig on stack
     stp q1, q0, [sp, #-32]!
     stp q3, q2, [sp, #-32]!
@@ -57,7 +57,7 @@
     // set stack as arg
     mov x0, sp
     ldr x1, #\int_type
-    bl \handler
+    bl trapHandler
     
     // restoreContextFromStack are fns exported from CpuContext.zig
     b _restoreContextWithoutSwitchFromSp
@@ -67,54 +67,54 @@
 .globl _exception_vector_table
 .balign 0x80
 _exception_vector_table:
-    EXCEPTION_VECTOR irqElxSpx el1Sp0Sync // el1_sp0_sync
+    EXCEPTION_VECTOR el1Sp0Sync // el1_sp0_sync
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx el1Sp0Irq // el1_sp0_irq
+    EXCEPTION_VECTOR el1Sp0Irq // el1_sp0_irq
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx el1Sp0Fiq // el1_sp0_fiq
+    EXCEPTION_VECTOR el1Sp0Fiq // el1_sp0_fiq
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx el1Sp0Err // el1_sp0_error
-
-
-.balign 0x80
-    EXCEPTION_VECTOR irqHandler el1Sync // el1Sync 
-
-.balign 0x80
-    EXCEPTION_VECTOR irqHandler el1Irq // el1Irq
-
-.balign 0x80
-    EXCEPTION_VECTOR irqHandler el1Fiq // el1Fiq
-
-.balign 0x80
-    EXCEPTION_VECTOR irqHandler el1Err // el1Error
+    EXCEPTION_VECTOR el1Sp0Err // el1_sp0_error
 
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx el0Sync // el0_sync
+    EXCEPTION_VECTOR el1Sync // el1Sync 
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx el0Irq // el0_irq
+    EXCEPTION_VECTOR el1Irq // el1Irq
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx el0Fiq // el0_fiq
+    EXCEPTION_VECTOR el1Fiq // el1Fiq
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx el0Err // el0_error
+    EXCEPTION_VECTOR el1Err // el1Error
 
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx el032Sync // el0_32_sync
+    EXCEPTION_VECTOR el0Sync // el0_sync
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx el032Irq // el0_32_irq
+    EXCEPTION_VECTOR el0Irq // el0_irq
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx el032Fiq // el0_32_fiq
+    EXCEPTION_VECTOR el0Fiq // el0_fiq
 
 .balign 0x80
-    EXCEPTION_VECTOR irqElxSpx el032Err // el0_32_error
+    EXCEPTION_VECTOR el0Err // el0_error
+
+
+.balign 0x80
+    EXCEPTION_VECTOR el032Sync // el0_32_sync
+
+.balign 0x80
+    EXCEPTION_VECTOR el032Irq // el0_32_irq
+
+.balign 0x80
+    EXCEPTION_VECTOR el032Fiq // el0_32_fiq
+
+.balign 0x80
+    EXCEPTION_VECTOR el032Err // el0_32_error
 
 .balign 0x80

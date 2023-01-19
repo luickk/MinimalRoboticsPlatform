@@ -43,7 +43,7 @@ pub const ExceptionClass = enum(u6) {
     bkptInstExecAarch64 = 0b111100,
 };
 
-pub fn irqHandler(temp_context: *CpuContext, tmp_int_type: usize) callconv(.C) noreturn {
+pub fn trapHandler(temp_context: *CpuContext, tmp_int_type: usize) callconv(.C) noreturn {
     var int_type = tmp_int_type;
     var int_type_en = std.meta.intToEnum(gic.ExceptionType, int_type) catch {
         kprint("intToEnum int_type failed \n", .{});
@@ -97,8 +97,4 @@ pub fn irqHandler(temp_context: *CpuContext, tmp_int_type: usize) callconv(.C) n
     kprint(".........sync temp_context............\n", .{});
 
     bl_utils.panic();
-}
-pub fn irqElxSpx(temp_context: *CpuContext, tmp_int_type: usize) callconv(.C) void {
-    kprint("irqElxSpx \n", .{});
-    irqHandler(temp_context, tmp_int_type);
 }

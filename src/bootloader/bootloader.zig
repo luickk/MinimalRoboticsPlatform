@@ -38,13 +38,23 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         var user_space_start = (board.config.mem.bl_load_addr orelse 0) + (board.config.mem.rom_size orelse 0) + board.config.mem.kernel_space_size;
         // increasing user_space_start by stack_size so that later writes to the user_space don't overwrite the bl's stack
         user_space_start += board.config.mem.bl_stack_size;
-        ProccessorRegMap.setSp(user_space_start);
+        ProccessorRegMap.setSp(utils.ceilRoundToMultiple(user_space_start, 16) catch |e| {
+            kprint("[panic] error ceilRoundToMultiple bl sp: {s} \n", .{@errorName(e)});
+            bl_utils.panic();
+        });
         break :blk user_space_start;
     };
-    const _bl_bin_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "_bl_bin_start" }) orelse {
-        kprint("[panic] error reading _bl_bin_start label\n", .{});
+
+    const _bl_bin_end: usize = @ptrToInt(@extern(?*u8, .{ .name = "_bl_end" }) orelse {
+        kprint("[panic] error reading _bl_end label\n", .{});
         bl_utils.panic();
     });
+
+    var boot_without_rom_new_kernel_loc: usize = utils.ceilRoundToMultiple(_bl_bin_end, 4096) catch |e| {
+        kprint("[panic] error ceilRoundToMultiple boot_without_rom_new_kernel_loc: {s} \n", .{@errorName(e)});
+        bl_utils.panic();
+    };
+    if (board.config.mem.bl_load_addr == null) boot_without_rom_new_kernel_loc = 0;
 
     // mmu configuration...
     {
@@ -70,7 +80,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
             // creating virtual address space for kernel
             const kernel_mapping = mmu.Mapping{
                 .mem_size = board.config.mem.ram_size,
-                .pointing_addr_start = board.config.mem.ram_start_addr,
+                .pointing_addr_start = board.config.mem.ram_start_addr + boot_without_rom_new_kernel_loc,
                 .virt_addr_start = 0,
                 .granule = Granule.Fourk,
                 .addr_space = .ttbr1,
@@ -172,36 +182,21 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
     }
 
     {
-        var kernel_target_loc: []volatile u8 = undefined;
-        kernel_target_loc.ptr = @intToPtr([*]volatile u8, board.config.mem.va_start);
+        var kernel_target_loc: []u8 = undefined;
+        kernel_target_loc.ptr = @intToPtr([*]u8, board.config.mem.va_start);
         kernel_target_loc.len = kernel_bin.len;
 
         kprint("[bootloader] Copying kernel to addr_space: 0x{x}, with size: {d} \n", .{ @ptrToInt(kernel_target_loc.ptr), kernel_target_loc.len });
-        // std.mem.copy(u8, kernel_target_loc, kernel_bin);
-        for (kernel_bin) |s, i| {
-            kernel_target_loc[i] = s;
-            // kprint("{x} \n", .{kernel_bin[i]});
-        }
-        kprint("[bootloader] kernel copied \n", .{});
-
-        // ! for a board without rom, the bootloader assumes that Zigs builtin @embedFile stores the kernel at the beginning of the binary.
-        // the block below checks if the bootloader executable code is located(embedded) behind the kernel. @embedFile uses the .rdata section which
-        // needs to be located before the bootloader code!. If so, and the code does not utilise any data from sections in or before the data section,
-        // it's safe to copy the kernel to the beginning of the address space without overwriting parts of the copy mechanism of the bootloader !
-        if (!board.config.mem.has_rom) {
-            if (_bl_bin_start < kernel_bin.len) {
-                kprint("[panic] !the bootloader would overwrite itself on kernel copy! abort... \n", .{});
-                bl_utils.panic();
-            }
-        }
-
+        kprint("pc: {x} \n", .{ProccessorRegMap.getCurrentPc()});
+        std.mem.copy(u8, kernel_target_loc, kernel_bin);
+        // kprint("[bootloader] kernel copied \n", .{});
         var kernel_addr = @ptrToInt(kernel_target_loc.ptr);
 
-        kprint("[bootloader] jumping to kernel at 0x{x}\n", .{kernel_addr});
+        // kprint("[bootloader] jumping to kernel at 0x{x}\n", .{kernel_addr});
 
         const kernel_sp = blk: {
-            const aligned_ksize = utils.ceilRoundToMultiple(kernel_target_loc.len, 0x8) catch |e| {
-                kprint("[panic] kernel stack address calc error: {s} \n", .{@errorName(e)});
+            const aligned_ksize = utils.ceilRoundToMultiple(kernel_target_loc.len, 0x8) catch {
+                // kprint("[panic] kernel stack address calc error: {s} \n", .{@errorName(e)});
                 bl_utils.panic();
             };
             break :blk mmu.toTtbr1(usize, aligned_ksize + board.config.mem.k_stack_size);
@@ -209,9 +204,11 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
 
         asm volatile (
             \\mov sp, %[sp]
+            \\mov x0, %[boot_without_rom_new_kernel_loc]
             \\br %[pc_addr]
             :
             : [sp] "r" (kernel_sp),
+              [boot_without_rom_new_kernel_loc] "r" (boot_without_rom_new_kernel_loc),
               [pc_addr] "r" (kernel_addr),
         );
     }
@@ -220,6 +217,5 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
 }
 
 comptime {
-    @export(intHandle.irqHandler, .{ .name = "irqHandler", .linkage = .Strong });
-    @export(intHandle.irqElxSpx, .{ .name = "irqElxSpx", .linkage = .Strong });
+    @export(intHandle.trapHandler, .{ .name = "trapHandler", .linkage = .Strong });
 }

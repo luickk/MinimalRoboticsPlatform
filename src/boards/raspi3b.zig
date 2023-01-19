@@ -6,7 +6,6 @@ pub const config = boardConfig.BoardConfig{
     .board = .raspi3b,
     .mem = boardConfig.BoardConfig.BoardMemLayout{
         .va_start = vaStart,
-
         .bl_stack_size = 0x10000,
         .k_stack_size = 0x10000,
         .app_stack_size = 0x20000,

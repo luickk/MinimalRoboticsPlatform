@@ -66,10 +66,12 @@ var pid_counter: usize = 0;
 
 pub const Scheduler = struct {
     page_allocator: *UserPageAllocator,
+    kernel_lma_offset: usize,
 
-    pub fn init(page_allocator: *UserPageAllocator) Scheduler {
+    pub fn init(page_allocator: *UserPageAllocator, kernel_lma_offset: usize) Scheduler {
         return Scheduler{
             .page_allocator = page_allocator,
+            .kernel_lma_offset = kernel_lma_offset,
         };
     }
 
@@ -90,7 +92,6 @@ pub const Scheduler = struct {
         }
     }
     pub fn schedule(self: *Scheduler, irq_context: *CpuContext) void {
-        _ = self;
         // current_process.counter -= 1;
         // if (current_process.counter > 0 or current_process.preempt_count > 0) return;
         current_process.counter = 0;
@@ -114,7 +115,7 @@ pub const Scheduler = struct {
                 process.counter = (process.counter >> 1) + process.priority;
             }
         }
-        switchContextToProcess(&processs[next], irq_context);
+        self.switchContextToProcess(&processs[next], irq_context);
         current_process.setPreempt(true);
     }
 
@@ -150,11 +151,11 @@ pub const Scheduler = struct {
             // initing the apps page-table
             {
                 // MMU page dir config
-                var page_table_write = try app_page_table.init(&processs[pid].page_table, board.config.mem.ram_start_addr);
+                var page_table_write = try app_page_table.init(&processs[pid].page_table, self.kernel_lma_offset);
 
                 const user_space_mapping = mmu.Mapping{
                     .mem_size = board.config.mem.app_vm_mem_size,
-                    .pointing_addr_start = board.config.mem.ram_start_addr + board.config.mem.kernel_space_size + @ptrToInt(app_mem.ptr),
+                    .pointing_addr_start = self.kernel_lma_offset + board.config.mem.kernel_space_size + @ptrToInt(app_mem.ptr),
                     .virt_addr_start = 0,
                     .granule = board.boardConfig.Granule.FourkSection,
                     .addr_space = .ttbr0,
@@ -187,14 +188,14 @@ pub const Scheduler = struct {
     }
 
     // args (process pointers) are past via registers
-    fn switchContextToProcess(next_process: *Process, irq_context: *CpuContext) void {
+    fn switchContextToProcess(self: *Scheduler, next_process: *Process, irq_context: *CpuContext) void {
         var prev_process = current_process;
         current_process = next_process;
 
         {
             var ttbr0_addr: usize = 0;
             switch (next_process.proc_type) {
-                .user => ttbr0_addr = board.config.mem.ram_start_addr + mmu.toTtbr0(usize, @ptrToInt(&next_process.page_table)),
+                .user => ttbr0_addr = self.kernel_lma_offset + mmu.toTtbr0(usize, @ptrToInt(&next_process.page_table)),
                 .boot, .kernel => ttbr0_addr = ProccessorRegMap.readTTBR0(),
             }
             switchMemContext(ttbr0_addr);
@@ -218,6 +219,7 @@ pub const Scheduler = struct {
 
     fn switchCpuContext(from: *Process, to: *Process, irq_context: *CpuContext) void {
         kprint("from: ({s}, {s}, {*}) to ({s}, {s}, {*}) \n", .{ @tagName(from.proc_type), @tagName(from.state), from, @tagName(to.proc_type), @tagName(to.state), to });
+        kprint("page table: {*} \n", .{&to.page_table});
 
         kprint("pc: {x} \n", .{ProccessorRegMap.getCurrentPc()});
         from.cpu_context = irq_context.*;
