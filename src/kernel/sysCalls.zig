@@ -6,8 +6,8 @@ const arm = @import("arm");
 const CpuContext = arm.cpuContext.CpuContext;
 const ProccessorRegMap = arm.processor.ProccessorRegMap;
 const k_utils = @import("utils.zig");
-const sharedKServices = @import("sharedKServices");
-const Scheduler = sharedKServices.Scheduler;
+const sharedKernelServices = @import("sharedKernelServices");
+const Scheduler = sharedKernelServices.Scheduler;
 
 extern var scheduler: *Scheduler;
 
@@ -32,6 +32,7 @@ pub const Syscall = struct {
 pub const sysCallTable = [_]Syscall{
     .{ .id = 0, .fn_call = &sysCallPrint },
     .{ .id = 1, .fn_call = &exitProcess },
+    .{ .id = 2, .fn_call = &forkProcess },
 };
 
 fn sysCallPrint(params_args: ParamArgRegs) void {
@@ -47,8 +48,16 @@ fn sysCallPrint(params_args: ParamArgRegs) void {
 
 fn exitProcess(params_args: ParamArgRegs) void {
     kprint("[kernel] killing task with pid: {d} \n", .{params_args.x0});
-    scheduler.killTask(params_args.x0) catch |e| {
-        kprint("[panic] killTask error: {s}\n", .{@errorName(e)});
+    scheduler.killProcess(params_args.x0) catch |e| {
+        kprint("[panic] killProcess error: {s}\n", .{@errorName(e)});
+        k_utils.panic();
+    };
+}
+
+fn forkProcess(params_args: ParamArgRegs) void {
+    kprint("[kernel] forking task with pid: {d} \n", .{params_args.x0});
+    scheduler.deepForkProcess(params_args.x0) catch |e| {
+        kprint("[panic] deepForkProcess error: {s}\n", .{@errorName(e)});
         k_utils.panic();
     };
 }

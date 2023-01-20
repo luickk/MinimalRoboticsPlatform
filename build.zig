@@ -8,7 +8,7 @@ const Error = error{BlExceedsRomSize};
 const raspi3b = @import("src/boards/raspi3b.zig");
 const qemuVirt = @import("src/boards/qemuVirt.zig");
 
-const currBoard = raspi3b;
+const currBoard = qemuVirt;
 
 // packages...
 // SOC builtin features
@@ -20,7 +20,7 @@ var board = std.build.Pkg{ .name = "board", .source = .{ .path = "src/boards/" +
 // peripheral drivers
 var periph = std.build.Pkg{ .name = "periph", .source = .{ .path = "src/periph/periph.zig" } };
 // services that need to be accessed by kernel and other instances. the kernel allocator e.g.
-var sharedKServices = std.build.Pkg{ .name = "sharedKServices", .source = .{ .path = "src/kernel/sharedKServices/sharedKServices.zig" } };
+var sharedKernelServices = std.build.Pkg{ .name = "sharedKernelServices", .source = .{ .path = "src/kernel/sharedKernelServices/sharedKernelServices.zig" } };
 // package for all applications to call syscall
 var userSysCallInterface = std.build.Pkg{ .name = "userSysCallInterface", .source = .{ .path = "src/kernel/userSysCallInterface/userSysCallInterface.zig" } };
 
@@ -30,10 +30,10 @@ pub fn build(b: *std.build.Builder) !void {
     var build_options = b.addOptions();
 
     // inter package dependencies
-    sharedKServices.dependencies = &.{ board, build_options.*.getPackage("build_options"), arm, utils, periph };
+    sharedKernelServices.dependencies = &.{ board, build_options.*.getPackage("build_options"), arm, utils, periph };
     periph.dependencies = &.{board};
     utils.dependencies = &.{ board, arm };
-    arm.dependencies = &.{ periph, utils, board, sharedKServices };
+    arm.dependencies = &.{ periph, utils, board, sharedKernelServices };
 
     // bootloader
     const bl_exe = b.addExecutable("bootloader", null);
@@ -61,7 +61,7 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.code_model = .large;
     kernel_exe.strip = false;
     kernel_exe.addPackage(arm);
-    kernel_exe.addPackage(sharedKServices);
+    kernel_exe.addPackage(sharedKernelServices);
     kernel_exe.addPackage(utils);
     kernel_exe.addPackage(board);
     kernel_exe.addPackage(periph);

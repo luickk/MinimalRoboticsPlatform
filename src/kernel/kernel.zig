@@ -4,11 +4,11 @@ const utils = @import("utils");
 const board = @import("board");
 
 // kernel services
-const sharedKServices = @import("sharedKServices");
-const Scheduler = sharedKServices.Scheduler;
-// KernelAllocator and UserPageAllocator types are inited in sharedKServices!.
-const KernelAllocator = sharedKServices.KernelAllocator;
-const UserPageAllocator = sharedKServices.UserPageAllocator;
+const sharedKernelServices = @import("sharedKernelServices");
+const Scheduler = sharedKernelServices.Scheduler;
+// KernelAllocator and UserPageAllocator types are inited in sharedKernelServices!.
+const KernelAllocator = sharedKernelServices.KernelAllocator;
+const UserPageAllocator = sharedKernelServices.UserPageAllocator;
 const k_utils = @import("utils.zig");
 const tests = @import("tests.zig");
 const intHandle = @import("kernelIntHandler.zig");
@@ -254,7 +254,7 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
     var scheduler_tmp = Scheduler.init(&user_page_alloc, kernel_lma_offset);
     scheduler = &scheduler_tmp;
 
-    scheduler.setUpSchedulerStartConf();
+    scheduler.configRootBootProcess();
 
     scheduler.initAppsInScheduler(&apps) catch |e| {
         kprint("[panic] Scheduler initAppsInScheduler error: {s} \n", .{@errorName(e)});

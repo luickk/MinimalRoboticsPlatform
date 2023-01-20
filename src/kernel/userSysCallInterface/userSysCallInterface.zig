@@ -53,3 +53,16 @@ pub fn killProcess(pid: usize) noreturn {
     );
     while (true) {}
 }
+
+pub fn forkProcess(pid: usize) void {
+    asm volatile (
+    // args
+        \\mov x0, %[pid]
+        // sys call id
+        \\mov x8, #2
+        \\svc #0
+        :
+        : [pid] "r" (pid),
+        : "x0", "x8"
+    );
+}

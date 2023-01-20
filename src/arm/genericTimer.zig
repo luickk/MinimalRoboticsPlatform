@@ -2,9 +2,9 @@ const std = @import("std");
 const mmu = @import("mmu.zig");
 const periph = @import("periph");
 const AddrSpace = @import("board").boardConfig.AddrSpace;
-const Scheduler = sharedKServices.Scheduler;
+const Scheduler = sharedKernelServices.Scheduler;
 const CpuContext = @import("cpuContext.zig").CpuContext;
-const sharedKServices = @import("sharedKServices");
+const sharedKernelServices = @import("sharedKernelServices");
 
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 

@@ -1,7 +1,7 @@
 const CpuContext = @import("arm").cpuContext.CpuContext;
 const kprint = @import("periph").uart.UartWriter(.ttbr1).kprint;
-const sharedKServices = @import("sharedKServices");
-const Scheduler = sharedKServices.Scheduler;
+const sharedKernelServices = @import("sharedKernelServices");
+const Scheduler = sharedKernelServices.Scheduler;
 const timerCfg = @import("board").PeriphConfig(.ttbr1).Timer;
 
 var timerVal: u32 = 0;

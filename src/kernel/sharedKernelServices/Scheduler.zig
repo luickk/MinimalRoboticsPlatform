@@ -34,6 +34,9 @@ pub const Process = struct {
     priority: isize,
     preempt_count: isize,
     page_table: [app_page_table.totaPageTableSize]usize align(4096),
+    app_mem: ?[]u8,
+    ttbr1: ?usize,
+    ttbr0: ?usize,
 
     pub fn init() Process {
         return Process{
@@ -44,6 +47,9 @@ pub const Process = struct {
             .priority = 1,
             .preempt_count = 1,
             .page_table = [_]usize{0} ** app_page_table.totaPageTableSize,
+            .app_mem = null,
+            .ttbr1 = null,
+            .ttbr0 = null,
         };
     }
     pub fn setPreempt(self: *Process, state: bool) void {
@@ -54,13 +60,14 @@ pub const Process = struct {
 
 pub const Error = error{
     PidNotFound,
+    ForkPermissionFault,
 };
 const maxProcesss = 10;
 
 // globals
 
-var processs = [_]Process{Process.init()} ** maxProcesss;
-var current_process: *Process = &processs[0];
+var processses = [_]Process{Process.init()} ** maxProcesss;
+var current_process: *Process = &processses[0];
 
 var pid_counter: usize = 0;
 
@@ -75,19 +82,27 @@ pub const Scheduler = struct {
         };
     }
 
-    pub fn setUpSchedulerStartConf(self: *Scheduler) void {
+    pub fn configRootBootProcess(self: *Scheduler) void {
         _ = self;
         // the init process contains all relevant mem&cpu context information of the "main" kernel process
         // and as such has the highest priority
         current_process.priority = 15;
         current_process.proc_type = .boot;
+        current_process.state = .running;
+        var app_mem: []u8 = undefined;
+        app_mem.ptr = @intToPtr([*]u8, board.config.mem.va_start);
+        app_mem.len = board.config.mem.kernel_space_size;
+        current_process.app_mem = app_mem;
+        current_process.ttbr0 = ProccessorRegMap.readTTBR0();
+        current_process.ttbr1 = ProccessorRegMap.readTTBR1();
+
         pid_counter += 1;
     }
 
     // assumes that all process counter were inited to 0
     pub fn initProcessCounter(self: *Scheduler) void {
         _ = self;
-        for (processs) |*process| {
+        for (processses) |*process| {
             process.counter = (process.counter >> 1) + process.priority;
         }
     }
@@ -100,7 +115,7 @@ pub const Scheduler = struct {
         var next: usize = 0;
         var c: isize = -1;
         while (true) {
-            for (processs) |*process, i| {
+            for (processses) |*process, i| {
                 if (i >= pid_counter) break;
                 // kprint("process {d}: {any} \n", .{ i, process.* });
                 if (process.state == .running and process.counter > c) {
@@ -110,12 +125,12 @@ pub const Scheduler = struct {
             }
 
             if (c != 0) break;
-            for (processs) |*process, i| {
+            for (processses) |*process, i| {
                 if (i >= pid_counter) break;
                 process.counter = (process.counter >> 1) + process.priority;
             }
         }
-        self.switchContextToProcess(&processs[next], irq_context);
+        self.switchContextToProcess(&processses[next], irq_context);
         current_process.setPreempt(true);
     }
 
@@ -144,14 +159,15 @@ pub const Scheduler = struct {
             var pid = pid_counter;
 
             std.mem.copy(u8, app_mem, app);
-            processs[pid].cpu_context.elr_el1 = 0;
-            processs[pid].cpu_context.sp_el0 = try utils.ceilRoundToMultiple(app.len + board.config.mem.app_stack_size, 16);
-            processs[pid].cpu_context.x0 = pid;
+            processses[pid].cpu_context.elr_el1 = 0;
+            processses[pid].cpu_context.sp_el0 = try utils.ceilRoundToMultiple(app.len + board.config.mem.app_stack_size, 16);
+            processses[pid].cpu_context.x0 = pid;
+            processses[pid].app_mem = app_mem;
 
             // initing the apps page-table
             {
                 // MMU page dir config
-                var page_table_write = try app_page_table.init(&processs[pid].page_table, self.kernel_lma_offset);
+                var page_table_write = try app_page_table.init(&processses[pid].page_table, self.kernel_lma_offset);
 
                 const user_space_mapping = mmu.Mapping{
                     .mem_size = board.config.mem.app_vm_mem_size,
@@ -164,22 +180,45 @@ pub const Scheduler = struct {
                 };
                 try page_table_write.mapMem(user_space_mapping);
             }
-
-            processs[pid].priority = current_process.priority;
-            processs[pid].state = .running;
-            processs[pid].proc_type = .user;
-            processs[pid].counter = processs[pid].priority;
-            processs[pid].preempt_count = 1;
-
+            processses[pid].priority = current_process.priority;
+            processses[pid].state = .running;
+            processses[pid].proc_type = .user;
+            processses[pid].counter = processses[pid].priority;
+            processses[pid].preempt_count = 1;
+            processses[pid].ttbr0 = self.kernel_lma_offset + mmu.toTtbr0(usize, @ptrToInt(&processses[pid].page_table));
             pid_counter += 1;
         }
         current_process.setPreempt(true);
     }
 
-    pub fn killTask(self: *Scheduler, pid: usize) !void {
+    pub fn killProcess(self: *Scheduler, pid: usize) !void {
         _ = self;
+        current_process.setPreempt(false);
         try checkForPid(pid);
-        processs[pid].state = .done;
+        processses[pid].state = .done;
+        current_process.setPreempt(true);
+    }
+
+    pub fn deepForkProcess(self: *Scheduler, to_clone_pid: usize) !void {
+        current_process.setPreempt(false);
+        // switching to boot userspace page table (which spans all apps)
+        switchMemContext(processses[0].ttbr0.?, null);
+        try checkForPid(to_clone_pid);
+        if (processses[to_clone_pid].proc_type == .boot) return Error.ForkPermissionFault;
+
+        const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, self.page_allocator.granule.page_size);
+        var new_app_mem = try self.page_allocator.allocNPage(req_pages);
+
+        var new_pid = pid_counter;
+
+        std.mem.copy(u8, new_app_mem, processses[to_clone_pid].app_mem.?);
+        processses[new_pid] = processses[to_clone_pid];
+        processses[new_pid].app_mem = new_app_mem;
+        processses[new_pid].ttbr0 = self.kernel_lma_offset + mmu.toTtbr0(usize, @ptrToInt(&processses[new_pid].page_table));
+
+        pid_counter += 1;
+        switchMemContext(current_process.ttbr0.?, null);
+        current_process.setPreempt(true);
     }
 
     // todo => optionally implement check for pid's process state
@@ -189,16 +228,13 @@ pub const Scheduler = struct {
 
     // args (process pointers) are past via registers
     fn switchContextToProcess(self: *Scheduler, next_process: *Process, irq_context: *CpuContext) void {
+        _ = self;
         var prev_process = current_process;
         current_process = next_process;
 
-        {
-            var ttbr0_addr: usize = 0;
-            switch (next_process.proc_type) {
-                .user => ttbr0_addr = self.kernel_lma_offset + mmu.toTtbr0(usize, @ptrToInt(&next_process.page_table)),
-                .boot, .kernel => ttbr0_addr = ProccessorRegMap.readTTBR0(),
-            }
-            switchMemContext(ttbr0_addr);
+        switch (next_process.proc_type) {
+            .user => switchMemContext(next_process.ttbr0.?, next_process.ttbr1),
+            .boot, .kernel => switchMemContext(next_process.ttbr0.?, next_process.ttbr1),
         }
 
         switchCpuContext(prev_process, next_process, irq_context);
@@ -219,9 +255,11 @@ pub const Scheduler = struct {
 
     fn switchCpuContext(from: *Process, to: *Process, irq_context: *CpuContext) void {
         kprint("from: ({s}, {s}, {*}) to ({s}, {s}, {*}) \n", .{ @tagName(from.proc_type), @tagName(from.state), from, @tagName(to.proc_type), @tagName(to.state), to });
-        kprint("page table: {*} \n", .{&to.page_table});
-
-        kprint("pc: {x} \n", .{ProccessorRegMap.getCurrentPc()});
+        kprint("current processses(n={d}): \n", .{pid_counter + 1});
+        for (processses) |*proc, i| {
+            if (i >= pid_counter) break;
+            kprint("pid: {d} {s}, {s}, {s} \n", .{ i, @tagName(proc.proc_type), @tagName(to.proc_type), @tagName(to.state) });
+        }
         from.cpu_context = irq_context.*;
         switchCpuState(to);
         // restore Context and erets
@@ -233,8 +271,9 @@ pub const Scheduler = struct {
         );
     }
 
-    fn switchMemContext(ttbr_0_addr: usize) void {
+    fn switchMemContext(ttbr_0_addr: usize, ttbr_1_addr: ?usize) void {
         ProccessorRegMap.setTTBR0(ttbr_0_addr);
+        if (ttbr_1_addr) |addr| ProccessorRegMap.setTTBR1(addr);
         asm volatile ("tlbi vmalle1is");
         // ensure completion of TLB invalidation
         asm volatile ("dsb ish");
