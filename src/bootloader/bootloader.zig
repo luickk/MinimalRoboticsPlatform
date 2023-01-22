@@ -187,12 +187,8 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         kernel_target_loc.len = kernel_bin.len;
 
         kprint("[bootloader] Copying kernel to addr_space: 0x{x}, with size: {d} \n", .{ @ptrToInt(kernel_target_loc.ptr), kernel_target_loc.len });
-        kprint("pc: {x} \n", .{ProccessorRegMap.getCurrentPc()});
         std.mem.copy(u8, kernel_target_loc, kernel_bin);
-        // kprint("[bootloader] kernel copied \n", .{});
         var kernel_addr = @ptrToInt(kernel_target_loc.ptr);
-
-        // kprint("[bootloader] jumping to kernel at 0x{x}\n", .{kernel_addr});
 
         const kernel_sp = blk: {
             const aligned_ksize = utils.ceilRoundToMultiple(kernel_target_loc.len, 0x8) catch {

@@ -32,6 +32,9 @@ pub const Process = struct {
     state: ProcessState,
     counter: isize,
     priority: isize,
+    pid: ?usize,
+    parent_pid: ?usize,
+    child_pid: ?usize,
     preempt_count: isize,
     page_table: [app_page_table.totaPageTableSize]usize align(4096),
     app_mem: ?[]u8,
@@ -44,6 +47,9 @@ pub const Process = struct {
             .proc_type = .user,
             .state = .running,
             .counter = 0,
+            .pid = null,
+            .parent_pid = null,
+            .child_pid = null,
             .priority = 1,
             .preempt_count = 1,
             .page_table = [_]usize{0} ** app_page_table.totaPageTableSize,
@@ -89,6 +95,7 @@ pub const Scheduler = struct {
         current_process.priority = 15;
         current_process.proc_type = .boot;
         current_process.state = .running;
+        current_process.pid = 0;
         var app_mem: []u8 = undefined;
         app_mem.ptr = @intToPtr([*]u8, board.config.mem.va_start);
         app_mem.len = board.config.mem.kernel_space_size;
@@ -107,17 +114,14 @@ pub const Scheduler = struct {
         }
     }
     pub fn schedule(self: *Scheduler, irq_context: *CpuContext) void {
-        // current_process.counter -= 1;
-        // if (current_process.counter > 0 or current_process.preempt_count > 0) return;
+        current_process.setPreempt(false);
         current_process.counter = 0;
 
-        current_process.setPreempt(false);
         var next: usize = 0;
         var c: isize = -1;
         while (true) {
             for (processses) |*process, i| {
                 if (i >= pid_counter) break;
-                // kprint("process {d}: {any} \n", .{ i, process.* });
                 if (process.state == .running and process.counter > c) {
                     c = process.counter;
                     next = i;
@@ -154,7 +158,7 @@ pub const Scheduler = struct {
         current_process.setPreempt(false);
         for (apps) |app| {
             const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, self.page_allocator.granule.page_size);
-            var app_mem = try self.page_allocator.allocNPage(req_pages);
+            const app_mem = try self.page_allocator.allocNPage(req_pages);
 
             var pid = pid_counter;
 
@@ -163,12 +167,17 @@ pub const Scheduler = struct {
             processses[pid].cpu_context.sp_el0 = try utils.ceilRoundToMultiple(app.len + board.config.mem.app_stack_size, 16);
             processses[pid].cpu_context.x0 = pid;
             processses[pid].app_mem = app_mem;
+            processses[pid].priority = current_process.priority;
+            processses[pid].state = .running;
+            processses[pid].proc_type = .user;
+            processses[pid].counter = processses[pid].priority;
+            processses[pid].preempt_count = 1;
+            processses[pid].pid = pid;
 
             // initing the apps page-table
             {
                 // MMU page dir config
                 var page_table_write = try app_page_table.init(&processses[pid].page_table, self.kernel_lma_offset);
-
                 const user_space_mapping = mmu.Mapping{
                     .mem_size = board.config.mem.app_vm_mem_size,
                     .pointing_addr_start = self.kernel_lma_offset + board.config.mem.kernel_space_size + @ptrToInt(app_mem.ptr),
@@ -180,11 +189,6 @@ pub const Scheduler = struct {
                 };
                 try page_table_write.mapMem(user_space_mapping);
             }
-            processses[pid].priority = current_process.priority;
-            processses[pid].state = .running;
-            processses[pid].proc_type = .user;
-            processses[pid].counter = processses[pid].priority;
-            processses[pid].preempt_count = 1;
             processses[pid].ttbr0 = self.kernel_lma_offset + mmu.toTtbr0(usize, @ptrToInt(&processses[pid].page_table));
             pid_counter += 1;
         }
@@ -215,10 +219,31 @@ pub const Scheduler = struct {
         processses[new_pid] = processses[to_clone_pid];
         processses[new_pid].app_mem = new_app_mem;
         processses[new_pid].ttbr0 = self.kernel_lma_offset + mmu.toTtbr0(usize, @ptrToInt(&processses[new_pid].page_table));
+        processses[new_pid].pid = new_pid;
+        processses[new_pid].parent_pid = to_clone_pid;
+        processses[to_clone_pid].child_pid = new_pid;
 
         pid_counter += 1;
         switchMemContext(current_process.ttbr0.?, null);
         current_process.setPreempt(true);
+    }
+
+    pub fn killProcessAndChildrend(self: *Scheduler, starting_pid: usize) !void {
+        _ = self;
+        current_process.setPreempt(false);
+        try checkForPid(starting_pid);
+        processses[starting_pid].state = .done;
+        var child_proc_pid = processses[starting_pid].child_pid;
+        while (child_proc_pid != null) {
+            processses[child_proc_pid.?].state = .done;
+            child_proc_pid = processses[child_proc_pid.?].child_pid;
+        }
+        current_process.setPreempt(true);
+    }
+
+    pub fn getCurrentProcessPid(self: *Scheduler) usize {
+        _ = self;
+        return current_process.pid.?;
     }
 
     // todo => optionally implement check for pid's process state
@@ -258,7 +283,7 @@ pub const Scheduler = struct {
         kprint("current processses(n={d}): \n", .{pid_counter + 1});
         for (processses) |*proc, i| {
             if (i >= pid_counter) break;
-            kprint("pid: {d} {s}, {s}, {s} \n", .{ i, @tagName(proc.proc_type), @tagName(to.proc_type), @tagName(to.state) });
+            kprint("pid: {d} {s}, {s}, {s} \n", .{ i, @tagName(proc.proc_type), @tagName(proc.proc_type), @tagName(proc.state) });
         }
         from.cpu_context = irq_context.*;
         switchCpuState(to);

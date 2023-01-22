@@ -66,3 +66,27 @@ pub fn forkProcess(pid: usize) void {
         : "x0", "x8"
     );
 }
+
+pub fn getPid() usize {
+    return asm (
+        \\mov x8, #3
+        \\svc #0
+        \\mov %[curr], x0
+        : [curr] "=r" (-> usize),
+        :
+        : "x0", "x8"
+    );
+}
+
+pub fn killProcessRecursively(starting_pid: usize) void {
+    asm volatile (
+    // args
+        \\mov x0, %[pid]
+        // sys call id
+        \\mov x8, #4
+        \\svc #0
+        :
+        : [pid] "r" (starting_pid),
+        : "x0", "x8"
+    );
+}

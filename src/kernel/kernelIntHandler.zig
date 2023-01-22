@@ -38,7 +38,7 @@ pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(
                     var sys_call_found: bool = false;
                     for (sysCalls.sysCallTable) |*sys_call| {
                         if (sys_call.id == context.x8) {
-                            sys_call.fn_call(.{ .x0 = context.x0, .x1 = context.x1, .x2 = context.x2, .x3 = context.x3, .x4 = context.x4, .x5 = context.x5, .x6 = context.x6, .x7 = context.x7 });
+                            sys_call.fn_call(on_stack_context);
                             sys_call_found = true;
                         }
                     }
