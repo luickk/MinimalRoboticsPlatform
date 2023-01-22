@@ -12,9 +12,7 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
 
         if (test_counter == 40000) {
             test_counter += 1;
-            kprint("before \n", .{});
             sysCalls.killProcessRecursively(1);
-            kprint("after \n", .{});
         }
     }
 }

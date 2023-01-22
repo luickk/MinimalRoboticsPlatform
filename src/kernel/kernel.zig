@@ -157,9 +157,6 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
             break :blk ttbr0_mem;
         };
 
-        // old_mapping_kprint("ttbr1: {*} \n", .{ttbr1});
-        // old_mapping_kprint("ttbr0: {*} \n", .{ttbr0});
-
         ProccessorRegMap.TcrReg.setTcrEl(.el1, (ProccessorRegMap.TcrReg{ .t0sz = 25, .t1sz = 25, .tg0 = 0, .tg1 = 0 }).asInt());
         ProccessorRegMap.MairReg.setMairEl(.el1, (ProccessorRegMap.MairReg{ .attr0 = 0xFF, .attr1 = 0x0, .attr2 = 0x0, .attr3 = 0x0, .attr4 = 0x0 }).asInt());
 

@@ -11,7 +11,7 @@ extern var scheduler: *Scheduler;
 // raspberry system timer frequency is 1 Mhz
 var cnt_freq: u32 = 1000000;
 // 0.002 is the highest possible frequency
-var freq_factor: f32 = 0.02;
+var freq_factor: f32 = 0.09;
 
 // todo => handle timer overflow
 

@@ -12,7 +12,7 @@ const UserPageAllocator = @import("UserPageAllocator.zig").UserPageAllocator;
 
 const bl_bin_size = 0x2000000;
 
-const app_page_table = mmu.PageTable(board.config.mem.app_vm_mem_size, board.boardConfig.Granule.FourkSection) catch |e| {
+const app_page_table = mmu.PageTable(board.config.mem.app_vm_mem_size, board.boardConfig.Granule.Fourk) catch |e| {
     @compileError(@errorName(e));
 };
 
@@ -182,7 +182,7 @@ pub const Scheduler = struct {
                     .mem_size = board.config.mem.app_vm_mem_size,
                     .pointing_addr_start = self.kernel_lma_offset + board.config.mem.kernel_space_size + @ptrToInt(app_mem.ptr),
                     .virt_addr_start = 0,
-                    .granule = board.boardConfig.Granule.FourkSection,
+                    .granule = board.boardConfig.Granule.Fourk,
                     .addr_space = .ttbr0,
                     .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .read_write, .attrIndex = .mair0 },
                     .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .read_write },
