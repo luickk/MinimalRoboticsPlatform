@@ -76,7 +76,7 @@ _exception_vector_table:
     stp q31, q30, [sp, #-32]!
     // gp regs
     stp x1, x0, [sp, #-16]!
-    stp x3, x1, [sp, #-16]!
+    stp x3, x2, [sp, #-16]!
     stp x5, x4, [sp, #-16]!
     stp x7, x6, [sp, #-16]!
     stp x9, x8, [sp, #-16]!

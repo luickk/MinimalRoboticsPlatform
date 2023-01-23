@@ -34,7 +34,6 @@ pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(
             };
             switch (ec_en) {
                 .svcInstExAArch64 => {
-                    // kprint("context: {any} \n", .{context});
                     var sys_call_found: bool = false;
                     for (sysCalls.sysCallTable) |*sys_call| {
                         if (sys_call.id == context.x8) {
@@ -43,7 +42,7 @@ pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(
                         }
                     }
                     if (!sys_call_found) {
-                        kprint("[kernel] SysCall id not FOUND! \n", .{});
+                        kprint("[kernel] SysCall id NOT found! \n", .{});
                         printExc(&context, int_type_en);
                     }
                 },

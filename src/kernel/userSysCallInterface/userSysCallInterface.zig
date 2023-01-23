@@ -1,4 +1,5 @@
 const std = @import("std");
+const utils = @import("utils");
 
 pub const SysCallPrint = struct {
     const Self = @This();
@@ -87,6 +88,20 @@ pub fn killProcessRecursively(starting_pid: usize) void {
         \\svc #0
         :
         : [pid] "r" (starting_pid),
+        : "x0", "x8"
+    );
+}
+
+// todo => fix that scheduler gets stuck at higher delays
+pub fn wait(delay_in_nano_secs: usize) void {
+    asm volatile (
+    // args
+        \\mov x0, %[delay]
+        // sys call id
+        \\mov x8, #5
+        \\svc #0
+        :
+        : [delay] "r" (delay_in_nano_secs),
         : "x0", "x8"
     );
 }

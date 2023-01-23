@@ -3,6 +3,7 @@ const kprint = @import("periph").uart.UartWriter(.ttbr1).kprint;
 const sharedKernelServices = @import("sharedKernelServices");
 const Scheduler = sharedKernelServices.Scheduler;
 const timerCfg = @import("board").PeriphConfig(.ttbr1).Timer;
+const utils = @import("utils");
 
 var timerVal: u32 = 0;
 extern var scheduler: *Scheduler;
@@ -35,12 +36,12 @@ pub const RegValues = struct {
 
 pub fn initTimer() void {
     timerVal = RegMap.timerLo.*;
-    timerVal += @floatToInt(u32, @intToFloat(f64, cnt_freq) * freq_factor);
+    timerVal += @truncate(u32, utils.calcTicksFromSeconds(cnt_freq, freq_factor));
     RegMap.timerC1.* = timerVal;
 }
 
 pub fn handleTimerIrq(irq_context: *CpuContext) void {
-    timerVal += @floatToInt(u32, @intToFloat(f64, cnt_freq) * freq_factor);
+    timerVal += @truncate(u32, utils.calcTicksFromSeconds(cnt_freq, freq_factor));
     RegMap.timerC1.* = timerVal;
     RegMap.timerCs.* = RegMap.timerCs.* | RegValues.timerCsM1;
     scheduler.timerIntEvent(irq_context);

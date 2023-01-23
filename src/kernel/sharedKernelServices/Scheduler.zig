@@ -23,8 +23,11 @@ pub const Process = struct {
         done,
     };
     pub const ProcessType = enum(usize) {
+        // initial task that comes up after the bootloader
         boot,
+        // root level user type
         kernel,
+        // userspace level
         user,
     };
     cpu_context: CpuContext,
@@ -141,7 +144,7 @@ pub const Scheduler = struct {
     pub fn timerIntEvent(self: *Scheduler, irq_context: *CpuContext) void {
         current_process.counter -= 1;
         if (current_process.counter > 0 and current_process.preempt_count > 0) {
-            kprint("--------- WAIT WAIT pc: {x} \n", .{ProccessorRegMap.getCurrentPc()});
+            kprint("--------- WAIT WAIT counter: {d} \n", .{current_process.counter});
             // return all the way back to the exc vector table where cpu state is restored from the stack
             // if the task is done already, we don't return back to the process but schedule the next task
             if (current_process.state != .done)

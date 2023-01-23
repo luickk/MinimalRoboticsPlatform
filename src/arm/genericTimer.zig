@@ -1,6 +1,7 @@
 const std = @import("std");
 const mmu = @import("mmu.zig");
 const periph = @import("periph");
+const utils = @import("utils");
 const AddrSpace = @import("board").boardConfig.AddrSpace;
 const Scheduler = sharedKernelServices.Scheduler;
 const CpuContext = @import("cpuContext.zig").CpuContext;
@@ -18,13 +19,18 @@ var cnt_freq: usize = 0;
 
 // todo => handle timer overflow
 
+pub fn getFreq() usize {
+    return asm ("mrs %[curr], CNTFRQ_EL0"
+        : [curr] "=r" (-> usize),
+    );
+}
+
 // initialize gic controller
 pub fn setupGt() void {
     cnt_freq = asm ("mrs %[curr], CNTFRQ_EL0"
         : [curr] "=r" (-> usize),
     );
-
-    timerVal += @floatToInt(usize, @intToFloat(f64, cnt_freq) * freq_factor);
+    timerVal += utils.calcTicksFromSeconds(cnt_freq, freq_factor);
 
     asm volatile (
         \\msr CNTP_CVAL_EL0, %[freq]
@@ -37,7 +43,7 @@ pub fn setupGt() void {
 }
 
 pub fn timerInt(irq_context: *CpuContext) void {
-    timerVal += @floatToInt(usize, @intToFloat(f64, cnt_freq) * freq_factor);
+    timerVal += utils.calcTicksFromSeconds(cnt_freq, freq_factor);
     asm volatile (
         \\msr CNTP_CVAL_EL0, %[freq]
         \\mov x0, 1
