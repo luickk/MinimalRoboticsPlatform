@@ -195,7 +195,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
                 // kprint("[panic] kernel stack address calc error: {s} \n", .{@errorName(e)});
                 bl_utils.panic();
             };
-            break :blk mmu.toTtbr1(usize, aligned_ksize + board.config.mem.k_stack_size);
+            break :blk utils.toTtbr1(usize, aligned_ksize + board.config.mem.k_stack_size);
         };
 
         asm volatile (

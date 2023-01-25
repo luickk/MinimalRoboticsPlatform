@@ -1,4 +1,5 @@
 const std = @import("std");
+const AppAllocator = @import("AppAllocator.zig").AppAllocator;
 const utils = @import("utils");
 
 pub const SysCallPrint = struct {
@@ -103,5 +104,23 @@ pub fn wait(delay_in_nano_secs: usize) void {
         :
         : [delay] "r" (delay_in_nano_secs),
         : "x0", "x8"
+    );
+}
+
+// creates thread for current process
+pub fn createThread(app_alloc: *AppAllocator, thread_fn: *const fn () void) !void {
+    // todo => make thread_stack_size configurable
+    const thread_stack = try app_alloc.alloc(u8, 0x10000, null);
+    asm volatile (
+    // args
+        \\mov x0, %[fn_ptr]
+        \\mov x1, %[thread_stack]
+        // sys call id
+        \\mov x8, #6
+        \\svc #0
+        :
+        : [fn_ptr] "r" (@ptrToInt(thread_fn)),
+          [thread_stack] "r" (@ptrToInt(thread_stack.ptr)),
+        : "x0", "x1", "x8"
     );
 }

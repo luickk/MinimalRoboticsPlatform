@@ -27,6 +27,7 @@ pub const sysCallTable = [_]Syscall{
     .{ .id = 3, .fn_call = &getPid },
     .{ .id = 4, .fn_call = &killProcessRecursively },
     .{ .id = 5, .fn_call = &wait },
+    .{ .id = 6, .fn_call = &createThread },
 };
 
 fn sysCallPrint(params_args: *CpuContext) void {
@@ -71,15 +72,19 @@ fn getPid(params_args: *CpuContext) void {
 fn wait(params_args: *CpuContext) void {
     const delay_in_nano_secs = params_args.x0;
     const delay_ticks = utils.calcTicksFromNanoSeconds(kernelTimer.getTimerFreqInHertz(), delay_in_nano_secs);
-    kprint("ticks: {d} \n", .{delay_ticks});
     asm volatile (
-        \\bl enableIrq
         \\mov x0, %[delay]
         \\delay_loop:
         \\subs x0, x0, #1
         \\bne delay_loop
-        \\bl disableIrq
         :
         : [delay] "r" (delay_ticks),
     );
+}
+
+fn createThread(params_args: *CpuContext) void {
+    const thread_fn_ptr = @intToPtr(*fn () void, params_args.x0);
+    const thread_stack = params_args.x1;
+    kprint("THREAD \n", .{});
+    scheduler.creatThreadForCurrentProc(thread_fn_ptr, thread_stack);
 }

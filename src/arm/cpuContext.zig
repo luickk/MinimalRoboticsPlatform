@@ -265,3 +265,44 @@ pub const CpuContext = packed struct {
         );
     }
 };
+
+pub const ThreadContext = packed struct {
+    // gp regs
+    elr_el1: usize,
+    sp: usize,
+    x30: usize,
+    x29: usize,
+    x28: usize,
+    x27: usize,
+    x26: usize,
+    x25: usize,
+    x24: usize,
+    x23: usize,
+    x22: usize,
+    x21: usize,
+    x20: usize,
+    x19: usize,
+
+    pub fn init() ThreadContext {
+        return std.mem.zeroInit(ThreadContext, .{});
+    }
+
+    comptime {
+        asm (
+            \\.globl _switchToThread
+            \\_switchToThread:
+            \\ldp x0, x1, [sp], #16
+            \\msr elr_el1, x0
+            \\msr sp_el0, x1
+
+            // gp regs
+            \\ldp x30, x29, [sp], #16
+            \\ldp x28, x27, [sp], #16
+            \\ldp x26, x25, [sp], #16
+            \\ldp x24, x23, [sp], #16
+            \\ldp x22, x21, [sp], #16
+            \\ldp x20, x19, [sp], #16
+            \\eret
+        );
+    }
+};

@@ -8,9 +8,10 @@ const arm = @import("arm");
 const mmu = arm.mmu;
 const ProccessorRegMap = arm.processor.ProccessorRegMap;
 const CpuContext = arm.cpuContext.CpuContext;
+const ThreadContext = arm.cpuContext.ThreadContext;
 const UserPageAllocator = @import("UserPageAllocator.zig").UserPageAllocator;
 
-const bl_bin_size = 0x2000000;
+const max_threads_per_process = 10;
 
 const app_page_table = mmu.PageTable(board.config.mem.app_vm_mem_size, board.boardConfig.Granule.Fourk) catch |e| {
     @compileError(@errorName(e));
@@ -30,7 +31,37 @@ pub const Process = struct {
         // userspace level
         user,
     };
+
+    pub const ProcessThread = struct {
+        pub const ThreadState = enum(usize) {
+            running,
+            halted,
+            done,
+        };
+        thread_context: ThreadContext,
+        state: ThreadState,
+        counter: isize,
+        priority: isize,
+        parent_process_pid: ?usize,
+        preempt_count: isize,
+
+        pub fn init() ProcessThread {
+            return ProcessThread{
+                .thread_context = ThreadContext.init(),
+                .state = .done,
+                .counter = 0,
+                .parent_process_pid = null,
+                .priority = 1,
+                .preempt_count = 1,
+            };
+        }
+        pub fn setPreempt(self: *ProcessThread, state: bool) void {
+            if (state) self.preempt_count -= 1;
+            if (!state) self.preempt_count += 1;
+        }
+    };
     cpu_context: CpuContext,
+    threads: [max_threads_per_process]ProcessThread,
     proc_type: ProcessType,
     state: ProcessState,
     counter: isize,
@@ -43,10 +74,10 @@ pub const Process = struct {
     app_mem: ?[]u8,
     ttbr1: ?usize,
     ttbr0: ?usize,
-
     pub fn init() Process {
         return Process{
             .cpu_context = CpuContext.init(),
+            .threads = [_]ProcessThread{ProcessThread.init()} ** max_threads_per_process,
             .proc_type = .user,
             .state = .running,
             .counter = 0,
@@ -65,6 +96,20 @@ pub const Process = struct {
         if (state) self.preempt_count -= 1;
         if (!state) self.preempt_count += 1;
     }
+    pub fn initThread(self: *Process, thread_fn_ptr: *fn () void, thread_stack_addr: usize) void {
+        for (self.threads) |*thread| {
+            if (thread.state == .done) {
+                thread.thread_context.sp = thread_stack_addr;
+                thread.thread_context.elr_el1 = @ptrToInt(thread_fn_ptr);
+
+                thread.priority = current_process.priority;
+                thread.state = .running;
+                thread.counter = current_process.priority;
+                thread.preempt_count = 1;
+                return;
+            }
+        }
+    }
 };
 
 pub const Error = error{
@@ -77,6 +122,7 @@ const maxProcesss = 10;
 
 var processses = [_]Process{Process.init()} ** maxProcesss;
 var current_process: *Process = &processses[0];
+var current_process_thread: ?*Process.ProcessThread = null;
 
 var pid_counter: usize = 0;
 
@@ -120,14 +166,39 @@ pub const Scheduler = struct {
         current_process.setPreempt(false);
         current_process.counter = 0;
 
-        var next: usize = 0;
+        // round robin for process-threads
+        var next_thread: ?*Process.ProcessThread = null;
         var c: isize = -1;
+        while (true) {
+            for (current_process.threads) |*thread| {
+                if (thread.state != .running) continue;
+                if (thread.state == .running and thread.counter > c) {
+                    c = thread.counter;
+                    next_thread = thread;
+                }
+            }
+
+            if (c != 0) break;
+            for (current_process.threads) |*thread| {
+                if (thread.state != .running) continue;
+                thread.counter = (thread.counter >> 1) + thread.priority;
+            }
+        }
+        if (next_thread) |next| {
+            current_process.setPreempt(true);
+            self.switchFromProcessToProcessThread(current_process, next, irq_context);
+        }
+        current_process_thread = null;
+
+        // round robin for processes
+        var next_proc_pid: usize = 0;
+        c = -1;
         while (true) {
             for (processses) |*process, i| {
                 if (i >= pid_counter) break;
                 if (process.state == .running and process.counter > c) {
                     c = process.counter;
-                    next = i;
+                    next_proc_pid = i;
                 }
             }
 
@@ -137,18 +208,24 @@ pub const Scheduler = struct {
                 process.counter = (process.counter >> 1) + process.priority;
             }
         }
-        self.switchContextToProcess(&processses[next], irq_context);
         current_process.setPreempt(true);
+        self.switchContextToProcess(&processses[next_proc_pid], irq_context);
     }
 
     pub fn timerIntEvent(self: *Scheduler, irq_context: *CpuContext) void {
         current_process.counter -= 1;
         if (current_process.counter > 0 and current_process.preempt_count > 0) {
-            kprint("--------- WAIT WAIT counter: {d} \n", .{current_process.counter});
+            kprint("--------- PROC WAIT counter: {d} \n", .{current_process.counter});
             // return all the way back to the exc vector table where cpu state is restored from the stack
             // if the task is done already, we don't return back to the process but schedule the next task
-            if (current_process.state != .done)
-                return;
+            if (current_process.state != .done) return;
+        }
+
+        if (current_process_thread) |curr_thread| {
+            if (curr_thread.counter > 0 and curr_thread.preempt_count > 0) {
+                kprint("--------- THREAD WAIT counter: {d} \n", .{current_process.counter});
+                if (curr_thread.state != .done) return;
+            }
         }
         current_process.counter = 0;
 
@@ -156,7 +233,10 @@ pub const Scheduler = struct {
         self.schedule(irq_context);
         ProccessorRegMap.DaifReg.disableIrq();
     }
-
+    pub fn creatThreadForCurrentProc(self: *Scheduler, thread_fn_ptr: *fn () void, thread_stack_addr: usize) void {
+        _ = self;
+        current_process.initThread(thread_fn_ptr, thread_stack_addr);
+    }
     pub fn initAppsInScheduler(self: *Scheduler, apps: []const []const u8) !void {
         current_process.setPreempt(false);
         for (apps) |app| {
@@ -192,7 +272,7 @@ pub const Scheduler = struct {
                 };
                 try page_table_write.mapMem(user_space_mapping);
             }
-            processses[pid].ttbr0 = self.kernel_lma_offset + mmu.toTtbr0(usize, @ptrToInt(&processses[pid].page_table));
+            processses[pid].ttbr0 = self.kernel_lma_offset + utils.toTtbr0(usize, @ptrToInt(&processses[pid].page_table));
             pid_counter += 1;
         }
         current_process.setPreempt(true);
@@ -221,7 +301,7 @@ pub const Scheduler = struct {
         std.mem.copy(u8, new_app_mem, processses[to_clone_pid].app_mem.?);
         processses[new_pid] = processses[to_clone_pid];
         processses[new_pid].app_mem = new_app_mem;
-        processses[new_pid].ttbr0 = self.kernel_lma_offset + mmu.toTtbr0(usize, @ptrToInt(&processses[new_pid].page_table));
+        processses[new_pid].ttbr0 = self.kernel_lma_offset + utils.toTtbr0(usize, @ptrToInt(&processses[new_pid].page_table));
         processses[new_pid].pid = new_pid;
         processses[new_pid].parent_pid = to_clone_pid;
         processses[to_clone_pid].child_pid = new_pid;
@@ -254,6 +334,38 @@ pub const Scheduler = struct {
         if (pid > maxProcesss) return Error.PidNotFound;
     }
 
+    // important: ! has to be called while context is still at the process owning the thread !
+    fn switchFromProcessToProcessThread(self: *Scheduler, owner_proc: *Process, next_thread: *Process.ProcessThread, irq_context: *CpuContext) void {
+        _ = self;
+
+        if (current_process_thread) |current_thread| {
+            current_thread.thread_context.x19 = irq_context.x19;
+            current_thread.thread_context.x20 = irq_context.x20;
+            current_thread.thread_context.x21 = irq_context.x21;
+            current_thread.thread_context.x22 = irq_context.x22;
+            current_thread.thread_context.x23 = irq_context.x23;
+            current_thread.thread_context.x24 = irq_context.x24;
+            current_thread.thread_context.x25 = irq_context.x25;
+            current_thread.thread_context.x26 = irq_context.x26;
+            current_thread.thread_context.x27 = irq_context.x27;
+            current_thread.thread_context.x28 = irq_context.x28;
+            current_thread.thread_context.x29 = irq_context.x29;
+            current_thread.thread_context.x30 = irq_context.x30;
+        }
+
+        if (owner_proc.pid != current_process.pid) {
+            kprint("[panic] process switching to thread which he does not own. \n", .{});
+            // todo => proper panic
+            while (true) {}
+        }
+        asm volatile (
+            \\ mov sp, %[sp_addr]
+            \\ b _switchToThread
+            :
+            : [sp_addr] "r" (&next_thread.thread_context),
+        );
+    }
+
     // args (process pointers) are past via registers
     fn switchContextToProcess(self: *Scheduler, next_process: *Process, irq_context: *CpuContext) void {
         _ = self;
@@ -261,6 +373,7 @@ pub const Scheduler = struct {
         current_process = next_process;
 
         switch (next_process.proc_type) {
+            // .ttbr1 is an optional and null for user type processes
             .user => switchMemContext(next_process.ttbr0.?, next_process.ttbr1),
             .boot, .kernel => switchMemContext(next_process.ttbr0.?, next_process.ttbr1),
         }

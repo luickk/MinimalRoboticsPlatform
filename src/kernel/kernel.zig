@@ -61,7 +61,7 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
         old_mapping_kprint("[panic] error reading _kernel_space_start label\n", .{});
         k_utils.panic();
     });
-    const kernel_bin_size = mmu.toTtbr0(usize, _kernel_space_start);
+    const kernel_bin_size = utils.toTtbr0(usize, _kernel_space_start);
 
     // kernelspace allocator test
     var kspace_alloc = KernelAllocator.init(_kernel_space_start + board.config.mem.k_stack_size + 0x50000, board.config.mem.kernel_space_size - kernel_bin_size - board.config.mem.k_stack_size, 0x10000) catch |e| {
@@ -169,8 +169,8 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
 
         // updating page dirs for kernel and user space
         // toUnsec is bc we are in ttbr1 and can't change with page tables that are also in ttbr1
-        ProccessorRegMap.setTTBR1(kernel_lma_offset + mmu.toTtbr0(usize, @ptrToInt(ttbr1)));
-        ProccessorRegMap.setTTBR0(kernel_lma_offset + mmu.toTtbr0(usize, @ptrToInt(ttbr0)));
+        ProccessorRegMap.setTTBR1(kernel_lma_offset + utils.toTtbr0(usize, @ptrToInt(ttbr1)));
+        ProccessorRegMap.setTTBR0(kernel_lma_offset + utils.toTtbr0(usize, @ptrToInt(ttbr0)));
 
         ProccessorRegMap.dsb();
         ProccessorRegMap.isb();

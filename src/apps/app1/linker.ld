@@ -27,4 +27,8 @@ SECTIONS {
         *(.data);
         *(.data.*);
     }
+
+    .heap (NOLOAD) : ALIGN(8)  {
+        _heap_start = .;
+    }
 }

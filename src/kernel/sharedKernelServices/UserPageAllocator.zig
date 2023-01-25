@@ -71,10 +71,10 @@ pub const UserPageAllocator = struct {
     }
 
     pub fn freeNPage(self: *UserPageAllocator, page_addr: *anyopaque, n: usize) !void {
-        if ((try std.math.mod(usize, mmu.toTtbr0(usize, @ptrToInt(page_addr)), self.granule.page_size)) != 0)
+        if ((try std.math.mod(usize, utils.toTtbr0(usize, @ptrToInt(page_addr)), self.granule.page_size)) != 0)
             return Error.PageAddrDoesNotAlign;
 
-        var pointing_addr_start: usize = std.math.sub(usize, mmu.toTtbr0(usize, @ptrToInt(page_addr)), self.mem_start) catch {
+        var pointing_addr_start: usize = std.math.sub(usize, utils.toTtbr0(usize, @ptrToInt(page_addr)), self.mem_start) catch {
             return Error.AddrNotInMem;
         };
         // safe bc page_address is multiple of page_size

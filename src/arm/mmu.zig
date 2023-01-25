@@ -1,5 +1,6 @@
 const std = @import("std");
 const board = @import("board");
+const utils = @import("utils");
 const kprint = @import("periph").uart.UartWriter(.ttbr1).kprint;
 
 const ProccessorRegMap = @import("processor.zig").ProccessorRegMap;
@@ -156,7 +157,7 @@ pub fn PageTable(comptime total_mem_size: usize, comptime gran: GranuleParams) !
                             phys_count += mapping.granule.page_size;
                         } else {
                             if (vas_next_offset_in_tables >= i_descriptor) vas_next_offset_in_tables -= i_descriptor;
-                            var link_to_table_addr = toTtbr0(usize, @ptrToInt(&self.page_table[table_offset + to_map_in_tables + i_descriptor + vas_next_offset_in_tables + total_mem_size_padding_in_tables])) + self.lma_offset;
+                            var link_to_table_addr = utils.toTtbr0(usize, @ptrToInt(&self.page_table[table_offset + to_map_in_tables + i_descriptor + vas_next_offset_in_tables + total_mem_size_padding_in_tables])) + self.lma_offset;
                             if (i_lvl == @enumToInt(TransLvl.first_lvl) or i_lvl == @enumToInt(TransLvl.second_lvl))
                                 link_to_table_addr |= mapping.flags_non_last_lvl.asInt();
                             self.page_table[table_offset + i_table][i_descriptor] = link_to_table_addr;
@@ -179,28 +180,4 @@ fn calctotalTablesReq(comptime granule: Granule.GranuleParams, comptime mem_size
         req_table_total_ += try std.math.divCeil(usize, req_descriptors, std.math.pow(usize, granule.table_size, ci_lvl));
     }
     return req_table_total_;
-}
-
-pub inline fn toTtbr1(comptime T: type, inp: T) T {
-    switch (@typeInfo(T)) {
-        .Pointer => {
-            return @intToPtr(T, @ptrToInt(inp) | board.config.mem.va_start);
-        },
-        .Int => {
-            return inp | board.config.mem.va_start;
-        },
-        else => @compileError("mmu address translation: not supported type"),
-    }
-}
-
-pub inline fn toTtbr0(comptime T: type, inp: T) T {
-    switch (@typeInfo(T)) {
-        .Pointer => {
-            return @intToPtr(T, @ptrToInt(inp) & ~(board.config.mem.va_start));
-        },
-        .Int => {
-            return inp & ~(board.config.mem.va_start);
-        },
-        else => @compileError("mmu address translation: not supported type"),
-    }
 }

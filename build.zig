@@ -22,7 +22,7 @@ var periph = std.build.Pkg{ .name = "periph", .source = .{ .path = "src/periph/p
 // services that need to be accessed by kernel and other instances. the kernel allocator e.g.
 var sharedKernelServices = std.build.Pkg{ .name = "sharedKernelServices", .source = .{ .path = "src/kernel/sharedKernelServices/sharedKernelServices.zig" } };
 // package for all applications to call syscall
-var userSysCallInterface = std.build.Pkg{ .name = "userSysCallInterface", .source = .{ .path = "src/kernel/userSysCallInterface/userSysCallInterface.zig" } };
+var appLib = std.build.Pkg{ .name = "appLib", .source = .{ .path = "src/appLib/appLib.zig" } };
 
 pub fn build(b: *std.build.Builder) !void {
     currBoard.config.checkConfig();
@@ -34,6 +34,7 @@ pub fn build(b: *std.build.Builder) !void {
     periph.dependencies = &.{board};
     utils.dependencies = &.{ board, arm };
     arm.dependencies = &.{ periph, utils, board, sharedKernelServices };
+    appLib.dependencies = &.{ board, utils };
 
     // bootloader
     const bl_exe = b.addExecutable("bootloader", null);
@@ -131,7 +132,8 @@ fn addApp(b: *std.build.Builder, build_mode: std.builtin.Mode, comptime name: []
     app.setLinkerScriptPath(std.build.FileSource{ .path = "src/apps/" ++ name ++ "/linker.ld" });
     app.addObjectFile("src/apps/" ++ name ++ "/main.zig");
     app.addPackage(periph);
-    app.addPackage(userSysCallInterface);
+    app.addPackage(board);
+    app.addPackage(appLib);
     app.install();
     return app;
 }

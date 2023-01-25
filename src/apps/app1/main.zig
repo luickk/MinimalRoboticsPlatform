@@ -1,6 +1,8 @@
 const std = @import("std");
-const sysCalls = @import("userSysCallInterface");
-const kprint = sysCalls.SysCallPrint.kprint;
+const appLib = @import("appLib");
+const AppAlloc = appLib.AppAllocator;
+const sysCalls = appLib.sysCalls;
+const kprint = appLib.sysCalls.SysCallPrint.kprint;
 
 var test_counter: usize = 0;
 
@@ -8,8 +10,7 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     while (true) {
         test_counter += 1;
         kprint("app{d} test print {d} \n", .{ pid, test_counter });
-        sysCalls.wait(100000);
-        // kprint("app1 test print \n", .{});
+        // sysCalls.wait(10000000000);
 
         if (test_counter == 40000) {
             test_counter += 1;

@@ -1,16 +1,9 @@
 const std = @import("std");
-const periph = @import("periph");
 const utils = @import("utils");
-const arm = @import("arm");
-
-const kprint = periph.uart.UartWriter(.ttbr0).kprint;
-const addr = periph.rbAddr;
-const mmu = arm.mmu;
-const ProccessorRegMap = arm.processor.ProccessorRegMap;
 
 const maxChunks = 10000;
 
-pub const KernelAllocator = struct {
+pub const AppAllocator = struct {
     const Error = error{
         OutOfChunks,
         OutOfMem,
@@ -24,11 +17,11 @@ pub const KernelAllocator = struct {
     chunk_size: usize,
     used_chunks: usize,
 
-    pub fn init(mem_base: usize, mem_size: usize, chunk_size: usize) !KernelAllocator {
+    pub fn init(mem_base: usize, mem_size: usize, chunk_size: usize) !AppAllocator {
         const req_chunks = try std.math.divCeil(usize, mem_size, chunk_size);
         if (req_chunks > maxChunks) return Error.OutOfChunks;
         if (mem_base % 8 != 0) return Error.MemBaseNotAligned;
-        var ka = KernelAllocator{
+        var ka = AppAllocator{
             .kernel_mem = [_]bool{false} ** maxChunks,
             // can currently only increase and indicates at which point findFree() is required
             .used_chunks = 0,
@@ -38,7 +31,7 @@ pub const KernelAllocator = struct {
         return ka;
     }
 
-    pub fn alloc(self: *KernelAllocator, comptime T: type, n: usize, alignment: ?usize) ![]T {
+    pub fn alloc(self: *AppAllocator, comptime T: type, n: usize, alignment: ?usize) ![]T {
         var alignm: usize = @alignOf(T);
         if (alignment) |a| alignm = a;
 
@@ -68,7 +61,7 @@ pub const KernelAllocator = struct {
     }
 
     /// finds continous free memory in fragmented kernel memory; marks returned memory as not free!
-    pub fn findFree(self: *KernelAllocator, to_chunk: usize, req_size: usize) !?usize {
+    pub fn findFree(self: *AppAllocator, to_chunk: usize, req_size: usize) !?usize {
         var continous_chunks: usize = 0;
         var req_chunks = (try std.math.divCeil(usize, req_size, self.chunk_size));
         for (self.kernel_mem) |chunk, i| {
@@ -90,7 +83,7 @@ pub const KernelAllocator = struct {
         return null;
     }
 
-    pub fn free(self: *KernelAllocator, to_free: anytype) !void {
+    pub fn free(self: *AppAllocator, to_free: anytype) !void {
         const Slice = @typeInfo(@TypeOf(to_free)).Pointer;
         const byte_slice = std.mem.sliceAsBytes(to_free);
         const size = byte_slice.len + if (Slice.sentinel != null) @sizeOf(Slice.child) else 0;
