@@ -62,6 +62,7 @@ pub const Process = struct {
     };
     cpu_context: CpuContext,
     threads: [max_threads_per_process]ProcessThread,
+    threads_runnging: usize,
     proc_type: ProcessType,
     state: ProcessState,
     counter: isize,
@@ -78,6 +79,7 @@ pub const Process = struct {
         return Process{
             .cpu_context = CpuContext.init(),
             .threads = [_]ProcessThread{ProcessThread.init()} ** max_threads_per_process,
+            .threads_runnging = 0,
             .proc_type = .user,
             .state = .running,
             .counter = 0,
@@ -101,6 +103,7 @@ pub const Process = struct {
             if (thread.state == .done) {
                 thread.thread_context.sp = thread_stack_addr;
                 thread.thread_context.elr_el1 = @ptrToInt(thread_fn_ptr);
+                self.threads_runnging += 1;
 
                 thread.priority = current_process.priority;
                 thread.state = .running;
@@ -162,37 +165,41 @@ pub const Scheduler = struct {
             process.counter = (process.counter >> 1) + process.priority;
         }
     }
+    var threads_scheduled: usize = 0;
     pub fn schedule(self: *Scheduler, irq_context: *CpuContext) void {
         current_process.setPreempt(false);
         current_process.counter = 0;
 
         // round robin for process-threads
         var next_thread: ?*Process.ProcessThread = null;
-        var c: isize = -1;
-        while (true) {
-            for (current_process.threads) |*thread| {
-                if (thread.state != .running) continue;
-                if (thread.state == .running and thread.counter > c) {
-                    c = thread.counter;
-                    next_thread = thread;
-                }
+        for (current_process.threads) |*thread| {
+            if (thread.state != .running) continue;
+            // all threads of current_process scheduled
+            if (threads_scheduled >= current_process.threads_runnging) {
+                threads_scheduled = 0;
+                irq_context.* = current_process.cpu_context;
+                kprint("saving to irq_context \n", .{});
+                break;
             }
-
-            if (c != 0) break;
-            for (current_process.threads) |*thread| {
-                if (thread.state != .running) continue;
-                thread.counter = (thread.counter >> 1) + thread.priority;
-            }
+            next_thread = thread;
+            current_process_thread = thread;
         }
         if (next_thread) |next| {
             current_process.setPreempt(true);
+            next.counter = 10;
+            kprint("switching to thread.. \n", .{});
+            if (threads_scheduled <= 0) {
+                current_process.cpu_context = irq_context.*;
+                kprint("saving context \n", .{});
+            }
+            threads_scheduled += 1;
             self.switchFromProcessToProcessThread(current_process, next, irq_context);
         }
         current_process_thread = null;
 
         // round robin for processes
         var next_proc_pid: usize = 0;
-        c = -1;
+        var c: isize = -1;
         while (true) {
             for (processses) |*process, i| {
                 if (i >= pid_counter) break;
@@ -209,26 +216,30 @@ pub const Scheduler = struct {
             }
         }
         current_process.setPreempt(true);
+        kprint("swithcing.... {any}\n", .{processses[next_proc_pid].cpu_context});
         self.switchContextToProcess(&processses[next_proc_pid], irq_context);
     }
 
     pub fn timerIntEvent(self: *Scheduler, irq_context: *CpuContext) void {
         current_process.counter -= 1;
-        if (current_process.counter > 0 and current_process.preempt_count > 0) {
-            kprint("--------- PROC WAIT counter: {d} \n", .{current_process.counter});
-            // return all the way back to the exc vector table where cpu state is restored from the stack
-            // if the task is done already, we don't return back to the process but schedule the next task
-            if (current_process.state != .done) return;
-        }
+        if (current_process_thread) |curr_thread| curr_thread.counter -= 1;
 
         if (current_process_thread) |curr_thread| {
             if (curr_thread.counter > 0 and curr_thread.preempt_count > 0) {
                 kprint("--------- THREAD WAIT counter: {d} \n", .{current_process.counter});
                 if (curr_thread.state != .done) return;
             }
+        } else {
+            if (current_process.counter > 0 and current_process.preempt_count > 0) {
+                kprint("--------- PROC WAIT counter: {d} \n", .{current_process.counter});
+                // return all the way back to the exc vector table where cpu state is restored from the stack
+                // if the task is done already, we don't return back to the process but schedule the next task
+                if (current_process.state != .done) return;
+            }
         }
-        current_process.counter = 0;
 
+        current_process.counter = 0;
+        kprint("SCHEDULING > {x} < \n", .{ProccessorRegMap.getCurrentPc()});
         ProccessorRegMap.DaifReg.enableIrq();
         self.schedule(irq_context);
         ProccessorRegMap.DaifReg.disableIrq();

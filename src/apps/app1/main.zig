@@ -12,9 +12,9 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
         kprint("app{d} test print {d} \n", .{ pid, test_counter });
         // sysCalls.wait(10000000000);
 
-        if (test_counter == 40000) {
-            test_counter += 1;
-            sysCalls.killProcessRecursively(1);
-        }
+        // if (test_counter == 40000) {
+        //     test_counter += 1;
+        //     sysCalls.killProcessRecursively(1);
+        // }
     }
 }

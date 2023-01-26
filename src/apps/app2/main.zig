@@ -21,6 +21,10 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
         while (true) {}
     };
 
+    sysCalls.createThread(&alloc, &testThread) catch |e| {
+        kprint("[panic] AppAlloc init error: {s}\n", .{@errorName(e)});
+        while (true) {}
+    };
     while (true) {
         test_counter += 1;
         kprint("app{d} test print {d} \n", .{ sysCalls.getPid(), test_counter });
@@ -29,13 +33,13 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
         //     sysCalls.forkProcess(pid);
         //     // sysCalls.killProcess(pid);
         // }
-        if (test_counter == 10000) {
-            test_counter += 1;
-            sysCalls.createThread(&alloc, &testThread) catch |e| {
-                kprint("[panic] AppAlloc init error: {s}\n", .{@errorName(e)});
-                while (true) {}
-            };
-        }
+        // if (test_counter == 10000) {
+        //     test_counter += 1;
+        //     sysCalls.createThread(&alloc, &testThread) catch |e| {
+        //         kprint("[panic] AppAlloc init error: {s}\n", .{@errorName(e)});
+        //         while (true) {}
+        //     };
+        // }
     }
 }
 
