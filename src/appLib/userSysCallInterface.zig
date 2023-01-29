@@ -110,7 +110,7 @@ pub fn wait(delay_in_nano_secs: usize) void {
 // creates thread for current process
 pub fn createThread(app_alloc: *AppAllocator, thread_fn: *const fn () void) !void {
     // todo => make thread_stack_size configurable
-    const thread_stack = try app_alloc.alloc(u8, 0x10000, null);
+    const thread_stack = try app_alloc.alloc(u8, 0x10000, 16);
     asm volatile (
     // args
         \\mov x0, %[fn_ptr]

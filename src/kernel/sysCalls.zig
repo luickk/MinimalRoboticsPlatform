@@ -70,6 +70,7 @@ fn getPid(params_args: *CpuContext) void {
 }
 
 fn wait(params_args: *CpuContext) void {
+    ProccessorRegMap.DaifReg.enableIrq();
     const delay_in_nano_secs = params_args.x0;
     const delay_ticks = utils.calcTicksFromNanoSeconds(kernelTimer.getTimerFreqInHertz(), delay_in_nano_secs);
     asm volatile (
@@ -85,6 +86,5 @@ fn wait(params_args: *CpuContext) void {
 fn createThread(params_args: *CpuContext) void {
     const thread_fn_ptr = @intToPtr(*fn () void, params_args.x0);
     const thread_stack = params_args.x1;
-    kprint("THREAD \n", .{});
-    scheduler.creatThreadForCurrentProc(thread_fn_ptr, thread_stack);
+    scheduler.createThreadFromCurrentProcess(thread_fn_ptr, thread_stack);
 }

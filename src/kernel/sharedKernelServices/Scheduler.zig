@@ -8,10 +8,7 @@ const arm = @import("arm");
 const mmu = arm.mmu;
 const ProccessorRegMap = arm.processor.ProccessorRegMap;
 const CpuContext = arm.cpuContext.CpuContext;
-const ThreadContext = arm.cpuContext.ThreadContext;
 const UserPageAllocator = @import("UserPageAllocator.zig").UserPageAllocator;
-
-const max_threads_per_process = 10;
 
 const app_page_table = mmu.PageTable(board.config.mem.app_vm_mem_size, board.boardConfig.Granule.Fourk) catch |e| {
     @compileError(@errorName(e));
@@ -23,7 +20,7 @@ pub const Process = struct {
         halted,
         done,
     };
-    pub const ProcessType = enum(usize) {
+    pub const PrivLevel = enum(usize) {
         // initial task that comes up after the bootloader
         boot,
         // root level user type
@@ -32,38 +29,8 @@ pub const Process = struct {
         user,
     };
 
-    pub const ProcessThread = struct {
-        pub const ThreadState = enum(usize) {
-            running,
-            halted,
-            done,
-        };
-        thread_context: ThreadContext,
-        state: ThreadState,
-        counter: isize,
-        priority: isize,
-        parent_process_pid: ?usize,
-        preempt_count: isize,
-
-        pub fn init() ProcessThread {
-            return ProcessThread{
-                .thread_context = ThreadContext.init(),
-                .state = .done,
-                .counter = 0,
-                .parent_process_pid = null,
-                .priority = 1,
-                .preempt_count = 1,
-            };
-        }
-        pub fn setPreempt(self: *ProcessThread, state: bool) void {
-            if (state) self.preempt_count -= 1;
-            if (!state) self.preempt_count += 1;
-        }
-    };
     cpu_context: CpuContext,
-    threads: [max_threads_per_process]ProcessThread,
-    threads_runnging: usize,
-    proc_type: ProcessType,
+    priv_level: PrivLevel,
     state: ProcessState,
     counter: isize,
     priority: isize,
@@ -78,9 +45,7 @@ pub const Process = struct {
     pub fn init() Process {
         return Process{
             .cpu_context = CpuContext.init(),
-            .threads = [_]ProcessThread{ProcessThread.init()} ** max_threads_per_process,
-            .threads_runnging = 0,
-            .proc_type = .user,
+            .priv_level = .user,
             .state = .running,
             .counter = 0,
             .pid = null,
@@ -98,21 +63,6 @@ pub const Process = struct {
         if (state) self.preempt_count -= 1;
         if (!state) self.preempt_count += 1;
     }
-    pub fn initThread(self: *Process, thread_fn_ptr: *fn () void, thread_stack_addr: usize) void {
-        for (self.threads) |*thread| {
-            if (thread.state == .done) {
-                thread.thread_context.sp = thread_stack_addr;
-                thread.thread_context.elr_el1 = @ptrToInt(thread_fn_ptr);
-                self.threads_runnging += 1;
-
-                thread.priority = current_process.priority;
-                thread.state = .running;
-                thread.counter = current_process.priority;
-                thread.preempt_count = 1;
-                return;
-            }
-        }
-    }
 };
 
 pub const Error = error{
@@ -125,7 +75,6 @@ const maxProcesss = 10;
 
 var processses = [_]Process{Process.init()} ** maxProcesss;
 var current_process: *Process = &processses[0];
-var current_process_thread: ?*Process.ProcessThread = null;
 
 var pid_counter: usize = 0;
 
@@ -145,7 +94,7 @@ pub const Scheduler = struct {
         // the init process contains all relevant mem&cpu context information of the "main" kernel process
         // and as such has the highest priority
         current_process.priority = 15;
-        current_process.proc_type = .boot;
+        current_process.priv_level = .boot;
         current_process.state = .running;
         current_process.pid = 0;
         var app_mem: []u8 = undefined;
@@ -165,38 +114,9 @@ pub const Scheduler = struct {
             process.counter = (process.counter >> 1) + process.priority;
         }
     }
-    var threads_scheduled: usize = 0;
     pub fn schedule(self: *Scheduler, irq_context: *CpuContext) void {
         current_process.setPreempt(false);
         current_process.counter = 0;
-
-        // round robin for process-threads
-        var next_thread: ?*Process.ProcessThread = null;
-        for (current_process.threads) |*thread| {
-            if (thread.state != .running) continue;
-            // all threads of current_process scheduled
-            if (threads_scheduled >= current_process.threads_runnging) {
-                threads_scheduled = 0;
-                irq_context.* = current_process.cpu_context;
-                kprint("saving to irq_context \n", .{});
-                break;
-            }
-            next_thread = thread;
-            current_process_thread = thread;
-        }
-        if (next_thread) |next| {
-            current_process.setPreempt(true);
-            next.counter = 10;
-            kprint("switching to thread.. \n", .{});
-            if (threads_scheduled <= 0) {
-                current_process.cpu_context = irq_context.*;
-                kprint("saving context \n", .{});
-            }
-            threads_scheduled += 1;
-            self.switchFromProcessToProcessThread(current_process, next, irq_context);
-        }
-        current_process_thread = null;
-
         // round robin for processes
         var next_proc_pid: usize = 0;
         var c: isize = -1;
@@ -216,37 +136,18 @@ pub const Scheduler = struct {
             }
         }
         current_process.setPreempt(true);
-        kprint("swithcing.... {any}\n", .{processses[next_proc_pid].cpu_context});
         self.switchContextToProcess(&processses[next_proc_pid], irq_context);
     }
 
     pub fn timerIntEvent(self: *Scheduler, irq_context: *CpuContext) void {
         current_process.counter -= 1;
-        if (current_process_thread) |curr_thread| curr_thread.counter -= 1;
-
-        if (current_process_thread) |curr_thread| {
-            if (curr_thread.counter > 0 and curr_thread.preempt_count > 0) {
-                kprint("--------- THREAD WAIT counter: {d} \n", .{current_process.counter});
-                if (curr_thread.state != .done) return;
-            }
-        } else {
-            if (current_process.counter > 0 and current_process.preempt_count > 0) {
-                kprint("--------- PROC WAIT counter: {d} \n", .{current_process.counter});
-                // return all the way back to the exc vector table where cpu state is restored from the stack
-                // if the task is done already, we don't return back to the process but schedule the next task
-                if (current_process.state != .done) return;
-            }
+        if (current_process.counter > 0 and current_process.preempt_count > 0) {
+            kprint("--------- PROC WAIT pc: {x} \n", .{irq_context.elr_el1});
+            // return all the way back to the exc vector table where cpu state is restored from the stack
+            // if the task is done already, we don't return back to the process but schedule the next task
+            if (current_process.state != .done) return;
         }
-
-        current_process.counter = 0;
-        kprint("SCHEDULING > {x} < \n", .{ProccessorRegMap.getCurrentPc()});
-        ProccessorRegMap.DaifReg.enableIrq();
         self.schedule(irq_context);
-        ProccessorRegMap.DaifReg.disableIrq();
-    }
-    pub fn creatThreadForCurrentProc(self: *Scheduler, thread_fn_ptr: *fn () void, thread_stack_addr: usize) void {
-        _ = self;
-        current_process.initThread(thread_fn_ptr, thread_stack_addr);
     }
     pub fn initAppsInScheduler(self: *Scheduler, apps: []const []const u8) !void {
         current_process.setPreempt(false);
@@ -263,7 +164,7 @@ pub const Scheduler = struct {
             processses[pid].app_mem = app_mem;
             processses[pid].priority = current_process.priority;
             processses[pid].state = .running;
-            processses[pid].proc_type = .user;
+            processses[pid].priv_level = .user;
             processses[pid].counter = processses[pid].priority;
             processses[pid].preempt_count = 1;
             processses[pid].pid = pid;
@@ -299,10 +200,10 @@ pub const Scheduler = struct {
 
     pub fn deepForkProcess(self: *Scheduler, to_clone_pid: usize) !void {
         current_process.setPreempt(false);
-        // switching to boot userspace page table (which spans all apps)
+        // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
         switchMemContext(processses[0].ttbr0.?, null);
         try checkForPid(to_clone_pid);
-        if (processses[to_clone_pid].proc_type == .boot) return Error.ForkPermissionFault;
+        if (processses[to_clone_pid].priv_level == .boot) return Error.ForkPermissionFault;
 
         const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, self.page_allocator.granule.page_size);
         var new_app_mem = try self.page_allocator.allocNPage(req_pages);
@@ -319,6 +220,21 @@ pub const Scheduler = struct {
 
         pid_counter += 1;
         switchMemContext(current_process.ttbr0.?, null);
+        current_process.setPreempt(true);
+    }
+    pub fn createThreadFromCurrentProcess(self: *Scheduler, thread_fn_ptr: *const fn () void, thread_stack_addr: usize) void {
+        _ = self;
+        current_process.setPreempt(false);
+        var new_pid = pid_counter;
+        processses[new_pid].pid = new_pid;
+        processses[new_pid].counter = processses[current_process.pid.?].priority;
+        processses[new_pid].priority = processses[current_process.pid.?].priority;
+        processses[new_pid].cpu_context.elr_el1 = @ptrToInt(thread_fn_ptr);
+        processses[new_pid].cpu_context.sp = thread_stack_addr;
+        processses[new_pid].priv_level = processses[current_process.pid.?].priv_level;
+        processses[new_pid].ttbr0 = processses[current_process.pid.?].ttbr0;
+        processses[new_pid].ttbr1 = processses[current_process.pid.?].ttbr1;
+        pid_counter += 1;
         current_process.setPreempt(true);
     }
 
@@ -345,55 +261,23 @@ pub const Scheduler = struct {
         if (pid > maxProcesss) return Error.PidNotFound;
     }
 
-    // important: ! has to be called while context is still at the process owning the thread !
-    fn switchFromProcessToProcessThread(self: *Scheduler, owner_proc: *Process, next_thread: *Process.ProcessThread, irq_context: *CpuContext) void {
-        _ = self;
-
-        if (current_process_thread) |current_thread| {
-            current_thread.thread_context.x19 = irq_context.x19;
-            current_thread.thread_context.x20 = irq_context.x20;
-            current_thread.thread_context.x21 = irq_context.x21;
-            current_thread.thread_context.x22 = irq_context.x22;
-            current_thread.thread_context.x23 = irq_context.x23;
-            current_thread.thread_context.x24 = irq_context.x24;
-            current_thread.thread_context.x25 = irq_context.x25;
-            current_thread.thread_context.x26 = irq_context.x26;
-            current_thread.thread_context.x27 = irq_context.x27;
-            current_thread.thread_context.x28 = irq_context.x28;
-            current_thread.thread_context.x29 = irq_context.x29;
-            current_thread.thread_context.x30 = irq_context.x30;
-        }
-
-        if (owner_proc.pid != current_process.pid) {
-            kprint("[panic] process switching to thread which he does not own. \n", .{});
-            // todo => proper panic
-            while (true) {}
-        }
-        asm volatile (
-            \\ mov sp, %[sp_addr]
-            \\ b _switchToThread
-            :
-            : [sp_addr] "r" (&next_thread.thread_context),
-        );
-    }
-
     // args (process pointers) are past via registers
     fn switchContextToProcess(self: *Scheduler, next_process: *Process, irq_context: *CpuContext) void {
         _ = self;
         var prev_process = current_process;
         current_process = next_process;
 
-        switch (next_process.proc_type) {
+        switch (next_process.priv_level) {
             // .ttbr1 is an optional and null for user type processes
-            .user => switchMemContext(next_process.ttbr0.?, next_process.ttbr1),
-            .boot, .kernel => switchMemContext(next_process.ttbr0.?, next_process.ttbr1),
+            .user => switchMemContext(next_process.ttbr0, next_process.ttbr1),
+            .boot, .kernel => switchMemContext(next_process.ttbr0, next_process.ttbr1),
         }
 
         switchCpuContext(prev_process, next_process, irq_context);
     }
 
-    fn switchCpuState(next_process: *Process) void {
-        switch (next_process.proc_type) {
+    fn switchCpuPrivLvl(priv_level: Process.PrivLevel) void {
+        switch (priv_level) {
             .user => {
                 ProccessorRegMap.SpsrReg.setSpsrReg(.el1, ProccessorRegMap.SpsrReg.readSpsrReg(.el1) & (~@as(usize, 0b0111)));
                 ProccessorRegMap.setSpsel(.el1);
@@ -406,14 +290,14 @@ pub const Scheduler = struct {
     }
 
     fn switchCpuContext(from: *Process, to: *Process, irq_context: *CpuContext) void {
-        kprint("from: ({s}, {s}, {*}) to ({s}, {s}, {*}) \n", .{ @tagName(from.proc_type), @tagName(from.state), from, @tagName(to.proc_type), @tagName(to.state), to });
+        kprint("from: ({s}, {s}, {*}) to ({s}, {s}, {*}) \n", .{ @tagName(from.priv_level), @tagName(from.state), from, @tagName(to.priv_level), @tagName(to.state), to });
         kprint("current processses(n={d}): \n", .{pid_counter + 1});
         for (processses) |*proc, i| {
             if (i >= pid_counter) break;
-            kprint("pid: {d} {s}, {s}, {s} \n", .{ i, @tagName(proc.proc_type), @tagName(proc.proc_type), @tagName(proc.state) });
+            kprint("pid: {d} {s}, {s}, {s} \n", .{ i, @tagName(proc.priv_level), @tagName(proc.priv_level), @tagName(proc.state) });
         }
         from.cpu_context = irq_context.*;
-        switchCpuState(to);
+        switchCpuPrivLvl(to.priv_level);
         // restore Context and erets
         asm volatile (
             \\ mov sp, %[sp_addr]
@@ -423,12 +307,14 @@ pub const Scheduler = struct {
         );
     }
 
-    fn switchMemContext(ttbr_0_addr: usize, ttbr_1_addr: ?usize) void {
-        ProccessorRegMap.setTTBR0(ttbr_0_addr);
+    fn switchMemContext(ttbr_0_addr: ?usize, ttbr_1_addr: ?usize) void {
+        if (ttbr_0_addr) |addr| ProccessorRegMap.setTTBR0(addr);
         if (ttbr_1_addr) |addr| ProccessorRegMap.setTTBR1(addr);
-        asm volatile ("tlbi vmalle1is");
-        // ensure completion of TLB invalidation
-        asm volatile ("dsb ish");
-        asm volatile ("isb");
+        if (ttbr_0_addr != null or ttbr_0_addr != null) {
+            asm volatile ("tlbi vmalle1is");
+            // ensure completion of TLB invalidation
+            asm volatile ("dsb ish");
+            asm volatile ("isb");
+        }
     }
 };

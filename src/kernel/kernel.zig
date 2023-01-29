@@ -270,10 +270,21 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
         kprint("[kernel] timer inited \n", .{});
     }
 
+    // scheduler.createThreadFromCurrentProcess(&kernelThread, @ptrToInt((kspace_alloc.alloc(u8, 0x10000, 16) catch |e| {
+    //     kprint("[panic] kernel alloc error: {s}\n", .{@errorName(e)});
+    //     k_utils.panic();
+    // }).ptr));
+
     var counter: usize = 0;
     while (true) {
         kprint("while counter: {d} \n", .{counter});
         counter += 1;
+    }
+}
+
+fn kernelThread() void {
+    while (true) {
+        kprint("KERNEL THREAD \n", .{});
     }
 }
 

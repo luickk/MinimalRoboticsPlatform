@@ -1,6 +1,5 @@
 const std = @import("std");
 const utils = @import("utils");
-
 const maxChunks = 10000;
 
 pub const AppAllocator = struct {
@@ -43,7 +42,7 @@ pub const AppAllocator = struct {
                 chunk.* = true;
             }
             var alloc_addr = self.mem_base + (free_mem_first_chunk * self.chunk_size);
-            var aligned_alloc_slice = @intToPtr([*]T, utils.toTtbr1(usize, try utils.ceilRoundToMultiple(alloc_addr, alignm)));
+            var aligned_alloc_slice = @intToPtr([*]T, try utils.ceilRoundToMultiple(alloc_addr, alignm));
             return aligned_alloc_slice[0 .. n - 1];
         } else if (self.used_chunks + req_chunks > maxChunks) {
             return Error.OutOfMem;
@@ -56,7 +55,7 @@ pub const AppAllocator = struct {
             chunk.* = true;
         }
         var alloc_addr = self.mem_base + (first_chunk * self.chunk_size);
-        var aligned_alloc_slice = @intToPtr([*]T, utils.toTtbr1(usize, try utils.ceilRoundToMultiple(alloc_addr, alignm)));
+        var aligned_alloc_slice = @intToPtr([*]T, try utils.ceilRoundToMultiple(alloc_addr, alignm));
         return aligned_alloc_slice[0 .. n - 1];
     }
 
@@ -88,15 +87,14 @@ pub const AppAllocator = struct {
         const byte_slice = std.mem.sliceAsBytes(to_free);
         const size = byte_slice.len + if (Slice.sentinel != null) @sizeOf(Slice.child) else 0;
         if (size == 0) return;
-        const unsec_addr = utils.toTtbr0(usize, @ptrToInt(byte_slice.ptr));
 
         // compensating for alignment
-        var addr_unaligned = unsec_addr;
-        if (addr_unaligned == utils.toTtbr0(usize, self.mem_base)) addr_unaligned -= (try std.math.mod(usize, unsec_addr, self.chunk_size));
+        var addr_unaligned = @ptrToInt(byte_slice.ptr);
+        if (addr_unaligned == self.mem_base) addr_unaligned -= (try std.math.mod(usize, @ptrToInt(byte_slice.ptr), self.chunk_size));
         if (addr_unaligned > (self.mem_base + (maxChunks * self.chunk_size)))
             return Error.AddrNotInMem;
 
-        var i_chunk_to_free: usize = (try std.math.divCeil(usize, std.math.sub(usize, addr_unaligned, utils.toTtbr0(usize, self.mem_base)) catch {
+        var i_chunk_to_free: usize = (try std.math.divCeil(usize, std.math.sub(usize, addr_unaligned, self.mem_base) catch {
             return Error.AddrNotInMem;
         }, self.chunk_size)) - 1;
 
