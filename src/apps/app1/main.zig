@@ -10,7 +10,7 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     while (true) {
         test_counter += 1;
         kprint("app{d} test print {d} \n", .{ pid, test_counter });
-        sysCalls.wait(100000000000);
+        // sysCalls.wait(100000000000);
 
         // if (test_counter == 40000) {
         //     test_counter += 1;

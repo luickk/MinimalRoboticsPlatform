@@ -8,6 +8,7 @@ const arm = @import("arm");
 const CpuContext = arm.cpuContext.CpuContext;
 const ProccessorRegMap = arm.processor.ProccessorRegMap;
 const k_utils = @import("utils.zig");
+
 const sharedKernelServices = @import("sharedKernelServices");
 const Scheduler = sharedKernelServices.Scheduler;
 
@@ -84,7 +85,8 @@ fn wait(params_args: *CpuContext) void {
 }
 
 fn createThread(params_args: *CpuContext) void {
-    const thread_fn_ptr = @intToPtr(*fn () void, params_args.x0);
+    const thread_fn_ptr = @intToPtr(*anyopaque, params_args.x0);
     const thread_stack = params_args.x1;
-    scheduler.createThreadFromCurrentProcess(thread_fn_ptr, thread_stack);
+    const args = @intToPtr(*anyopaque, params_args.x2);
+    scheduler.createThreadFromCurrentProcess(thread_fn_ptr, thread_stack, args);
 }

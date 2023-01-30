@@ -6,6 +6,7 @@ const utils = @import("utils");
 const b_options = @import("build_options");
 const arm = @import("arm");
 const mmu = arm.mmu;
+const ThreadArgs = @import("appLib").sysCalls.ThreadArgs;
 const ProccessorRegMap = arm.processor.ProccessorRegMap;
 const CpuContext = arm.cpuContext.CpuContext;
 const UserPageAllocator = @import("UserPageAllocator.zig").UserPageAllocator;
@@ -222,7 +223,7 @@ pub const Scheduler = struct {
         switchMemContext(current_process.ttbr0.?, null);
         current_process.setPreempt(true);
     }
-    pub fn createThreadFromCurrentProcess(self: *Scheduler, thread_fn_ptr: *const fn () void, thread_stack_addr: usize) void {
+    pub fn createThreadFromCurrentProcess(self: *Scheduler, thread_fn_ptr: *anyopaque, thread_stack_addr: usize, args: *anyopaque) void {
         _ = self;
         current_process.setPreempt(false);
         var new_pid = pid_counter;
@@ -231,6 +232,7 @@ pub const Scheduler = struct {
         processses[new_pid].priority = processses[current_process.pid.?].priority;
         processses[new_pid].cpu_context.elr_el1 = @ptrToInt(thread_fn_ptr);
         processses[new_pid].cpu_context.sp = thread_stack_addr;
+        processses[new_pid].cpu_context.x0 = @ptrToInt(args);
         processses[new_pid].priv_level = processses[current_process.pid.?].priv_level;
         processses[new_pid].ttbr0 = processses[current_process.pid.?].ttbr0;
         processses[new_pid].ttbr1 = processses[current_process.pid.?].ttbr1;
