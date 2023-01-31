@@ -85,8 +85,9 @@ fn wait(params_args: *CpuContext) void {
 }
 
 fn createThread(params_args: *CpuContext) void {
-    const thread_fn_ptr = @intToPtr(*anyopaque, params_args.x0);
+    const entry_fn_ptr = @intToPtr(*anyopaque, params_args.x0);
     const thread_stack = params_args.x1;
     const args = @intToPtr(*anyopaque, params_args.x2);
-    scheduler.createThreadFromCurrentProcess(thread_fn_ptr, thread_stack, args);
+    const thread_fn_ptr = @intToPtr(*anyopaque, params_args.x3);
+    scheduler.createThreadFromCurrentProcess(entry_fn_ptr, thread_fn_ptr, thread_stack, args);
 }

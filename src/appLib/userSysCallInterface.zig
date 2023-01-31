@@ -108,22 +108,40 @@ pub fn wait(delay_in_nano_secs: usize) void {
 }
 
 // creates thread for current process
-pub fn createThread(app_alloc: *AppAllocator, comptime thread_fn: *const fn (args: *anyopaque) void, args: anytype) !void {
+pub fn createThread(app_alloc: *AppAllocator, thread_fn: anytype, args: anytype) !void {
     // todo => make thread_stack_size configurable
-    const thread_stack = try app_alloc.alloc(u8, 0x10000, 16);
-    const args_addr = @ptrToInt(&args);
+    var thread_stack = try app_alloc.alloc(u8, 0x10000, 16);
+    {
+        var args_slice: []const u8 = undefined;
+        args_slice.ptr = @ptrCast([*]const u8, @alignCast(1, &args));
+        args_slice.len = @sizeOf(@TypeOf(args));
+        std.mem.copy(u8, thread_stack, args_slice);
+    }
+
     asm volatile (
     // args
-        \\mov x0, %[fn_ptr]
+        \\mov x0, %[entry_fn_ptr]
         \\mov x1, %[thread_stack]
         \\mov x2, %[args_addr]
+        \\mov x3, %[thread_fn_ptr]
         // sys call id
         \\mov x8, #6
         \\svc #0
         :
-        : [fn_ptr] "r" (@ptrToInt(thread_fn)),
-          [thread_stack] "r" (@ptrToInt(thread_stack.ptr)),
-          [args_addr] "r" (args_addr),
-        : "x0", "x1", "x2", "x8"
+        : [entry_fn_ptr] "r" (@ptrToInt(&(ThreadInstance(thread_fn, args).threadEntry))),
+          [thread_stack] "r" (@ptrToInt(thread_stack.ptr) - @sizeOf(@TypeOf(args))),
+          [args_addr] "r" (@ptrToInt(thread_stack.ptr)),
+          [thread_fn_ptr] "r" (@ptrToInt(&thread_fn)),
+        : "x0", "x1", "x2", "x3", "x8"
     );
+}
+
+fn ThreadInstance(comptime thread_fn: anytype, comptime args: anytype) type {
+    const Args = @TypeOf(args);
+    const ThreadFn = @TypeOf(thread_fn);
+    return struct {
+        fn threadEntry(entry_fn: *ThreadFn, entry_args: *Args) callconv(.C) void {
+            @call(.{ .modifier = .auto }, entry_fn, entry_args.*);
+        }
+    };
 }

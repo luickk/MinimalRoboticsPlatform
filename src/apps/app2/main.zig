@@ -21,12 +21,12 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
         while (true) {}
     };
 
-    sysCalls.createThread(&alloc, &testThread, .{"test"}) catch |e| {
+    sysCalls.createThread(&alloc, testThread, .{8}) catch |e| {
         kprint("[panic] AppAlloc init error: {s}\n", .{@errorName(e)});
         while (true) {}
     };
 
-    sysCalls.createThread(&alloc, &testThread2, .{"test"}) catch |e| {
+    sysCalls.createThread(&alloc, testThread2, .{}) catch |e| {
         kprint("[panic] AppAlloc init error: {s}\n", .{@errorName(e)});
         while (true) {}
     };
@@ -49,15 +49,14 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     }
 }
 
-pub fn testThread(args: *anyopaque) void {
+pub fn testThread(test_arg: u8) void {
     while (true) {
-        kprint("TEST THREAD 1 (args: {any})\n", .{args});
+        kprint("TEST THREAD 1 (test_arg: {d})\n", .{test_arg});
     }
 }
 
-pub fn testThread2(args: *anyopaque) void {
-    _ = args;
+pub fn testThread2() void {
     while (true) {
-        kprint("TEST THREAD 2 (args: )\n", .{});
+        kprint("TEST THREAD 2 \n", .{});
     }
 }

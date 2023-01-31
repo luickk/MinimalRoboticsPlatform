@@ -223,16 +223,17 @@ pub const Scheduler = struct {
         switchMemContext(current_process.ttbr0.?, null);
         current_process.setPreempt(true);
     }
-    pub fn createThreadFromCurrentProcess(self: *Scheduler, thread_fn_ptr: *anyopaque, thread_stack_addr: usize, args: *anyopaque) void {
+    pub fn createThreadFromCurrentProcess(self: *Scheduler, entry_fn_ptr: *anyopaque, thread_fn_ptr: *anyopaque, thread_stack_addr: usize, args: *anyopaque) void {
         _ = self;
         current_process.setPreempt(false);
         var new_pid = pid_counter;
         processses[new_pid].pid = new_pid;
         processses[new_pid].counter = processses[current_process.pid.?].priority;
         processses[new_pid].priority = processses[current_process.pid.?].priority;
-        processses[new_pid].cpu_context.elr_el1 = @ptrToInt(thread_fn_ptr);
-        processses[new_pid].cpu_context.sp = thread_stack_addr;
-        processses[new_pid].cpu_context.x0 = @ptrToInt(args);
+        processses[new_pid].cpu_context.x0 = @ptrToInt(thread_fn_ptr);
+        processses[new_pid].cpu_context.x1 = @ptrToInt(args);
+        processses[new_pid].cpu_context.elr_el1 = @ptrToInt(entry_fn_ptr);
+        processses[new_pid].cpu_context.sp_el0 = thread_stack_addr;
         processses[new_pid].priv_level = processses[current_process.pid.?].priv_level;
         processses[new_pid].ttbr0 = processses[current_process.pid.?].ttbr0;
         processses[new_pid].ttbr1 = processses[current_process.pid.?].ttbr1;
