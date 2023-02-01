@@ -1,4 +1,5 @@
 const std = @import("std");
+const alignForward = std.mem.alignForward;
 const periph = @import("periph");
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 const board = @import("board");
@@ -19,6 +20,7 @@ pub const Process = struct {
     pub const ProcessState = enum(usize) {
         running,
         halted,
+        sleeping,
         done,
     };
     pub const PrivLevel = enum(usize) {
@@ -31,6 +33,8 @@ pub const Process = struct {
     };
 
     cpu_context: CpuContext,
+    is_thread: bool,
+    sleep_counter: usize,
     priv_level: PrivLevel,
     state: ProcessState,
     counter: isize,
@@ -46,9 +50,11 @@ pub const Process = struct {
     pub fn init() Process {
         return Process{
             .cpu_context = CpuContext.init(),
+            .is_thread = false,
             .priv_level = .user,
             .state = .running,
             .counter = 0,
+            .sleep_counter = 0,
             .pid = null,
             .parent_pid = null,
             .child_pid = null,
@@ -75,6 +81,7 @@ const maxProcesss = 10;
 // globals
 
 var processses = [_]Process{Process.init()} ** maxProcesss;
+var processses_sleeping = [_]?*Process{null} ** maxProcesss;
 var current_process: *Process = &processses[0];
 
 var pid_counter: usize = 0;
@@ -142,11 +149,23 @@ pub const Scheduler = struct {
 
     pub fn timerIntEvent(self: *Scheduler, irq_context: *CpuContext) void {
         current_process.counter -= 1;
+        for (processses_sleeping) |proc, i| {
+            if (proc) |process| {
+                kprint("sleep counter: {d} \n", .{process.sleep_counter});
+                if (process.sleep_counter <= 0) {
+                    process.state = .running;
+                    processses_sleeping[i] = null;
+                    kprint("SLEEP DONE \n", .{});
+                } else {
+                    process.sleep_counter -= 1;
+                }
+            }
+        }
         if (current_process.counter > 0 and current_process.preempt_count > 0) {
             kprint("--------- PROC WAIT pc: {x} \n", .{irq_context.elr_el1});
             // return all the way back to the exc vector table where cpu state is restored from the stack
             // if the task is done already, we don't return back to the process but schedule the next task
-            if (current_process.state != .done) return;
+            if (current_process.state == .running) return;
         }
         self.schedule(irq_context);
     }
@@ -160,7 +179,7 @@ pub const Scheduler = struct {
 
             std.mem.copy(u8, app_mem, app);
             processses[pid].cpu_context.elr_el1 = 0;
-            processses[pid].cpu_context.sp_el0 = try utils.ceilRoundToMultiple(app.len + board.config.mem.app_stack_size, 16);
+            processses[pid].cpu_context.sp_el0 = alignForward(app.len + board.config.mem.app_stack_size, 16);
             processses[pid].cpu_context.x0 = pid;
             processses[pid].app_mem = app_mem;
             processses[pid].priority = current_process.priority;
@@ -228,6 +247,7 @@ pub const Scheduler = struct {
         current_process.setPreempt(false);
         var new_pid = pid_counter;
         processses[new_pid].pid = new_pid;
+        processses[new_pid].is_thread = true;
         processses[new_pid].counter = processses[current_process.pid.?].priority;
         processses[new_pid].priority = processses[current_process.pid.?].priority;
         processses[new_pid].cpu_context.x0 = @ptrToInt(thread_fn_ptr);
@@ -257,6 +277,17 @@ pub const Scheduler = struct {
     pub fn getCurrentProcessPid(self: *Scheduler) usize {
         _ = self;
         return current_process.pid.?;
+    }
+    pub fn setProcessAsleep(self: *Scheduler, pid: usize, sleep_time: usize, irq_context: *CpuContext) !void {
+        try checkForPid(pid);
+        for (processses_sleeping) |proc, i| {
+            if (proc == null) {
+                processses_sleeping[i] = &processses[pid];
+            }
+        }
+        processses[pid].sleep_counter = sleep_time;
+        processses[pid].state = .sleeping;
+        self.schedule(irq_context);
     }
 
     // todo => optionally implement check for pid's process state
@@ -297,7 +328,7 @@ pub const Scheduler = struct {
         kprint("current processses(n={d}): \n", .{pid_counter + 1});
         for (processses) |*proc, i| {
             if (i >= pid_counter) break;
-            kprint("pid: {d} {s}, {s}, {s} \n", .{ i, @tagName(proc.priv_level), @tagName(proc.priv_level), @tagName(proc.state) });
+            kprint("pid: {d} {s}, {s}, {s}, (is thread) {any} \n", .{ i, @tagName(proc.priv_level), @tagName(proc.priv_level), @tagName(proc.state), proc.is_thread });
         }
         from.cpu_context = irq_context.*;
         switchCpuPrivLvl(to.priv_level);

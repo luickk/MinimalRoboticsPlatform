@@ -4,6 +4,7 @@ const pl011 = periph.Pl011(.ttbr1);
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 const kernelTimer = @import("kernelTimer.zig");
 const utils = @import("utils");
+const board = @import("board");
 const arm = @import("arm");
 const CpuContext = arm.cpuContext.CpuContext;
 const ProccessorRegMap = arm.processor.ProccessorRegMap;
@@ -29,6 +30,7 @@ pub const sysCallTable = [_]Syscall{
     .{ .id = 4, .fn_call = &killProcessRecursively },
     .{ .id = 5, .fn_call = &wait },
     .{ .id = 6, .fn_call = &createThread },
+    .{ .id = 7, .fn_call = &sleep },
 };
 
 fn sysCallPrint(params_args: *CpuContext) void {
@@ -90,4 +92,15 @@ fn createThread(params_args: *CpuContext) void {
     const args = @intToPtr(*anyopaque, params_args.x2);
     const thread_fn_ptr = @intToPtr(*anyopaque, params_args.x3);
     scheduler.createThreadFromCurrentProcess(entry_fn_ptr, thread_fn_ptr, thread_stack, args);
+}
+
+// todo => div delay_ticks by scheduler freq...
+fn sleep(params_args: *CpuContext) void {
+    const delay_in_nano_secs = params_args.x0;
+    const delay_ticks = utils.calcTicksFromNanoSeconds(kernelTimer.getTimerFreqInHertz(), delay_in_nano_secs);
+    // const scheduler_intervals = delay_ticks / ;
+    scheduler.setProcessAsleep(scheduler.getCurrentProcessPid(), delay_ticks, params_args) catch |e| {
+        kprint("[panic] setProcessAsleep error: {s}\n", .{@errorName(e)});
+        k_utils.panic();
+    };
 }

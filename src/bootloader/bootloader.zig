@@ -1,4 +1,5 @@
 const std = @import("std");
+const alignForward = std.mem.alignForward;
 const utils = @import("utils");
 
 // bootloader specific
@@ -7,7 +8,6 @@ const PeriphConfig = board.PeriphConfig(.ttbr0);
 const bl_utils = @import("utils.zig");
 const intHandle = @import("blIntHandler.zig");
 const b_options = @import("build_options");
-
 // general periphs
 const periph = @import("periph");
 // .ttbr0 arg sets the addresses value to either or user_, kernel_space
@@ -38,10 +38,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         var user_space_start = (board.config.mem.bl_load_addr orelse 0) + (board.config.mem.rom_size orelse 0) + board.config.mem.kernel_space_size;
         // increasing user_space_start by stack_size so that later writes to the user_space don't overwrite the bl's stack
         user_space_start += board.config.mem.bl_stack_size;
-        ProccessorRegMap.setSp(utils.ceilRoundToMultiple(user_space_start, 16) catch |e| {
-            kprint("[panic] error ceilRoundToMultiple bl sp: {s} \n", .{@errorName(e)});
-            bl_utils.panic();
-        });
+        ProccessorRegMap.setSp(alignForward(user_space_start, 16));
         break :blk user_space_start;
     };
 
@@ -50,10 +47,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         bl_utils.panic();
     });
 
-    var boot_without_rom_new_kernel_loc: usize = utils.ceilRoundToMultiple(_bl_bin_end, 4096) catch |e| {
-        kprint("[panic] error ceilRoundToMultiple boot_without_rom_new_kernel_loc: {s} \n", .{@errorName(e)});
-        bl_utils.panic();
-    };
+    var boot_without_rom_new_kernel_loc: usize = alignForward(_bl_bin_end, 4096);
     if (board.config.mem.bl_load_addr == null) boot_without_rom_new_kernel_loc = 0;
 
     // mmu configuration...
@@ -66,10 +60,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
 
             // writing page dirs to userspace in ram. Writing to userspace because it would be overwritten in kernel space, when copying
             // the kernel. Additionally, on mmu turn on, the mmu would try to read from the page tables without mmu kernel space identifier bits on
-            var ttbr1_mem = @intToPtr(*volatile [page_table.totaPageTableSize]usize, utils.ceilRoundToMultiple(user_space_start, Granule.Fourk.page_size) catch |e| {
-                kprint("[panic] Page table _ttbr1_dir alignment calc error: {s}\n", .{@errorName(e)});
-                bl_utils.panic();
-            });
+            var ttbr1_mem = @intToPtr(*volatile [page_table.totaPageTableSize]usize, alignForward(user_space_start, Granule.Fourk.page_size));
 
             // mapping general kernel mem (inlcuding device base)
             var ttbr1_write = page_table.init(ttbr1_mem, 0) catch |e| {
@@ -106,10 +97,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
 
             var ttbr0_addr = user_space_start + (ttbr1.len * @sizeOf(usize));
 
-            ttbr0_addr = utils.ceilRoundToMultiple(ttbr0_addr, Granule.Fourk.page_size) catch |e| {
-                kprint("[panic] Page table ttbr0 address alignment error: {s}\n", .{@errorName(e)});
-                bl_utils.panic();
-            };
+            ttbr0_addr = alignForward(ttbr0_addr, Granule.Fourk.page_size);
 
             var ttbr0_mem = @intToPtr(*volatile [page_table.totaPageTableSize]usize, ttbr0_addr);
 
@@ -191,10 +179,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         var kernel_addr = @ptrToInt(kernel_target_loc.ptr);
 
         const kernel_sp = blk: {
-            const aligned_ksize = utils.ceilRoundToMultiple(kernel_target_loc.len, 0x8) catch {
-                // kprint("[panic] kernel stack address calc error: {s} \n", .{@errorName(e)});
-                bl_utils.panic();
-            };
+            const aligned_ksize = alignForward(kernel_target_loc.len, 0x8);
             break :blk utils.toTtbr1(usize, aligned_ksize + board.config.mem.k_stack_size);
         };
 

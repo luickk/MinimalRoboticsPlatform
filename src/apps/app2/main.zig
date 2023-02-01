@@ -26,7 +26,7 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
         while (true) {}
     };
 
-    sysCalls.createThread(&alloc, testThread2, .{}) catch |e| {
+    sysCalls.createThread(&alloc, testThread2, .{"testVal"}) catch |e| {
         kprint("[panic] AppAlloc init error: {s}\n", .{@errorName(e)});
         while (true) {}
     };
@@ -55,8 +55,8 @@ pub fn testThread(test_arg: u8) void {
     }
 }
 
-pub fn testThread2() void {
+pub fn testThread2(test_arg: []const u8) void {
     while (true) {
-        kprint("TEST THREAD 2 \n", .{});
+        kprint("TEST THREAD 2 (test arg: {s}) \n", .{test_arg});
     }
 }
