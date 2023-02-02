@@ -270,10 +270,10 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
         kprint("[kernel] timer inited \n", .{});
     }
 
-    // scheduler.createThreadFromCurrentProcess(&kernelThread, @ptrToInt((kspace_alloc.alloc(u8, 0x10000, 16) catch |e| {
-    //     kprint("[panic] kernel alloc error: {s}\n", .{@errorName(e)});
-    //     k_utils.panic();
-    // }).ptr));
+    scheduler.createKernelThread(&kspace_alloc, kernelThread, .{"testArg"}) catch |e| {
+        kprint("[panic] createKernelThread error: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
 
     var counter: usize = 0;
     while (true) {
@@ -282,9 +282,9 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
     }
 }
 
-fn kernelThread() void {
+fn kernelThread(test_arg: []const u8) void {
     while (true) {
-        kprint("KERNEL THREAD \n", .{});
+        kprint("KERNEL THREAD {s} \n", .{test_arg});
     }
 }
 

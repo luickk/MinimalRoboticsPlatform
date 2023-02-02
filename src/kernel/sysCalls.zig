@@ -45,7 +45,7 @@ fn sysCallPrint(params_args: *CpuContext) void {
 
 fn killProcess(params_args: *CpuContext) void {
     kprint("[kernel] killing task with pid: {d} \n", .{params_args.x0});
-    scheduler.killProcess(params_args.x0) catch |e| {
+    scheduler.killProcess(params_args.x0, params_args) catch |e| {
         kprint("[panic] killProcess error: {s}\n", .{@errorName(e)});
         k_utils.panic();
     };
@@ -54,7 +54,7 @@ fn killProcess(params_args: *CpuContext) void {
 // kill a process and all its children processes
 fn killProcessRecursively(params_args: *CpuContext) void {
     kprint("[kernel] killing task and children starting with pid: {d} \n", .{params_args.x0});
-    scheduler.killProcessAndChildrend(params_args.x0) catch |e| {
+    scheduler.killProcessAndChildrend(params_args.x0, params_args) catch |e| {
         kprint("[panic] killProcessRecursively error: {s}\n", .{@errorName(e)});
         k_utils.panic();
     };

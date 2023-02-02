@@ -132,7 +132,7 @@ pub fn createThread(app_alloc: *AppAllocator, thread_fn: anytype, args: anytype)
         \\mov x8, #6
         \\svc #0
         :
-        : [entry_fn_ptr] "r" (@ptrToInt(&(ThreadInstance(thread_fn, args).threadEntry))),
+        : [entry_fn_ptr] "r" (@ptrToInt(&(ThreadInstance(thread_fn, @TypeOf(args)).threadEntry))),
           [thread_stack] "r" (@ptrToInt(thread_stack_start.ptr) - alignForward(@sizeOf(@TypeOf(args)), 16)),
           [args_addr] "r" (@ptrToInt(thread_stack_start.ptr)),
           [thread_fn_ptr] "r" (@ptrToInt(&thread_fn)),
@@ -141,8 +141,7 @@ pub fn createThread(app_alloc: *AppAllocator, thread_fn: anytype, args: anytype)
 }
 
 // provides a generic entry function (generic in regard to the thread and argument function since @call builtin needs them to properly invoke the thread start)
-fn ThreadInstance(comptime thread_fn: anytype, comptime args: anytype) type {
-    const Args = @TypeOf(args);
+fn ThreadInstance(comptime thread_fn: anytype, comptime Args: type) type {
     const ThreadFn = @TypeOf(thread_fn);
     return struct {
         fn threadEntry(entry_fn: *ThreadFn, entry_args: *Args) callconv(.C) void {

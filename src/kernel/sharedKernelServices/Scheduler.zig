@@ -7,6 +7,7 @@ const utils = @import("utils");
 const b_options = @import("build_options");
 const arm = @import("arm");
 const mmu = arm.mmu;
+const KernelAlloc = @import("KernelAllocator.zig").KernelAllocator;
 const ThreadArgs = @import("appLib").sysCalls.ThreadArgs;
 const ProccessorRegMap = arm.processor.ProccessorRegMap;
 const CpuContext = arm.cpuContext.CpuContext;
@@ -75,6 +76,7 @@ pub const Process = struct {
 pub const Error = error{
     PidNotFound,
     ForkPermissionFault,
+    ThreadPermissionFault,
 };
 const maxProcesss = 10;
 
@@ -210,12 +212,17 @@ pub const Scheduler = struct {
         current_process.setPreempt(true);
     }
 
-    pub fn killProcess(self: *Scheduler, pid: usize) !void {
-        _ = self;
+    pub fn killProcess(self: *Scheduler, pid: usize, irq_context: *CpuContext) !void {
         current_process.setPreempt(false);
         try checkForPid(pid);
         processses[pid].state = .done;
+        for (processses) |*proc| {
+            if (proc.is_thread and proc.parent_pid == pid) {
+                proc.state = .done;
+            }
+        }
         current_process.setPreempt(true);
+        self.schedule(irq_context);
     }
 
     pub fn deepForkProcess(self: *Scheduler, to_clone_pid: usize) !void {
@@ -237,12 +244,35 @@ pub const Scheduler = struct {
         processses[new_pid].pid = new_pid;
         processses[new_pid].parent_pid = to_clone_pid;
         processses[to_clone_pid].child_pid = new_pid;
-
         pid_counter += 1;
+
+        for (processses) |*proc| {
+            if (proc.is_thread and proc.parent_pid == to_clone_pid) {
+                try self.cloneThread(proc.pid.?, new_pid);
+            }
+        }
+
         switchMemContext(current_process.ttbr0.?, null);
         current_process.setPreempt(true);
     }
-    pub fn createThreadFromCurrentProcess(self: *Scheduler, entry_fn_ptr: *anyopaque, thread_fn_ptr: *anyopaque, thread_stack_addr: usize, args: *anyopaque) void {
+
+    pub fn cloneThread(self: *Scheduler, to_clone_thread_pid: usize, new_proc_pid: usize) !void {
+        _ = self;
+        try checkForPid(to_clone_thread_pid);
+        current_process.setPreempt(false);
+        if (!processses[to_clone_thread_pid].is_thread) return;
+
+        var new_pid = pid_counter;
+        processses[new_pid] = processses[to_clone_thread_pid];
+        processses[new_pid].pid = new_pid;
+        processses[new_pid].parent_pid = new_proc_pid;
+        processses[new_pid].ttbr0 = processses[new_proc_pid].ttbr0;
+        processses[new_pid].ttbr1 = processses[new_proc_pid].ttbr1;
+
+        pid_counter += 1;
+        current_process.setPreempt(true);
+    }
+    pub fn createThreadFromCurrentProcess(self: *Scheduler, entry_fn_ptr: *const anyopaque, thread_fn_ptr: *const anyopaque, thread_stack_addr: usize, args: *anyopaque) void {
         _ = self;
         current_process.setPreempt(false);
         var new_pid = pid_counter;
@@ -250,28 +280,68 @@ pub const Scheduler = struct {
         processses[new_pid].is_thread = true;
         processses[new_pid].counter = processses[current_process.pid.?].priority;
         processses[new_pid].priority = processses[current_process.pid.?].priority;
+        processses[new_pid].parent_pid = current_process.pid.?;
         processses[new_pid].cpu_context.x0 = @ptrToInt(thread_fn_ptr);
         processses[new_pid].cpu_context.x1 = @ptrToInt(args);
         processses[new_pid].cpu_context.elr_el1 = @ptrToInt(entry_fn_ptr);
         processses[new_pid].cpu_context.sp_el0 = thread_stack_addr;
+        processses[new_pid].cpu_context.sp = thread_stack_addr;
         processses[new_pid].priv_level = processses[current_process.pid.?].priv_level;
         processses[new_pid].ttbr0 = processses[current_process.pid.?].ttbr0;
         processses[new_pid].ttbr1 = processses[current_process.pid.?].ttbr1;
         pid_counter += 1;
         current_process.setPreempt(true);
+        if (current_process.pid.? == 0) kprint("CREATED \n", .{});
     }
 
-    pub fn killProcessAndChildrend(self: *Scheduler, starting_pid: usize) !void {
-        _ = self;
+    // provides a generic entry function (generic in regard to the thread and argument function since @call builtin needs them to properly invoke the thread start)
+    fn KernelThreadInstance(comptime thread_fn: anytype, comptime Args: type) type {
+        const ThreadFn = @TypeOf(thread_fn);
+        return struct {
+            fn threadEntry(entry_fn: *ThreadFn, entry_args: *Args) callconv(.C) void {
+                @call(.{ .modifier = .auto }, entry_fn, entry_args.*);
+            }
+        };
+    }
+    // creates thread for current process
+    pub fn createKernelThread(self: *Scheduler, app_alloc: *KernelAlloc, thread_fn: anytype, args: anytype) !void {
+        // todo => make thread_stack_size configurable
+        const thread_stack_mem = try app_alloc.alloc(u8, 0x10000, 16);
+        var thread_stack_start: []u8 = undefined;
+        thread_stack_start.ptr = @intToPtr([*]u8, @ptrToInt(thread_stack_mem.ptr) + thread_stack_mem.len);
+        thread_stack_start.len = thread_stack_mem.len;
+
+        var arg_mem: []const u8 = undefined;
+        arg_mem.ptr = @ptrCast([*]const u8, @alignCast(1, &args));
+        arg_mem.len = @sizeOf(@TypeOf(args));
+
+        std.mem.copy(u8, thread_stack_start, arg_mem);
+
+        const entry_fn = &(KernelThreadInstance(thread_fn, @TypeOf(args)).threadEntry);
+        const thread_fn_ptr = &thread_fn;
+        const thread_stack_addr = @ptrToInt(thread_stack_start.ptr) - alignForward(@sizeOf(@TypeOf(args)), 16);
+        const args_ptr = thread_stack_start.ptr;
+        self.createThreadFromCurrentProcess(@ptrCast(*const anyopaque, entry_fn), @ptrCast(*const anyopaque, thread_fn_ptr), thread_stack_addr, @ptrCast(*anyopaque, args_ptr));
+    }
+
+    pub fn killProcessAndChildrend(self: *Scheduler, starting_pid: usize, irq_context: *CpuContext) !void {
         current_process.setPreempt(false);
         try checkForPid(starting_pid);
         processses[starting_pid].state = .done;
-        var child_proc_pid = processses[starting_pid].child_pid;
+        var child_proc_pid = @as(?usize, starting_pid);
         while (child_proc_pid != null) {
             processses[child_proc_pid.?].state = .done;
+            // killing tasks threads...
+            // todo => store tasks pids in parents proc instead of iterating...
+            for (processses) |*proc| {
+                if (proc.is_thread and proc.parent_pid == child_proc_pid.?) {
+                    proc.state = .done;
+                }
+            }
             child_proc_pid = processses[child_proc_pid.?].child_pid;
         }
         current_process.setPreempt(true);
+        self.schedule(irq_context);
     }
 
     pub fn getCurrentProcessPid(self: *Scheduler) usize {

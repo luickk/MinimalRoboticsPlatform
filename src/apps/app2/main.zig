@@ -21,12 +21,12 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
         while (true) {}
     };
 
-    sysCalls.createThread(&alloc, testThread, .{8}) catch |e| {
+    sysCalls.createThread(&alloc, testThread, .{sysCalls.getPid()}) catch |e| {
         kprint("[panic] AppAlloc init error: {s}\n", .{@errorName(e)});
         while (true) {}
     };
 
-    sysCalls.createThread(&alloc, testThread2, .{"testVal"}) catch |e| {
+    sysCalls.createThread(&alloc, testThread2, .{sysCalls.getPid()}) catch |e| {
         kprint("[panic] AppAlloc init error: {s}\n", .{@errorName(e)});
         while (true) {}
     };
@@ -34,11 +34,11 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
         test_counter += 1;
         kprint("app{d} test print {d} \n", .{ sysCalls.getPid(), test_counter });
 
-        // if (test_counter == 10000) {
-        //     test_counter += 1;
-        //     sysCalls.forkProcess(pid);
-        //     // sysCalls.killProcess(pid);
-        // }
+        if (test_counter == 10000) {
+            test_counter += 1;
+            sysCalls.forkProcess(pid);
+            // sysCalls.killProcess(pid);
+        }
         // if (test_counter == 10000) {
         //     test_counter += 1;
         //     sysCalls.createThread(&alloc, &testThread) catch |e| {
@@ -49,14 +49,14 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     }
 }
 
-pub fn testThread(test_arg: u8) void {
+pub fn testThread(parent_pid: usize) void {
     while (true) {
-        kprint("TEST THREAD 1 (test_arg: {d})\n", .{test_arg});
+        kprint("TEST THREAD 1 (daddy proc.: {d}, my pid: {d})\n", .{ parent_pid, sysCalls.getPid() });
     }
 }
 
-pub fn testThread2(test_arg: []const u8) void {
+pub fn testThread2(parent_pid: usize) void {
     while (true) {
-        kprint("TEST THREAD 2 (test arg: {s}) \n", .{test_arg});
+        kprint("TEST THREAD 2 (daddy proc.: {d}, my pid: {d}) \n", .{ parent_pid, sysCalls.getPid() });
     }
 }
