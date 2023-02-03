@@ -2,6 +2,7 @@ const std = @import("std");
 const arm = @import("arm");
 const ProccessorRegMap = arm.processor.ProccessorRegMap;
 const CpuContext = arm.cpuContext.CpuContext;
+const k_utils = @import("utils.zig");
 const periph = @import("periph");
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 const board = @import("board");
@@ -75,12 +76,15 @@ pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(
                 },
             }
         },
-        // timer interrupts with custom timers per voard
+        // timer interrupts with custom timers per board
         .el1Irq, .el0Irq => {
             if (board.config.board == .raspi3b)
                 bcm2835IntHandle.irqHandler(&context);
             if (board.config.board == .qemuVirt)
-                gt.timerInt(&context);
+                gt.timerInt(&context) catch |e| {
+                    kprint("[panic] generic timer error: {s} \n", .{@errorName(e)});
+                    k_utils.panic();
+                };
         },
         else => {
             printExc(&context, int_type_en);

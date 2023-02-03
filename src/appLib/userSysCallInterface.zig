@@ -1,7 +1,12 @@
 const std = @import("std");
+const board = @import("board");
 const alignForward = std.mem.alignForward;
 const AppAllocator = @import("AppAllocator.zig").AppAllocator;
 const utils = @import("utils");
+
+const Error = error{
+    SleepDelayTooGreatForScheduler,
+};
 
 pub const SysCallPrint = struct {
     const Self = @This();
@@ -150,7 +155,10 @@ fn ThreadInstance(comptime thread_fn: anytype, comptime Args: type) type {
     };
 }
 
-pub fn sleep(delay_in_nano_secs: usize) void {
+pub fn sleep(delay_in_nano_secs: usize) !void {
+    const delay_in_hertz = delay_in_nano_secs * 1000000000;
+    const delay_sched_intervals = board.config.scheduler_freq_in_hertz / delay_in_hertz;
+    if (board.config.scheduler_freq_in_hertz < delay_in_hertz) return Error.SleepDelayTooGreatForScheduler;
     asm volatile (
     // args
         \\mov x0, %[delay]
@@ -158,7 +166,7 @@ pub fn sleep(delay_in_nano_secs: usize) void {
         \\mov x8, #7
         \\svc #0
         :
-        : [delay] "r" (delay_in_nano_secs),
+        : [delay] "r" (delay_sched_intervals),
         : "x0", "x8"
     );
 }

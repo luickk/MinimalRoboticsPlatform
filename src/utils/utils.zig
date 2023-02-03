@@ -1,12 +1,13 @@
 const std = @import("std");
 const board = @import("board");
 
-pub fn ceilRoundToMultiple(inp: usize, multiple: usize) !usize {
-    return inp + (multiple - (try std.math.mod(usize, inp, multiple)));
-}
+const Error = error{
+    SchedulerFreqTooLow,
+};
 
-pub fn calcTicksFromSeconds(timer_freq_in_hertz: usize, seconds: f64) usize {
-    return @floatToInt(usize, @intToFloat(f64, timer_freq_in_hertz) * seconds);
+pub fn calcTicksFromHertz(timer_freq_in_hertz: usize, wanted_freq_in_hertz: usize) !usize {
+    if (wanted_freq_in_hertz > timer_freq_in_hertz) return Error.SchedulerFreqTooLow;
+    return (try std.math.divTrunc(usize, timer_freq_in_hertz, wanted_freq_in_hertz));
 }
 
 pub fn calcTicksFromNanoSeconds(timer_freq_in_hertz: usize, nano_seconds: usize) usize {

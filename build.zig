@@ -8,7 +8,7 @@ const Error = error{BlExceedsRomSize};
 const raspi3b = @import("src/boards/raspi3b.zig");
 const qemuVirt = @import("src/boards/qemuVirt.zig");
 
-const currBoard = qemuVirt;
+const currBoard = raspi3b;
 
 // packages...
 // SOC builtin features

@@ -45,7 +45,10 @@ pub fn irqHandler(context: *cpuContext.CpuContext) callconv(.C) void {
         Bank0.pending1 => {
             switch (irq_bank_1) {
                 Bank1.timer1 => {
-                    timer.handleTimerIrq(context);
+                    timer.handleTimerIrq(context) catch |e| {
+                        kprint("[panic] generic timer error: {s} \n", .{@errorName(e)});
+                        while (true) {}
+                    };
                 },
                 else => {
                     kprint("Unknown bank 1 irq num: {s} \n", .{@tagName(irq_bank_1)});

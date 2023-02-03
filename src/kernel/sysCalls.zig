@@ -96,10 +96,8 @@ fn createThread(params_args: *CpuContext) void {
 
 // todo => div delay_ticks by scheduler freq...
 fn sleep(params_args: *CpuContext) void {
-    const delay_in_nano_secs = params_args.x0;
-    const delay_ticks = utils.calcTicksFromNanoSeconds(kernelTimer.getTimerFreqInHertz(), delay_in_nano_secs);
-    // const scheduler_intervals = delay_ticks / ;
-    scheduler.setProcessAsleep(scheduler.getCurrentProcessPid(), delay_ticks, params_args) catch |e| {
+    const delay_in_sched_inter = params_args.x0;
+    scheduler.setProcessAsleep(scheduler.getCurrentProcessPid(), delay_in_sched_inter, params_args) catch |e| {
         kprint("[panic] setProcessAsleep error: {s}\n", .{@errorName(e)});
         k_utils.panic();
     };

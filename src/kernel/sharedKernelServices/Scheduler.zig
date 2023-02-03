@@ -17,6 +17,8 @@ const app_page_table = mmu.PageTable(board.config.mem.app_vm_mem_size, board.boa
     @compileError(@errorName(e));
 };
 
+const log = false;
+
 pub const Process = struct {
     pub const ProcessState = enum(usize) {
         running,
@@ -153,18 +155,16 @@ pub const Scheduler = struct {
         current_process.counter -= 1;
         for (processses_sleeping) |proc, i| {
             if (proc) |process| {
-                kprint("sleep counter: {d} \n", .{process.sleep_counter});
                 if (process.sleep_counter <= 0) {
                     process.state = .running;
                     processses_sleeping[i] = null;
-                    kprint("SLEEP DONE \n", .{});
                 } else {
                     process.sleep_counter -= 1;
                 }
             }
         }
         if (current_process.counter > 0 and current_process.preempt_count > 0) {
-            kprint("--------- PROC WAIT pc: {x} \n", .{irq_context.elr_el1});
+            if (log) kprint("--------- PROC WAIT counter: {d} \n", .{current_process.counter});
             // return all the way back to the exc vector table where cpu state is restored from the stack
             // if the task is done already, we don't return back to the process but schedule the next task
             if (current_process.state == .running) return;
@@ -291,7 +291,6 @@ pub const Scheduler = struct {
         processses[new_pid].ttbr1 = processses[current_process.pid.?].ttbr1;
         pid_counter += 1;
         current_process.setPreempt(true);
-        if (current_process.pid.? == 0) kprint("CREATED \n", .{});
     }
 
     // provides a generic entry function (generic in regard to the thread and argument function since @call builtin needs them to properly invoke the thread start)
@@ -394,11 +393,13 @@ pub const Scheduler = struct {
     }
 
     fn switchCpuContext(from: *Process, to: *Process, irq_context: *CpuContext) void {
-        kprint("from: ({s}, {s}, {*}) to ({s}, {s}, {*}) \n", .{ @tagName(from.priv_level), @tagName(from.state), from, @tagName(to.priv_level), @tagName(to.state), to });
-        kprint("current processses(n={d}): \n", .{pid_counter + 1});
-        for (processses) |*proc, i| {
-            if (i >= pid_counter) break;
-            kprint("pid: {d} {s}, {s}, {s}, (is thread) {any} \n", .{ i, @tagName(proc.priv_level), @tagName(proc.priv_level), @tagName(proc.state), proc.is_thread });
+        if (log) {
+            kprint("from: ({s}, {s}, {*}) to ({s}, {s}, {*}) \n", .{ @tagName(from.priv_level), @tagName(from.state), from, @tagName(to.priv_level), @tagName(to.state), to });
+            kprint("current processses(n={d}): \n", .{pid_counter + 1});
+            for (processses) |*proc, i| {
+                if (i >= pid_counter) break;
+                kprint("pid: {d} {s}, {s}, {s}, (is thread) {any} \n", .{ i, @tagName(proc.priv_level), @tagName(proc.priv_level), @tagName(proc.state), proc.is_thread });
+            }
         }
         from.cpu_context = irq_context.*;
         switchCpuPrivLvl(to.priv_level);

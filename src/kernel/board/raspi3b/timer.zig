@@ -2,7 +2,8 @@ const CpuContext = @import("arm").cpuContext.CpuContext;
 const kprint = @import("periph").uart.UartWriter(.ttbr1).kprint;
 const sharedKernelServices = @import("sharedKernelServices");
 const Scheduler = sharedKernelServices.Scheduler;
-const timerCfg = @import("board").PeriphConfig(.ttbr1).Timer;
+const board = @import("board");
+const timerCfg = board.PeriphConfig(.ttbr1).Timer;
 const utils = @import("utils");
 
 var timerVal: u32 = 0;
@@ -11,8 +12,6 @@ extern var scheduler: *Scheduler;
 // raspberry 3b available timers: system timer (this one), arm timer, free runnning timer
 // raspberry system timer frequency is 1 Mhz
 var cnt_freq: u32 = 1000000;
-// 0.002 is the highest possible frequency
-var freq_factor: f32 = 0.09;
 
 // todo => handle timer overflow
 
@@ -34,14 +33,14 @@ pub const RegValues = struct {
     pub const timerCsM3: u32 = 1 << 3;
 };
 
-pub fn initTimer() void {
+pub fn initTimer() !void {
     timerVal = RegMap.timerLo.*;
-    timerVal += @truncate(u32, utils.calcTicksFromSeconds(cnt_freq, freq_factor));
+    timerVal += @truncate(u32, try utils.calcTicksFromHertz(cnt_freq, board.config.scheduler_freq_in_hertz));
     RegMap.timerC1.* = timerVal;
 }
 
-pub fn handleTimerIrq(irq_context: *CpuContext) void {
-    timerVal += @truncate(u32, utils.calcTicksFromSeconds(cnt_freq, freq_factor));
+pub fn handleTimerIrq(irq_context: *CpuContext) !void {
+    timerVal += @truncate(u32, try utils.calcTicksFromHertz(cnt_freq, board.config.scheduler_freq_in_hertz));
     RegMap.timerC1.* = timerVal;
     RegMap.timerCs.* = RegMap.timerCs.* | RegValues.timerCsM1;
     scheduler.timerIntEvent(irq_context);

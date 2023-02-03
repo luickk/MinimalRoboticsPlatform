@@ -34,11 +34,11 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
         test_counter += 1;
         kprint("app{d} test print {d} \n", .{ sysCalls.getPid(), test_counter });
 
-        if (test_counter == 10000) {
-            test_counter += 1;
-            sysCalls.forkProcess(pid);
-            // sysCalls.killProcess(pid);
-        }
+        // if (test_counter == 10000) {
+        //     test_counter += 1;
+        //     sysCalls.forkProcess(pid);
+        //     // sysCalls.killProcess(pid);
+        // }
         // if (test_counter == 10000) {
         //     test_counter += 1;
         //     sysCalls.createThread(&alloc, &testThread) catch |e| {

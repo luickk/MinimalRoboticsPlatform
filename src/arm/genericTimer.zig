@@ -2,6 +2,7 @@ const std = @import("std");
 const mmu = @import("mmu.zig");
 const periph = @import("periph");
 const utils = @import("utils");
+const board = @import("board");
 const AddrSpace = @import("board").boardConfig.AddrSpace;
 const Scheduler = sharedKernelServices.Scheduler;
 const CpuContext = @import("cpuContext.zig").CpuContext;
@@ -12,8 +13,6 @@ const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 extern var scheduler: *Scheduler;
 
 var timerVal: usize = 0;
-
-var freq_factor: f64 = 0.02;
 
 var cnt_freq: usize = 0;
 
@@ -26,11 +25,11 @@ pub fn getFreq() usize {
 }
 
 // initialize gic controller
-pub fn setupGt() void {
+pub fn setupGt() !void {
     cnt_freq = asm ("mrs %[curr], CNTFRQ_EL0"
         : [curr] "=r" (-> usize),
     );
-    timerVal += utils.calcTicksFromSeconds(cnt_freq, freq_factor);
+    timerVal += try utils.calcTicksFromHertz(cnt_freq, board.config.scheduler_freq_in_hertz);
 
     asm volatile (
         \\msr CNTP_CVAL_EL0, %[freq]
@@ -42,8 +41,8 @@ pub fn setupGt() void {
     );
 }
 
-pub fn timerInt(irq_context: *CpuContext) void {
-    timerVal += utils.calcTicksFromSeconds(cnt_freq, freq_factor);
+pub fn timerInt(irq_context: *CpuContext) !void {
+    timerVal += try utils.calcTicksFromHertz(cnt_freq, board.config.scheduler_freq_in_hertz);
     asm volatile (
         \\msr CNTP_CVAL_EL0, %[freq]
         \\mov x0, 1

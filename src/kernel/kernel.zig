@@ -261,12 +261,18 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
     scheduler.initProcessCounter();
 
     if (board.config.board == .qemuVirt) {
-        gt.setupGt();
+        gt.setupGt() catch |e| {
+            kprint("[panic] generic timer error: {s} \n", .{@errorName(e)});
+            k_utils.panic();
+        };
         kprint("[kernel] timer inited \n", .{});
     }
 
     if (board.config.board == .raspi3b) {
-        bcm2835Timer.initTimer();
+        bcm2835Timer.initTimer() catch |e| {
+            kprint("[panic] bcm2835Timer error: {s} \n", .{@errorName(e)});
+            k_utils.panic();
+        };
         kprint("[kernel] timer inited \n", .{});
     }
 

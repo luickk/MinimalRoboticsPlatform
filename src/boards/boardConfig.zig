@@ -66,6 +66,7 @@ pub const BoardConfig = struct {
     mem: BoardMemLayout,
     // if it's null, the frequency mus be read from the board at runtime
     timer_freq_in_hertz: ?usize,
+    scheduler_freq_in_hertz: usize,
     qemu_launch_command: []const []const u8,
 
     pub fn checkConfig(self: BoardConfig) void {
