@@ -276,10 +276,10 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
         kprint("[kernel] timer inited \n", .{});
     }
 
-    scheduler.createKernelThread(&kspace_alloc, kernelThread, .{"testArg"}) catch |e| {
-        kprint("[panic] createKernelThread error: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
+    // scheduler.createKernelThread(&kspace_alloc, kernelThread, .{"testArg"}) catch |e| {
+    //     kprint("[panic] createKernelThread error: {s} \n", .{@errorName(e)});
+    //     k_utils.panic();
+    // };
 
     var counter: usize = 0;
     while (true) {

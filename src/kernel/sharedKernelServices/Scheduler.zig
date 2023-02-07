@@ -17,7 +17,7 @@ const app_page_table = mmu.PageTable(board.config.mem.app_vm_mem_size, board.boa
     @compileError(@errorName(e));
 };
 
-const log = false;
+const log = true;
 
 pub const Process = struct {
     pub const ProcessState = enum(usize) {
@@ -70,8 +70,10 @@ pub const Process = struct {
         };
     }
     pub fn setPreempt(self: *Process, state: bool) void {
-        if (state) self.preempt_count -= 1;
-        if (!state) self.preempt_count += 1;
+        // if (state) self.preempt_count -= 1;
+        // if (!state) self.preempt_count += 1;
+        _ = self;
+        _ = state;
     }
 };
 
@@ -147,7 +149,6 @@ pub const Scheduler = struct {
                 process.counter = (process.counter >> 1) + process.priority;
             }
         }
-        current_process.setPreempt(true);
         self.switchContextToProcess(&processses[next_proc_pid], irq_context);
     }
 
@@ -163,7 +164,9 @@ pub const Scheduler = struct {
                 }
             }
         }
-        if (current_process.counter > 0 and current_process.preempt_count > 0) {
+        // todo => inculde preempt counter
+        // and current_process.preempt_count > 0
+        if (current_process.counter > 0) {
             if (log) kprint("--------- PROC WAIT counter: {d} \n", .{current_process.counter});
             // return all the way back to the exc vector table where cpu state is restored from the stack
             // if the task is done already, we don't return back to the process but schedule the next task
@@ -247,13 +250,13 @@ pub const Scheduler = struct {
         pid_counter += 1;
 
         for (processses) |*proc| {
-            if (proc.is_thread and proc.parent_pid == to_clone_pid) {
+            if (proc.is_thread or proc.parent_pid == to_clone_pid) {
                 try self.cloneThread(proc.pid.?, new_pid);
             }
         }
 
-        switchMemContext(current_process.ttbr0.?, null);
         current_process.setPreempt(true);
+        switchMemContext(current_process.ttbr0.?, null);
     }
 
     pub fn cloneThread(self: *Scheduler, to_clone_thread_pid: usize, new_proc_pid: usize) !void {
@@ -285,7 +288,7 @@ pub const Scheduler = struct {
         processses[new_pid].cpu_context.x1 = @ptrToInt(args);
         processses[new_pid].cpu_context.elr_el1 = @ptrToInt(entry_fn_ptr);
         processses[new_pid].cpu_context.sp_el0 = thread_stack_addr;
-        processses[new_pid].cpu_context.sp = thread_stack_addr;
+        processses[new_pid].cpu_context.sp_el1 = thread_stack_addr;
         processses[new_pid].priv_level = processses[current_process.pid.?].priv_level;
         processses[new_pid].ttbr0 = processses[current_process.pid.?].ttbr0;
         processses[new_pid].ttbr1 = processses[current_process.pid.?].ttbr1;
@@ -347,6 +350,10 @@ pub const Scheduler = struct {
         _ = self;
         return current_process.pid.?;
     }
+    pub fn setProcessState(self: *Scheduler, pid: usize, state: Process.ProcessState, irq_context: *CpuContext) void {
+        processses[pid].state = state;
+        if (pid == current_process.pid) self.schedule(irq_context);
+    }
     pub fn setProcessAsleep(self: *Scheduler, pid: usize, sleep_time: usize, irq_context: *CpuContext) !void {
         try checkForPid(pid);
         for (processses_sleeping) |proc, i| {
@@ -403,6 +410,7 @@ pub const Scheduler = struct {
         }
         from.cpu_context = irq_context.*;
         switchCpuPrivLvl(to.priv_level);
+        current_process.setPreempt(true);
         // restore Context and erets
         asm volatile (
             \\ mov sp, %[sp_addr]

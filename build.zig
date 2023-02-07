@@ -8,7 +8,7 @@ const Error = error{BlExceedsRomSize};
 const raspi3b = @import("src/boards/raspi3b.zig");
 const qemuVirt = @import("src/boards/qemuVirt.zig");
 
-const currBoard = raspi3b;
+const currBoard = qemuVirt;
 
 // packages...
 // SOC builtin features
@@ -84,13 +84,25 @@ pub fn build(b: *std.build.Builder) !void {
     const build_and_run = b.step("qemu", "emulate the kernel with no graphics and output uart to console");
     const launch_with_gdb = b.option(bool, "gdb", "Launch qemu with -s -S to allow for net gdb debugging") orelse false;
 
-    const app1 = try addApp(b, build_mode, "app1");
+    // try setEnvironment(b, build_and_run, build_mode, "src/environments/testEnv");
+    const app1 = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}", .{"src/environments/testEnv/app1"}));
     build_and_run.dependOn(&app1.install_step.?.step);
-    build_and_run.dependOn(&app1.installRaw("app1.bin", .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/" } }).step);
+    build_and_run.dependOn(&app1.installRaw("app1", .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/" } }).step);
 
-    const app2 = try addApp(b, build_mode, "app2");
+    const app2 = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}", .{"src/environments/testEnv/app2"}));
     build_and_run.dependOn(&app2.install_step.?.step);
-    build_and_run.dependOn(&app2.installRaw("app2.bin", .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/" } }).step);
+    build_and_run.dependOn(&app2.installRaw("app2", .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/" } }).step);
+
+    // var dir = try std.fs.cwd().openIterableDir("src/environments/testEnv", .{});
+    // var it = dir.iterate();
+    // while (try it.next()) |folder| {
+    //     if (folder.kind != .Directory) continue;
+    //     const app = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ "src/environments/testEnv", folder.name }));
+    //     build_and_run.dependOn(&app.install_step.?.step);
+    //     build_and_run.dependOn(&app.installRaw(folder.name, .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/" } }).step);
+    // }
+
+    std.debug.print("done... \n", .{});
 
     build_and_run.dependOn(&update_linker_scripts_k.step);
     build_and_run.dependOn(&scan_for_apps.step);
@@ -124,14 +136,25 @@ pub fn build(b: *std.build.Builder) !void {
     clean.dependOn(&create_bins.step);
 }
 
-fn addApp(b: *std.build.Builder, build_mode: std.builtin.Mode, comptime name: []const u8) !*std.build.LibExeObjStep {
-    const app = b.addExecutable(name, null);
+fn setEnvironment(b: *std.build.Builder, step: *std.build.Step, build_mode: std.builtin.Mode, comptime path: []const u8) !void {
+    var dir = try std.fs.cwd().openIterableDir(path, .{});
+    var it = dir.iterate();
+    while (try it.next()) |folder| {
+        if (folder.kind != .Directory) continue;
+        const app = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ path, folder.name }));
+        step.dependOn(&app.install_step.?.step);
+        step.dependOn(&app.installRaw(folder.name, .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/" } }).step);
+    }
+}
+
+fn addApp(b: *std.build.Builder, build_mode: std.builtin.Mode, path: []const u8) !*std.build.LibExeObjStep {
+    const app = b.addExecutable(std.fs.path.basename(path), null);
     app.force_pic = false;
     app.pie = false;
     app.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
     app.setBuildMode(build_mode);
-    app.setLinkerScriptPath(std.build.FileSource{ .path = "src/apps/" ++ name ++ "/linker.ld" });
-    app.addObjectFile("src/apps/" ++ name ++ "/main.zig");
+    app.setLinkerScriptPath(std.build.FileSource{ .path = try std.fmt.allocPrint(b.allocator, "{s}/linker.ld", .{path}) });
+    app.addObjectFile(try std.fmt.allocPrint(b.allocator, "{s}/main.zig", .{path}));
     app.addPackage(periph);
     app.addPackage(board);
     app.addPackage(appLib);
@@ -272,9 +295,7 @@ const ScanForApps = struct {
             var dir = try std.fs.cwd().openIterableDir("src/kernel/bins/", .{});
             var it = dir.iterate();
             while (try it.next()) |file| {
-                if (file.kind != .File) {
-                    continue;
-                }
+                if (file.kind != .File) continue;
                 try apps.append(file.name);
             }
             self.build_options.addOption([]const []const u8, "apps", apps.items);

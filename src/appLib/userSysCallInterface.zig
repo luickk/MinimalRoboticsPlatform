@@ -2,10 +2,11 @@ const std = @import("std");
 const board = @import("board");
 const alignForward = std.mem.alignForward;
 const AppAllocator = @import("AppAllocator.zig").AppAllocator;
+const Mutex = @import("Mutex.zig").Mutex;
 const utils = @import("utils");
 
 const Error = error{
-    SleepDelayTooGreatForScheduler,
+    SleepDelayTooShortForScheduler,
 };
 
 pub const SysCallPrint = struct {
@@ -99,20 +100,6 @@ pub fn killProcessRecursively(starting_pid: usize) void {
     );
 }
 
-// todo => fix that scheduler gets stuck at higher delays
-pub fn wait(delay_in_nano_secs: usize) void {
-    asm volatile (
-    // args
-        \\mov x0, %[delay]
-        // sys call id
-        \\mov x8, #5
-        \\svc #0
-        :
-        : [delay] "r" (delay_in_nano_secs),
-        : "x0", "x8"
-    );
-}
-
 // creates thread for current process
 pub fn createThread(app_alloc: *AppAllocator, thread_fn: anytype, args: anytype) !void {
     // todo => make thread_stack_size configurable
@@ -158,7 +145,7 @@ fn ThreadInstance(comptime thread_fn: anytype, comptime Args: type) type {
 pub fn sleep(delay_in_nano_secs: usize) !void {
     const delay_in_hertz = delay_in_nano_secs * 1000000000;
     const delay_sched_intervals = board.config.scheduler_freq_in_hertz / delay_in_hertz;
-    if (board.config.scheduler_freq_in_hertz < delay_in_hertz) return Error.SleepDelayTooGreatForScheduler;
+    if (board.config.scheduler_freq_in_hertz < delay_in_hertz) return Error.SleepDelayTooShortForScheduler;
     asm volatile (
     // args
         \\mov x0, %[delay]
@@ -167,6 +154,32 @@ pub fn sleep(delay_in_nano_secs: usize) !void {
         \\svc #0
         :
         : [delay] "r" (delay_sched_intervals),
+        : "x0", "x8"
+    );
+}
+
+pub fn haltProcess(pid: usize) void {
+    asm volatile (
+    // args
+        \\mov x0, %[pid]
+        // sys call id
+        \\mov x8, #8
+        \\svc #0
+        :
+        : [pid] "r" (pid),
+        : "x0", "x8"
+    );
+}
+
+pub fn continueProcess(pid: usize) void {
+    asm volatile (
+    // args
+        \\mov x0, %[pid]
+        // sys call id
+        \\mov x8, #9
+        \\svc #0
+        :
+        : [pid] "r" (pid),
         : "x0", "x8"
     );
 }

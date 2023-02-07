@@ -78,7 +78,7 @@ pub fn trapHandler(temp_context: *CpuContext, tmp_int_type: usize) callconv(.C) 
     kprint("far_el1: 0x{x} \n", .{temp_context.far_el1});
     kprint("elr_el1: 0x{x} \n", .{temp_context.elr_el1});
     kprint("- sys regs: \n", .{});
-    kprint("sp: 0x{x} \n", .{temp_context.sp});
+    kprint("sp: 0x{x} \n", .{temp_context.sp_el1});
     kprint("sp_el0: 0x{x} \n", .{temp_context.sp_el0});
     kprint("spSel: {d} \n", .{temp_context.sp_sel});
     kprint("lr(x30): 0x{x} \n", .{temp_context.x30});

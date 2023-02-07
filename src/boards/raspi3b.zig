@@ -37,7 +37,7 @@ pub const config = boardConfig.BoardConfig{
         .storage_size = 0,
     },
     .timer_freq_in_hertz = 1000000,
-    .scheduler_freq_in_hertz = 200,
+    .scheduler_freq_in_hertz = 250,
     // , "-d", "trace:bcm2835_systmr*", "-D", "./log.txt"
     .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "raspi3b", "-device", "loader,addr=0x80000,file=zig-out/bin/bootloader.bin,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
 };

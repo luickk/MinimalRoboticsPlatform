@@ -136,7 +136,7 @@ fn printContext(context: *CpuContext) void {
     kprint("- sys regs: \n", .{});
     kprint("sp_el0: 0x{x} \n", .{context.sp_el0});
     kprint("lr(x30): 0x{x} \n", .{context.x30});
-    kprint("irq sp: 0x{x} \n", .{context.sp});
+    kprint("irq sp_el1: 0x{x} \n", .{context.sp_el1});
     kprint("irq spSel: {d} \n", .{context.sp_sel});
     kprint("x0: 0x{x}, x1: 0x{x}, x2: 0x{x}, x3: 0x{x}, x4: 0x{x} \n", .{ context.x0, context.x1, context.x2, context.x3, context.x4 });
     kprint("x5: 0x{x}, x6: 0x{x}, x7: 0x{x}, x8: 0x{x}, x9: 0x{x} \n", .{ context.x5, context.x6, context.x7, context.x8, context.x9 });

@@ -39,7 +39,7 @@ pub const config = boardConfig.BoardConfig{
         .storage_size = 0,
     },
     .timer_freq_in_hertz = null,
-    .scheduler_freq_in_hertz = 100,
+    .scheduler_freq_in_hertz = 250,
     // arm_gt, gic
     // "-d", "trace:gic*", "-D", "./log.txt"
     .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "virt", "-m", "10G", "-cpu", "cortex-a53", "-device", "loader,file=zig-out/bin/bootloader.bin,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },

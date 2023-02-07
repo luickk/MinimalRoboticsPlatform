@@ -28,9 +28,11 @@ pub const sysCallTable = [_]Syscall{
     .{ .id = 2, .fn_call = &forkProcess },
     .{ .id = 3, .fn_call = &getPid },
     .{ .id = 4, .fn_call = &killProcessRecursively },
-    .{ .id = 5, .fn_call = &wait },
+    // sys call id 5 is not used
     .{ .id = 6, .fn_call = &createThread },
     .{ .id = 7, .fn_call = &sleep },
+    .{ .id = 8, .fn_call = &haltProcess },
+    .{ .id = 9, .fn_call = &continueProcess },
 };
 
 fn sysCallPrint(params_args: *CpuContext) void {
@@ -72,20 +74,6 @@ fn getPid(params_args: *CpuContext) void {
     params_args.x0 = scheduler.getCurrentProcessPid();
 }
 
-fn wait(params_args: *CpuContext) void {
-    ProccessorRegMap.DaifReg.enableIrq();
-    const delay_in_nano_secs = params_args.x0;
-    const delay_ticks = utils.calcTicksFromNanoSeconds(kernelTimer.getTimerFreqInHertz(), delay_in_nano_secs);
-    asm volatile (
-        \\mov x0, %[delay]
-        \\delay_loop:
-        \\subs x0, x0, #1
-        \\bne delay_loop
-        :
-        : [delay] "r" (delay_ticks),
-    );
-}
-
 fn createThread(params_args: *CpuContext) void {
     const entry_fn_ptr = @intToPtr(*anyopaque, params_args.x0);
     const thread_stack = params_args.x1;
@@ -101,4 +89,14 @@ fn sleep(params_args: *CpuContext) void {
         kprint("[panic] setProcessAsleep error: {s}\n", .{@errorName(e)});
         k_utils.panic();
     };
+}
+
+fn haltProcess(params_args: *CpuContext) void {
+    const pid: usize = params_args.x0;
+    scheduler.setProcessState(pid, .halted, params_args);
+}
+
+fn continueProcess(params_args: *CpuContext) void {
+    const pid: usize = params_args.x0;
+    scheduler.setProcessState(pid, .running, params_args);
 }

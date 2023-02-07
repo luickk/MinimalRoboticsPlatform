@@ -112,7 +112,7 @@ _exception_vector_table:
 
 .macro EXCEPTION_VECTOR int_type
     SAVE_CPU_CONTEXT
-    bl disableIrq
+    // bl disableIrq
     
     // set stack as arg
     ldr x1, #\int_type
