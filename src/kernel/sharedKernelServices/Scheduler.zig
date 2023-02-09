@@ -149,6 +149,7 @@ pub const Scheduler = struct {
                 process.counter = (process.counter >> 1) + process.priority;
             }
         }
+        current_process.setPreempt(true);
         self.switchContextToProcess(&processses[next_proc_pid], irq_context);
     }
 
@@ -410,7 +411,6 @@ pub const Scheduler = struct {
         }
         from.cpu_context = irq_context.*;
         switchCpuPrivLvl(to.priv_level);
-        current_process.setPreempt(true);
         // restore Context and erets
         asm volatile (
             \\ mov sp, %[sp_addr]

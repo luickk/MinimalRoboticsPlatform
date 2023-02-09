@@ -117,7 +117,6 @@ pub const CpuContext = packed struct {
             // spsel == 0
             \\load_sp_to_el1:
             \\msr spsel, #1
-            // \\add x1, x1, #752
             \\mov sp, x1
             \\msr spsel, #0
             \\skip_sp_to_el1_load:
@@ -166,7 +165,7 @@ pub const CpuContext = packed struct {
             \\ldp x0, x1, [sp], #16
             \\ldp x0, x1, [sp], #16
             // sys regs
-            \\msr sp_el0, x1
+            // \\msr sp_el0, x1
             \\ldp x0, x1, [sp], #16
             \\msr elr_el1, x0
             \\mov fp, x1

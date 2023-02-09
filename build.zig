@@ -8,7 +8,7 @@ const Error = error{BlExceedsRomSize};
 const raspi3b = @import("src/boards/raspi3b.zig");
 const qemuVirt = @import("src/boards/qemuVirt.zig");
 
-const currBoard = qemuVirt;
+const currBoard = raspi3b;
 
 // packages...
 // SOC builtin features
@@ -84,25 +84,10 @@ pub fn build(b: *std.build.Builder) !void {
     const build_and_run = b.step("qemu", "emulate the kernel with no graphics and output uart to console");
     const launch_with_gdb = b.option(bool, "gdb", "Launch qemu with -s -S to allow for net gdb debugging") orelse false;
 
-    // try setEnvironment(b, build_and_run, build_mode, "src/environments/testEnv");
-    const app1 = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}", .{"src/environments/testEnv/app1"}));
-    build_and_run.dependOn(&app1.install_step.?.step);
-    build_and_run.dependOn(&app1.installRaw("app1", .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/" } }).step);
-
-    const app2 = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}", .{"src/environments/testEnv/app2"}));
-    build_and_run.dependOn(&app2.install_step.?.step);
-    build_and_run.dependOn(&app2.installRaw("app2", .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/" } }).step);
-
-    // var dir = try std.fs.cwd().openIterableDir("src/environments/testEnv", .{});
-    // var it = dir.iterate();
-    // while (try it.next()) |folder| {
-    //     if (folder.kind != .Directory) continue;
-    //     const app = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ "src/environments/testEnv", folder.name }));
-    //     build_and_run.dependOn(&app.install_step.?.step);
-    //     build_and_run.dependOn(&app.installRaw(folder.name, .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/" } }).step);
-    // }
-
-    std.debug.print("done... \n", .{});
+    try setEnvironment(b, build_and_run, build_mode, "src/environments/basicMultiProcess");
+    // try setEnvironment(b, build_and_run, build_mode, "src/environments/basicMultithreading");
+    // try setEnvironment(b, build_and_run, build_mode, "src/environments/multiProcAndThreading");
+    // try setEnvironment(b, build_and_run, build_mode, "src/environments/waitTest");
 
     build_and_run.dependOn(&update_linker_scripts_k.step);
     build_and_run.dependOn(&scan_for_apps.step);
@@ -143,7 +128,7 @@ fn setEnvironment(b: *std.build.Builder, step: *std.build.Step, build_mode: std.
         if (folder.kind != .Directory) continue;
         const app = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ path, folder.name }));
         step.dependOn(&app.install_step.?.step);
-        step.dependOn(&app.installRaw(folder.name, .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/" } }).step);
+        step.dependOn(&app.installRaw(try b.allocator.dupe(u8, folder.name), .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/" } }).step);
     }
 }
 

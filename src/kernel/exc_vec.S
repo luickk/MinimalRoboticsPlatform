@@ -93,6 +93,7 @@ _exception_vector_table:
 
     // sys regs
     mov x1, sp
+    add x1, x1, #752
     stp x1, x30, [sp, #-16]!
     mov x0, fp
     mrs x3, elr_el1
