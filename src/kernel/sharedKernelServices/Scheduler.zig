@@ -308,8 +308,7 @@ pub const Scheduler = struct {
     }
     // creates thread for current process
     pub fn createKernelThread(self: *Scheduler, app_alloc: *KernelAlloc, thread_fn: anytype, args: anytype) !void {
-        // todo => make thread_stack_size configurable
-        const thread_stack_mem = try app_alloc.alloc(u8, 0x10000, 16);
+        const thread_stack_mem = try app_alloc.alloc(u8, board.config.mem.k_stack_size, 16);
         var thread_stack_start: []u8 = undefined;
         thread_stack_start.ptr = @intToPtr([*]u8, @ptrToInt(thread_stack_mem.ptr) + thread_stack_mem.len);
         thread_stack_start.len = thread_stack_mem.len;

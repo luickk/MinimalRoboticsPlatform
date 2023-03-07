@@ -108,7 +108,6 @@ pub fn PageTable(comptime total_mem_size: usize, comptime gran: GranuleParams) !
 
         pub fn mapMem(self: *Self, mapping_without_adjusted_flags: Mapping) !void {
             var mapping = mapping_without_adjusted_flags;
-            // todo => implement a proper flag configuration
             if (std.meta.eql(mapping.granule, board.boardConfig.Granule.FourkSection)) mapping.flags_last_lvl.descType = .block;
             if (std.meta.eql(mapping.granule, board.boardConfig.Granule.Fourk)) mapping.flags_last_lvl.descType = .page;
             mapping.flags_non_last_lvl.descType = .page;

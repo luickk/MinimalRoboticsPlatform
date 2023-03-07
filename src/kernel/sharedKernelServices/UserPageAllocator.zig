@@ -49,6 +49,7 @@ pub const UserPageAllocator = struct {
         var ret_slice: []u8 = undefined;
         ret_slice.ptr = @alignCast(4096, @intToPtr([*]u8, self.mem_start + self.curr_page_pointer * self.granule.page_size));
         ret_slice.len = self.granule.page_size * n;
+        // kprint("allocation addr: {*} \n", .{ret_slice.ptr});
         return ret_slice;
     }
 

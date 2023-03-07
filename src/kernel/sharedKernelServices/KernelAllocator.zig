@@ -65,6 +65,7 @@ pub const KernelAllocator = struct {
         }
         var alloc_addr = self.mem_base + (first_chunk * self.chunk_size);
         var aligned_alloc_slice = @intToPtr([*]T, utils.toTtbr1(usize, alignForward(alloc_addr, alignm)));
+        // kprint("allocation addr: {*} \n", .{aligned_alloc_slice[0 .. n - 1].ptr});
         return aligned_alloc_slice[0 .. n - 1];
     }
 

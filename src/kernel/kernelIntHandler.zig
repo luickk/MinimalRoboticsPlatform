@@ -12,10 +12,9 @@ const gic = arm.gicv2;
 const gt = arm.genericTimer;
 
 pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(.C) void {
-    var int_type = tmp_int_type;
-
-    // copy away from stack top
+    var int_type = tmp_int_type; // copy away from stack top
     var context = on_stack_context.*;
+    // kprint("unique \n", .{});
     context.int_type = int_type;
     // kprint("cpucontext size: {d} \n", .{@sizeOf(CpuContext)});
     // kprint("context: {any} \n", .{context});
@@ -78,8 +77,9 @@ pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(
         },
         // timer interrupts with custom timers per board
         .el1Irq, .el0Irq => {
-            if (board.config.board == .raspi3b)
+            if (board.config.board == .raspi3b) {
                 bcm2835IntHandle.irqHandler(&context);
+            }
             if (board.config.board == .qemuVirt)
                 gt.timerInt(&context) catch |e| {
                     kprint("[panic] generic timer error: {s} \n", .{@errorName(e)});

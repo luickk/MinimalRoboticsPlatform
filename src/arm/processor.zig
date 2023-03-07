@@ -374,14 +374,14 @@ pub const ProccessorRegMap = struct {
             );
         }
 
-        pub export fn enableIrq() void {
+        pub fn enableIrq() callconv(.C) void {
             asm volatile ("msr daifclr, %[conf]"
                 :
                 : [conf] "I" (DaifReg{ .debug = false, .serr = false, .irqs = true, .fiqs = false }),
             );
         }
 
-        pub export fn disableIrq() void {
+        pub fn disableIrq() callconv(.C) void {
             asm volatile ("msr daifset, %[conf]"
                 :
                 : [conf] "I" (DaifReg{ .debug = false, .serr = false, .irqs = true, .fiqs = false }),
@@ -389,3 +389,8 @@ pub const ProccessorRegMap = struct {
         }
     };
 };
+
+comptime {
+    @export(ProccessorRegMap.DaifReg.enableIrq, .{ .name = "enableIrq", .linkage = .Strong });
+    @export(ProccessorRegMap.DaifReg.disableIrq, .{ .name = "disableIrq", .linkage = .Strong });
+}

@@ -82,7 +82,6 @@ fn createThread(params_args: *CpuContext) void {
     scheduler.createThreadFromCurrentProcess(entry_fn_ptr, thread_fn_ptr, thread_stack, args);
 }
 
-// todo => div delay_ticks by scheduler freq...
 fn sleep(params_args: *CpuContext) void {
     const delay_in_sched_inter = params_args.x0;
     scheduler.setProcessAsleep(scheduler.getCurrentProcessPid(), delay_in_sched_inter, params_args) catch |e| {

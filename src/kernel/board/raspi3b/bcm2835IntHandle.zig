@@ -27,20 +27,6 @@ pub fn irqHandler(context: *cpuContext.CpuContext) callconv(.C) void {
     };
 
     switch (irq_bank_0) {
-        Bank0.armTimer => {},
-        Bank0.armMailbox => {
-            kprint("arm mailbox\n", .{});
-        },
-        Bank0.armDoorbell0 => {
-            kprint("arm doorbell\n", .{});
-        },
-        Bank0.armDoorbell1 => {
-            kprint("armm doorbell 1 b1\n", .{});
-        },
-        Bank0.vpu0Halted => {},
-        Bank0.vpu1Halted => {},
-        Bank0.illegalType0 => {},
-        Bank0.illegalType1 => {},
         // One or more bits set in pending register 1
         Bank0.pending1 => {
             switch (irq_bank_1) {
@@ -51,7 +37,7 @@ pub fn irqHandler(context: *cpuContext.CpuContext) callconv(.C) void {
                     };
                 },
                 else => {
-                    kprint("Unknown bank 1 irq num: {s} \n", .{@tagName(irq_bank_1)});
+                    kprint("Not supported 1 irq num: {s} \n", .{@tagName(irq_bank_1)});
                 },
             }
         },
@@ -59,12 +45,12 @@ pub fn irqHandler(context: *cpuContext.CpuContext) callconv(.C) void {
         Bank0.pending2 => {
             switch (irq_bank_2) {
                 else => {
-                    kprint("Unknown bank 2 irq num: {s} \n", .{@tagName(irq_bank_2)});
+                    kprint("Not supported bank 2 irq num: {s} \n", .{@tagName(irq_bank_0)});
                 },
             }
         },
         else => {
-            kprint("Unknown bank 0 irq num: {s} \n", .{@tagName(irq_bank_0)});
+            kprint("Not supported bank(neither 1/2) irq num: {s} \n", .{@tagName(irq_bank_0)});
         },
     }
 }

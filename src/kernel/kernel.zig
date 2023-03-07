@@ -64,6 +64,7 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
     const kernel_bin_size = utils.toTtbr0(usize, _kernel_space_start);
 
     // kernelspace allocator test
+    // todo => remove random literal 0x5... offset..
     var kspace_alloc = KernelAllocator.init(_kernel_space_start + board.config.mem.k_stack_size + 0x50000, board.config.mem.kernel_space_size - kernel_bin_size - board.config.mem.k_stack_size, 0x10000) catch |e| {
         old_mapping_kprint("[panic] KernelAllocator init error: {s}\n", .{@errorName(e)});
         k_utils.panic();
@@ -284,6 +285,7 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
     var counter: usize = 0;
     while (true) {
         kprint("while counter: {d} \n", .{counter});
+        // kprint("timer: {d} irq: {d} \n", .{ bcm2835Timer.RegMap.timerCs.*, bcm2835IntController.RegMap.enableIrq1.* });
         counter += 1;
     }
 }

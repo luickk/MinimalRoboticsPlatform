@@ -79,15 +79,18 @@ pub fn build(b: *std.build.Builder) !void {
     // compilation steps
     const update_linker_scripts_bl = UpdateLinkerScripts.create(b, .bootloader, temp_bl_ld, temp_kernel_ld, currBoard.config);
     const update_linker_scripts_k = UpdateLinkerScripts.create(b, .kernel, temp_bl_ld, temp_kernel_ld, currBoard.config);
+    const delete_app_bins = b.addRemoveDirTree("src/kernel/bins");
     const scan_for_apps = ScanForApps.create(b, build_options);
 
     const build_and_run = b.step("qemu", "emulate the kernel with no graphics and output uart to console");
     const launch_with_gdb = b.option(bool, "gdb", "Launch qemu with -s -S to allow for net gdb debugging") orelse false;
 
-    try setEnvironment(b, build_and_run, build_mode, "src/environments/basicMultiProcess");
+    build_and_run.dependOn(&delete_app_bins.step);
+
+    // try setEnvironment(b, build_and_run, build_mode, "src/environments/basicMultiProcess");
     // try setEnvironment(b, build_and_run, build_mode, "src/environments/basicMultithreading");
     // try setEnvironment(b, build_and_run, build_mode, "src/environments/multiProcAndThreading");
-    // try setEnvironment(b, build_and_run, build_mode, "src/environments/waitTest");
+    try setEnvironment(b, build_and_run, build_mode, "src/environments/waitTest");
 
     build_and_run.dependOn(&update_linker_scripts_k.step);
     build_and_run.dependOn(&scan_for_apps.step);
@@ -109,7 +112,6 @@ pub fn build(b: *std.build.Builder) !void {
     const delete_zig_cache = b.addRemoveDirTree("zig-cache");
     const delete_zig_out = b.addRemoveDirTree("zig-out");
     const delete_bl_bins = b.addRemoveDirTree("src/bootloader/bins");
-    const delete_kernel_bins = b.addRemoveDirTree("src/kernel/bins");
     const create_bins = CreateTmpSrcBins.create(b);
 
     clean.dependOn(&delete_zig_cache.step);
@@ -117,7 +119,7 @@ pub fn build(b: *std.build.Builder) !void {
     clean.dependOn(&delete_zig_cache.step);
     clean.dependOn(&delete_zig_out.step);
     clean.dependOn(&delete_bl_bins.step);
-    clean.dependOn(&delete_kernel_bins.step);
+    clean.dependOn(&delete_app_bins.step);
     clean.dependOn(&create_bins.step);
 }
 
