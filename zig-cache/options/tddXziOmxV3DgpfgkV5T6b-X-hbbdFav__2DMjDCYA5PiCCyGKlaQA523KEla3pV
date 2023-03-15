@@ -1,3 +1,0 @@
-pub const apps: []const []const u8 = &[_][]const u8{
-    "app1",
-};
