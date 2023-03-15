@@ -8,7 +8,7 @@ const Error = error{BlExceedsRomSize};
 const raspi3b = @import("src/boards/raspi3b.zig");
 const qemuVirt = @import("src/boards/qemuVirt.zig");
 
-const currBoard = raspi3b;
+const currBoard = qemuVirt;
 
 // packages...
 // SOC builtin features
@@ -279,7 +279,14 @@ const ScanForApps = struct {
             var apps = std.ArrayList([]const u8).init(self.builder.allocator);
             defer apps.deinit();
 
-            var dir = try std.fs.cwd().openIterableDir("src/kernel/bins/", .{});
+            var dir = std.fs.cwd().openIterableDir("src/kernel/bins/", .{}) catch |e| {
+                if (e == error.FileNotFound) {
+                    self.build_options.addOption([]const []const u8, "apps", &.{});
+                    return;
+                } else {
+                    return e;
+                }
+            };
             var it = dir.iterate();
             while (try it.next()) |file| {
                 if (file.kind != .File) continue;
