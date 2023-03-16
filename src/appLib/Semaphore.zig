@@ -14,7 +14,7 @@ pub const Semaphore = struct {
         };
     }
 
-    pub fn lock(self: *Semaphore) void {
+    pub fn wait(self: *Semaphore) void {
         const locked = self.locked.load(.Unordered);
         if (locked > 0) {
             const my_pid = sysCalls.getPid();
@@ -23,7 +23,8 @@ pub const Semaphore = struct {
         }
         self.locked.store(locked + 1, .Unordered);
     }
-    pub fn unlock(self: *Semaphore) void {
+
+    pub fn signal(self: *Semaphore) void {
         const locked = self.locked.load(.Unordered);
         if (locked > 0) {
             sysCalls.continueProcess(self.waiting_processes[locked]);

@@ -90,7 +90,7 @@ pub fn build(b: *std.build.Builder) !void {
     // try setEnvironment(b, build_and_run, build_mode, "src/environments/basicMultiProcess");
     // try setEnvironment(b, build_and_run, build_mode, "src/environments/basicMultithreading");
     // try setEnvironment(b, build_and_run, build_mode, "src/environments/multiProcAndThreading");
-    try setEnvironment(b, build_and_run, build_mode, "src/environments/waitTest");
+    try setEnvironment(b, build_and_run, build_mode, "src/environments/basicMultiThreading");
 
     build_and_run.dependOn(&update_linker_scripts_k.step);
     build_and_run.dependOn(&scan_for_apps.step);

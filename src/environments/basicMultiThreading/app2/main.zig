@@ -45,17 +45,17 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
 pub fn testThread(parent_pid: usize) void {
     while (true) {
         kprint("TEST THREAD 1 (daddy proc.: {d}, my pid: {d})\n", .{ parent_pid, sysCalls.getPid() });
-        // shared_mutex.lock();
+        shared_mutex.lock();
         // shared_thread_counter += 1;
-        // shared_mutex.unlock();
+        shared_mutex.unlock();
     }
 }
 
 pub fn testThread2(parent_pid: usize) void {
     while (true) {
         kprint("TEST THREAD 2 (daddy proc.: {d}, my pid: {d}) \n", .{ parent_pid, sysCalls.getPid() });
-        // shared_mutex.lock();
+        shared_mutex.lock();
         // shared_thread_counter -= 1;
-        // shared_mutex.unlock();
+        shared_mutex.unlock();
     }
 }
