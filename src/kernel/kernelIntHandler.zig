@@ -12,7 +12,7 @@ const gic = arm.gicv2;
 const gt = arm.genericTimer;
 
 pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(.C) void {
-    var int_type = tmp_int_type; // copy away from stack top
+    var int_type = tmp_int_type; // copy away from stack top (unsure about C abi standards...)
     var context = on_stack_context.*;
     // kprint("unique \n", .{});
     context.int_type = int_type;
@@ -78,7 +78,10 @@ pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(
         // timer interrupts with custom timers per board
         .el1Irq, .el0Irq => {
             if (board.config.board == .raspi3b) {
-                bcm2835IntHandle.irqHandler(&context);
+                bcm2835IntHandle.irqHandler(&context) catch |e| {
+                    kprint("[panic] raspberry timer error: {s} \n", .{@errorName(e)});
+                    k_utils.panic();
+                };
             }
             if (board.config.board == .qemuVirt)
                 gt.timerInt(&context) catch |e| {

@@ -28,8 +28,6 @@ const TransLvl = board.boardConfig.TransLvl;
 
 const kernel_bin = @embedFile("bins/kernel.bin");
 
-// todo => single link section! with .only_section in build.zig to not have extra padding in bootloader binary...
-
 // note: when bl_main gets too big(instruction mem wise), the exception vector table could be pushed too far up and potentially not be read!
 export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
     // setting stack pointer to writable memory (ram (userspace))

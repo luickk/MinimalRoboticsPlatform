@@ -244,6 +244,13 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
 
     if (board.config.board == .raspi3b) {
         bcm2835IntController.init();
+
+        ProccessorRegMap.DaifReg.setDaifClr(.{
+            .debug = true,
+            .serr = true,
+            .irqs = true,
+            .fiqs = true,
+        });
         kprint("[kernel] ic inited \n", .{});
     }
 

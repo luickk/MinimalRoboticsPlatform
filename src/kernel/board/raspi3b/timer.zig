@@ -41,6 +41,7 @@ pub fn initTimer() !void {
 
 pub fn handleTimerIrq(irq_context: *CpuContext) !void {
     timerVal += @truncate(u32, try utils.calcTicksFromHertz(cnt_freq, board.config.scheduler_freq_in_hertz));
+    // kprint("new val: {d} \n", .{timerVal});
     RegMap.timerC1.* = timerVal;
     RegMap.timerCs.* = RegMap.timerCs.* | RegValues.timerCsM1;
     scheduler.timerIntEvent(irq_context);

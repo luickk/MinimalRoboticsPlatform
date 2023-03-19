@@ -12,29 +12,17 @@ const Bank0 = intController.RegValues.Bank0;
 const Bank1 = intController.RegValues.Bank1;
 const Bank2 = intController.RegValues.Bank2;
 
-pub fn irqHandler(context: *cpuContext.CpuContext) callconv(.C) void {
-    var irq_bank_0 = std.meta.intToEnum(Bank0, intController.RegMap.pendingBasic.*) catch {
-        kprint("bank0 int type not found. \n", .{});
-        return;
-    };
-    var irq_bank_1 = std.meta.intToEnum(Bank1, intController.RegMap.pendingIrq1.*) catch {
-        kprint("bank1 int type not found. \n", .{});
-        return;
-    };
-    var irq_bank_2 = std.meta.intToEnum(Bank2, intController.RegMap.pendingIrq2.*) catch {
-        kprint("bank2 int type not found. \n", .{});
-        return;
-    };
+pub fn irqHandler(context: *cpuContext.CpuContext) !void {
+    var irq_bank_0 = try std.meta.intToEnum(Bank0, intController.RegMap.pendingBasic.*);
+    var irq_bank_1 = try std.meta.intToEnum(Bank1, intController.RegMap.pendingIrq1.*);
+    var irq_bank_2 = try std.meta.intToEnum(Bank2, intController.RegMap.pendingIrq2.*);
 
     switch (irq_bank_0) {
         // One or more bits set in pending register 1
         Bank0.pending1 => {
             switch (irq_bank_1) {
                 Bank1.timer1 => {
-                    timer.handleTimerIrq(context) catch |e| {
-                        kprint("[panic] generic timer error: {s} \n", .{@errorName(e)});
-                        while (true) {}
-                    };
+                    try timer.handleTimerIrq(context);
                 },
                 else => {
                     kprint("Not supported 1 irq num: {s} \n", .{@tagName(irq_bank_1)});

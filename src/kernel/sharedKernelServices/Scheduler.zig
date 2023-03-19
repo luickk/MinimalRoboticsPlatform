@@ -79,6 +79,7 @@ pub const Process = struct {
 
 pub const Error = error{
     PidNotFound,
+    TaskIsDone,
     ForkPermissionFault,
     ThreadPermissionFault,
 };
@@ -366,9 +367,9 @@ pub const Scheduler = struct {
         self.schedule(irq_context);
     }
 
-    // todo => optionally implement check for pid's process state
     fn checkForPid(pid: usize) !void {
         if (pid > maxProcesss) return Error.PidNotFound;
+        if (processses[pid].state == .done) return Error.TaskIsDone;
     }
 
     // args (process pointers) are past via registers

@@ -206,62 +206,10 @@ pub const CpuContext = packed struct {
             \\ldp q1, q0, [sp], #32
             \\eret
         );
-        // _saveCurrContextOnStack is now embedded in bl&kernel exc_vector.S
-        // todo => move it back here (without trashing x30...)
-        asm (
-            \\.globl _saveCurrContextOnStack
-            \\_saveCurrContextOnStack:
-            \\stp q1, q0, [sp, #-32]!
-            \\stp q3, q2, [sp, #-32]!
-            \\stp q5, q4, [sp, #-32]!
-            \\stp q7, q6, [sp, #-32]!
-            \\stp q9, q8, [sp, #-32]!
-            \\stp q11, q10, [sp, #-32]!
-            \\stp q13, q12, [sp, #-32]!
-            \\stp q15, q14, [sp, #-32]!
-            \\stp q17, q16, [sp, #-32]!
-            \\stp q19, q18, [sp, #-32]!
-            \\stp q21, q20, [sp, #-32]!
-            \\stp q23, q22, [sp, #-32]!
-            \\stp q25, q24, [sp, #-32]!
-            \\stp q27, q26, [sp, #-32]!
-            \\stp q29, q28, [sp, #-32]!
-            \\stp q31, q30, [sp, #-32]!
-            // gp regs
-            \\stp x1, x0, [sp, #-16]!
-            \\stp x3, x1, [sp, #-16]!
-            \\stp x5, x4, [sp, #-16]!
-            \\stp x7, x6, [sp, #-16]!
-            \\stp x9, x8, [sp, #-16]!
-            \\stp x11, x10, [sp, #-16]!
-            \\stp x13, x12, [sp, #-16]!
-            \\stp x15, x14, [sp, #-16]!
-            \\stp x17, x16, [sp, #-16]!
-            \\stp x19, x18, [sp, #-16]!
-            \\stp x21, x20, [sp, #-16]!
-            \\stp x23, x22, [sp, #-16]!
-            \\stp x25, x24, [sp, #-16]!
-            \\stp x27, x26, [sp, #-16]!
-            \\stp x29, x28, [sp, #-16]!
+        // _saveCurrContextOnStack is now embedded in bl&kernel exc_vector.S since zig cannot init global assembler
+        // macros which are required since a label jump would trash the link register
+        // asm (
+        //     \\.globl _saveCurrContextOnStack ....
 
-            // sys regs
-            \\mov x1, sp
-            \\stp x1, x30, [sp, #-16]!
-            \\mov x0, fp
-            \\mrs x3, elr_el1
-            \\stp x3, x0, [sp, #-16]!
-            \\mrs x0, sp_el0
-
-            // debug regs
-            \\mrs x3, SPSel
-            \\stp x3, x0, [sp, #-16]!
-            \\mrs x0, far_el1
-            \\mrs x3, esr_el1
-            \\stp x0, x3, [sp, #-16]!
-            \\mrs x0, CurrentEL
-            \\lsr x0, x0, #2
-            \\stp xzr, x0, [sp, #-16]!
-            \\ret
-        );
     }
 };
