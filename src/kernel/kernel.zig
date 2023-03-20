@@ -1,6 +1,5 @@
 const std = @import("std");
 const utils = @import("utils");
-
 const board = @import("board");
 
 // kernel services
@@ -35,7 +34,7 @@ const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 const bcm2835IntController = arm.bcm2835IntController.InterruptController(.ttbr1);
 const bcm2835Timer = @import("board/raspi3b/timer.zig");
 
-var user_page_alloc = UserPageAllocator.init(board.config.mem.user_space_size, board.config.mem.va_layout.va_user_space_gran) catch |e| {
+var user_page_alloc = UserPageAllocator.init() catch |e| {
     @compileError(@errorName(e));
 };
 
@@ -61,15 +60,14 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
         old_mapping_kprint("[panic] error reading _kernel_space_start label\n", .{});
         k_utils.panic();
     });
-    const kernel_bin_size = utils.toTtbr0(usize, _kernel_space_start);
 
     // kernelspace allocator test
     // todo => remove random literal 0x5... offset..
-    var kspace_alloc = KernelAllocator.init(_kernel_space_start + board.config.mem.k_stack_size + 0x50000, board.config.mem.kernel_space_size - kernel_bin_size - board.config.mem.k_stack_size, 0x10000) catch |e| {
+    var kspace_alloc = KernelAllocator.init(_kernel_space_start + board.config.mem.k_stack_size + 0x50000) catch |e| {
         old_mapping_kprint("[panic] KernelAllocator init error: {s}\n", .{@errorName(e)});
         k_utils.panic();
     };
-    old_mapping_kprint("boot_without_rom_new_kernel_loc: {x} \n", .{boot_without_rom_new_kernel_loc});
+
     // mmu config block
     {
         const ttbr1 = blk: {
@@ -199,10 +197,6 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
 
     // // tests
     // tests.testUserSpaceMem(10);
-    // tests.testUserPageAlloc(&user_page_alloc) catch |e| {
-    //     kprint("[panic] testUserPageAlloc test error: {s} \n", .{@errorName(e)});
-    //     k_utils.panic();
-    // };
     // ProccessorRegMap.exceptionSvc();
 
     if (board.config.board == .qemuVirt) {
@@ -256,7 +250,13 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
 
     kprint("[kernel] starting scheduler \n", .{});
 
+    tests.testUserPageAlloc(&user_page_alloc) catch |e| {
+        kprint("[panic] testUserPageAlloc test error: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+
     var scheduler_tmp = Scheduler.init(&user_page_alloc, kernel_lma_offset);
+
     scheduler = &scheduler_tmp;
 
     scheduler.configRootBootProcess();

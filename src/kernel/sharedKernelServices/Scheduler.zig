@@ -179,7 +179,7 @@ pub const Scheduler = struct {
     pub fn initAppsInScheduler(self: *Scheduler, apps: []const []const u8) !void {
         current_process.setPreempt(false);
         for (apps) |app| {
-            const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, self.page_allocator.granule.page_size);
+            const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, board.config.mem.va_layout.va_user_space_gran.page_size);
             const app_mem = try self.page_allocator.allocNPage(req_pages);
 
             var pid = pid_counter;
@@ -237,7 +237,7 @@ pub const Scheduler = struct {
         try checkForPid(to_clone_pid);
         if (processses[to_clone_pid].priv_level == .boot) return Error.ForkPermissionFault;
 
-        const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, self.page_allocator.granule.page_size);
+        const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, board.config.mem.va_layout.va_user_space_gran.page_size);
         var new_app_mem = try self.page_allocator.allocNPage(req_pages);
 
         var new_pid = pid_counter;

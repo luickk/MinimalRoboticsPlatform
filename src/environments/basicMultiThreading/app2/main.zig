@@ -22,7 +22,7 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
         while (true) {}
     });
 
-    var alloc = AppAlloc.init(_heap_start, board.config.mem.app_vm_mem_size - _heap_start, 0x10000) catch |e| {
+    var alloc = AppAlloc.init(_heap_start) catch |e| {
         kprint("[panic] AppAlloc init error: {s}\n", .{@errorName(e)});
         while (true) {}
     };
