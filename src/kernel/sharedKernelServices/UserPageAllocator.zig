@@ -5,7 +5,7 @@ const utils = @import("utils");
 const kprint = @import("periph").uart.UartWriter(.ttbr1).kprint;
 const mmu = arm.mmu;
 
-const granule = board.config.mem.va_layout.va_user_space_gran;
+const granule = board.config.mem.va_user_space_gran;
 const userSpaceSizeInBytes = board.config.mem.user_space_size;
 const maxChunks: usize = @divExact(userSpaceSizeInBytes, granule.page_size);
 

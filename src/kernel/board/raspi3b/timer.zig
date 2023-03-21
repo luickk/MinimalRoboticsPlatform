@@ -13,8 +13,6 @@ extern var scheduler: *Scheduler;
 // raspberry system timer frequency is 1 Mhz
 var cnt_freq: u32 = 1000000;
 
-// todo => handle timer overflow
-
 pub const RegMap = struct {
     pub const timerCs = @intToPtr(*volatile u32, timerCfg.base_address + 0x0);
     pub const timerLo = @intToPtr(*volatile u32, timerCfg.base_address + 0x4);
@@ -40,8 +38,12 @@ pub fn initTimer() !void {
 }
 
 pub fn handleTimerIrq(irq_context: *CpuContext) !void {
-    timerVal += @truncate(u32, try utils.calcTicksFromHertz(cnt_freq, board.config.scheduler_freq_in_hertz));
-    // kprint("new val: {d} \n", .{timerVal});
+    const ticks = @truncate(u32, try utils.calcTicksFromHertz(cnt_freq, board.config.scheduler_freq_in_hertz));
+    if (@addWithOverflow(u32, timerVal, ticks, &timerVal)) {
+        timerVal = RegMap.timerLo.*;
+        timerVal += @truncate(u32, try utils.calcTicksFromHertz(cnt_freq, board.config.scheduler_freq_in_hertz));
+    }
+
     RegMap.timerC1.* = timerVal;
     RegMap.timerCs.* = RegMap.timerCs.* | RegValues.timerCsM1;
     scheduler.timerIntEvent(irq_context);

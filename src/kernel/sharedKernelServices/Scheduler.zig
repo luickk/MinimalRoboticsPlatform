@@ -70,10 +70,8 @@ pub const Process = struct {
         };
     }
     pub fn setPreempt(self: *Process, state: bool) void {
-        // if (state) self.preempt_count -= 1;
-        // if (!state) self.preempt_count += 1;
-        _ = self;
-        _ = state;
+        if (state) self.preempt_count -= 1;
+        if (!state) self.preempt_count += 1;
     }
 };
 
@@ -166,9 +164,7 @@ pub const Scheduler = struct {
                 }
             }
         }
-        // todo => inculde preempt counter
-        // and current_process.preempt_count > 0
-        if (current_process.counter > 0) {
+        if (current_process.counter > 0 and current_process.preempt_count > 0) {
             if (log) kprint("--------- PROC WAIT counter: {d} \n", .{current_process.counter});
             // return all the way back to the exc vector table where cpu state is restored from the stack
             // if the task is done already, we don't return back to the process but schedule the next task
@@ -179,7 +175,7 @@ pub const Scheduler = struct {
     pub fn initAppsInScheduler(self: *Scheduler, apps: []const []const u8) !void {
         current_process.setPreempt(false);
         for (apps) |app| {
-            const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, board.config.mem.va_layout.va_user_space_gran.page_size);
+            const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, board.config.mem.va_user_space_gran.page_size);
             const app_mem = try self.page_allocator.allocNPage(req_pages);
 
             var pid = pid_counter;
@@ -237,7 +233,7 @@ pub const Scheduler = struct {
         try checkForPid(to_clone_pid);
         if (processses[to_clone_pid].priv_level == .boot) return Error.ForkPermissionFault;
 
-        const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, board.config.mem.va_layout.va_user_space_gran.page_size);
+        const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, board.config.mem.va_user_space_gran.page_size);
         var new_app_mem = try self.page_allocator.allocNPage(req_pages);
 
         var new_pid = pid_counter;
@@ -331,11 +327,9 @@ pub const Scheduler = struct {
         current_process.setPreempt(false);
         try checkForPid(starting_pid);
         processses[starting_pid].state = .done;
-        var child_proc_pid = @as(?usize, starting_pid);
+        var child_proc_pid: ?usize = starting_pid;
         while (child_proc_pid != null) {
             processses[child_proc_pid.?].state = .done;
-            // killing tasks threads...
-            // todo => store tasks pids in parents proc instead of iterating...
             for (processses) |*proc| {
                 if (proc.is_thread and proc.parent_pid == child_proc_pid.?) {
                     proc.state = .done;

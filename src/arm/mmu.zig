@@ -25,8 +25,6 @@ const Error = error{
     PageTableConfigErr,
 };
 
-// todo => second gigabyte in 4k mapping doesn't work
-
 // In addition to an output address, a translation table descriptor that refers to a page or region of memory
 // includes fields that define properties of the target memory region. These fields can be classified as
 // address map control, access control, and region attribute fields.

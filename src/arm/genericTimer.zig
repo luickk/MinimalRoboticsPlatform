@@ -16,8 +16,6 @@ var timerVal: usize = 0;
 
 var cnt_freq: usize = 0;
 
-// todo => handle timer overflow
-
 pub fn getFreq() usize {
     return asm ("mrs %[curr], CNTFRQ_EL0"
         : [curr] "=r" (-> usize),
@@ -32,23 +30,25 @@ pub fn setupGt() !void {
     timerVal += try utils.calcTicksFromHertz(cnt_freq, board.config.scheduler_freq_in_hertz);
 
     asm volatile (
-        \\msr CNTP_CVAL_EL0, %[freq]
+        \\msr CNTP_CVAL_EL0, %[cval]
         \\mov x0, 1
         \\msr cntp_ctl_el0, x0
         :
-        : [freq] "r" (timerVal),
+        : [cval] "r" (timerVal),
         : "x0"
     );
 }
 
 pub fn timerInt(irq_context: *CpuContext) !void {
-    timerVal += try utils.calcTicksFromHertz(cnt_freq, board.config.scheduler_freq_in_hertz);
+    const ticks = try utils.calcTicksFromHertz(cnt_freq, board.config.scheduler_freq_in_hertz);
+    if (@addWithOverflow(usize, timerVal, ticks, &timerVal)) timerVal = 0;
+
     asm volatile (
-        \\msr CNTP_CVAL_EL0, %[freq]
+        \\msr CNTP_CVAL_EL0, %[cval]
         \\mov x0, 1
         \\msr cntp_ctl_el0, x0
         :
-        : [freq] "r" (timerVal),
+        : [cval] "r" (timerVal),
         : "x0"
     );
 

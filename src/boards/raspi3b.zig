@@ -25,14 +25,13 @@ pub const config = boardConfig.BoardConfig{
         .kernel_space_size = 0x20000000,
         .user_space_size = 0x20000000,
 
-        .va_layout = .{
-            .va_kernel_space_size = 0x80000000,
-            // has to be Fourk since without a rom the kernel is positioned at a (addr % 2mb) != 0, so a 4kb granule is required
-            .va_kernel_space_gran = boardConfig.Granule.Fourk,
+        // has to be Fourk since without a rom the kernel is positioned at a (addr % 2mb) != 0, so a 4kb granule is required
+        .va_kernel_space_gran = boardConfig.Granule.Fourk,
+        .va_kernel_space_page_table_capacity = 0x40000000,
 
-            .va_user_space_size = 0x80000000,
-            .va_user_space_gran = boardConfig.Granule.Fourk,
-        },
+        .va_user_space_gran = boardConfig.Granule.Fourk,
+        .va_user_space_page_table_capacity = 0x40000000,
+
         .storage_start_addr = 0,
         .storage_size = 0,
     },
