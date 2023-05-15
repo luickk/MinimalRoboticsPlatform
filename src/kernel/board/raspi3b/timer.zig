@@ -46,5 +46,6 @@ pub fn handleTimerIrq(irq_context: *CpuContext) !void {
 
     RegMap.timerC1.* = timerVal;
     RegMap.timerCs.* = RegMap.timerCs.* | RegValues.timerCsM1;
+    // print("benis \n");
     scheduler.timerIntEvent(irq_context);
 }

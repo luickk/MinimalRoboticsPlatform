@@ -8,7 +8,7 @@ SECTIONS {
     .text : ALIGN(16) {
         *(.text.boot)
     }
-    .exceptions : ALIGN(0x8) {
+    .exceptions : ALIGN(0x800) {
         *(.text.exc_vec);
     }
     

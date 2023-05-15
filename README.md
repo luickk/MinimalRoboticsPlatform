@@ -14,6 +14,17 @@ The prime argument for Rust is safety, which is also important for embedded deve
 
 The Rust code can still be found in the separate [rust branch](https://github.com/luickk/rust-rtos/tree/rust_code) and includes a proper Cargo build process(without making use of an external build tools) for the Raspberry, as well as basic serial(with print! macro implementation) and interrupt controller utils.
 
+## Compatibility
+
+| generic int. cont. | generic timer | boot with rom | boot without rom | bcm2835 interrupt controller | bcm2835 timer |             |
+|--------------------|---------------|---------------|------------------|------------------------------|---------------|-------------|
+| ✅                  | ✅             | ✅             | ❌                | ❌                            | ❌             | qemu virt   |
+| ❌                  | ❌             | ❌             | ✅                | ✅                            | ✅             | raspberry3b |
+| ✅                  | ✅             | ❌             | ✅                | ❌                            | ❌             | raspberry 4 |
+
+The Generic interrupt controler, generic timer, booting with/out rom, bcm2835 interrupt controller are all supported, thus all of the three boards are bootable. 
+The bcm2835 timer is making problems though, I think the issue is stemming from qemu. I created an [issue on the gh](https://gitlab.com/qemu-project/qemu/-/issues/1651).
+
 ## Bootloader and kernel separation
 
 Because it simplifies linking and building the kernel as a whole. Linking both the kernel and bootloader is difficult(and error-prone) because it requires the linker to link symbols with VMA offsets that are not supported in size and causes more issues when it comes to relocation of the kernel. 
@@ -51,3 +62,14 @@ The Raspberry ships with the BCM2835, which is based on the Arm A53 but does not
 The best lecture to understand the MMU is probably the [official Arm documentation](https://developer.arm.com/documentation/100940/0101), which does a very good job of explaining the concepts of the mmu.
 Since this project requires multiple applications running at the same time, virtual memory is indispensable for safety and performance.
 
+## Installation
+
+### Dependencies:
+
+- zig (last tested version 0.10.1)
+- qemu (for testing)
+
+### Run
+
+- `zig build qemu`
+Builds and runs the project. The environment and board as well as all the other parameters for the build can be configured in build.zig

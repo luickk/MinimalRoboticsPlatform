@@ -295,10 +295,12 @@ pub const ProccessorRegMap = struct {
         asm volatile ("dsb SY");
     }
     pub inline fn setExceptionVec(exc_vec_addr: usize) void {
+        // .foramt(.{@tagName(exc_lvl)}) std.fmt.comptimePrint()
         asm volatile ("msr vbar_el1, %[exc_vec]"
             :
             : [exc_vec] "r" (exc_vec_addr),
         );
+
         asm volatile ("isb");
     }
 

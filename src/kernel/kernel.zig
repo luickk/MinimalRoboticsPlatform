@@ -54,6 +54,15 @@ const apps = blk: {
 export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text.kernel_main") callconv(.C) noreturn {
     // !! kernel sp is set in the Bootloader!!
 
+    {
+        const _exc_vec_label: usize = @ptrToInt(@extern(?*u8, .{ .name = "_exception_vector_table" }) orelse {
+            kprint("[panic] error reading _exception_vector_table label\n", .{});
+            k_utils.panic();
+        });
+
+        ProccessorRegMap.setExceptionVec(_exc_vec_label);
+    }
+
     // required for every page table modification, since the absolute memory location needs to be given to the mmu
     const kernel_lma_offset = boot_without_rom_new_kernel_loc + board.config.mem.ram_start_addr;
 
@@ -104,7 +113,7 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
             }
 
             {
-                // creating virtual address space for kernel
+                // creating virtual address space for periphs
                 const periph_mapping = mmu.Mapping{
                     .mem_size = board.PeriphConfig(.ttbr0).device_base_size,
                     .pointing_addr_start = board.PeriphConfig(.ttbr0).device_base,
@@ -177,14 +186,6 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
     }
 
     kprint("[kernel] page tables updated! \n", .{});
-
-    {
-        const _exc_vec_label: usize = @ptrToInt(@extern(?*u8, .{ .name = "_exception_vector_table" }) orelse {
-            kprint("[panic] error reading _exception_vector_table label\n", .{});
-            k_utils.panic();
-        });
-        ProccessorRegMap.setExceptionVec(_exc_vec_label);
-    }
 
     var current_el = ProccessorRegMap.getCurrentEl();
     if (current_el != 1) {
