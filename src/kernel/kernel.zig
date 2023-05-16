@@ -5,6 +5,7 @@ const board = @import("board");
 // kernel services
 const sharedKernelServices = @import("sharedKernelServices");
 const Scheduler = sharedKernelServices.Scheduler;
+const Topics = sharedKernelServices.Topics;
 // KernelAllocator and UserPageAllocator types are inited in sharedKernelServices!.
 const KernelAllocator = sharedKernelServices.KernelAllocator;
 const UserPageAllocator = sharedKernelServices.UserPageAllocator;
@@ -40,6 +41,7 @@ var user_page_alloc = UserPageAllocator.init() catch |e| {
 
 // pointer is now global, ! kernel main lifetime needs to be equal to schedulers.. !
 export var scheduler: *Scheduler = undefined;
+export var topics: *Topics = undefined;
 
 const apps = blk: {
     var apps_addresses = [_][]const u8{undefined} ** b_options.apps.len;
@@ -248,25 +250,33 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
         kprint("[kernel] ic inited \n", .{});
     }
 
-    kprint("[kernel] starting scheduler \n", .{});
-
     tests.testUserPageAlloc(&user_page_alloc) catch |e| {
         kprint("[panic] testUserPageAlloc test error: {s} \n", .{@errorName(e)});
         k_utils.panic();
     };
 
-    var scheduler_tmp = Scheduler.init(&user_page_alloc, kernel_lma_offset);
+    {
+        kprint("[kernel] starting scheduler \n", .{});
 
-    scheduler = &scheduler_tmp;
+        var scheduler_tmp = Scheduler.init(&user_page_alloc, kernel_lma_offset);
 
-    scheduler.configRootBootProcess();
+        scheduler = &scheduler_tmp;
 
-    scheduler.initAppsInScheduler(&apps) catch |e| {
-        kprint("[panic] Scheduler initAppsInScheduler error: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
+        // boot process = this process
+        scheduler.configRootBootProcess();
 
-    scheduler.initProcessCounter();
+        scheduler.initAppsInScheduler(&apps) catch |e| {
+            kprint("[panic] Scheduler initAppsInScheduler error: {s} \n", .{@errorName(e)});
+            k_utils.panic();
+        };
+
+        scheduler.initProcessCounter();
+    }
+
+    {
+        var topics_tmp = Topics.init(100, &user_page_alloc);
+        topics = &topics_tmp;
+    }
 
     if (board.config.board == .qemuVirt) {
         gt.setupGt() catch |e| {

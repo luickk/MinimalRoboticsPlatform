@@ -12,8 +12,10 @@ const k_utils = @import("utils.zig");
 
 const sharedKernelServices = @import("sharedKernelServices");
 const Scheduler = sharedKernelServices.Scheduler;
+const Topics = sharedKernelServices.Topics;
 
 extern var scheduler: *Scheduler;
+extern var topics: *Topics;
 
 pub const Syscall = struct {
     id: u32,
