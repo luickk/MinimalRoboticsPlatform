@@ -25,6 +25,23 @@ The Rust code can still be found in the separate [rust branch](https://github.co
 The Generic interrupt controler, generic timer, booting with/out rom, bcm2835 interrupt controller are all supported, thus all of the three boards are bootable. 
 The bcm2835 timer is making problems though, I think the issue is stemming from qemu. I created an [issue on the gh](https://gitlab.com/qemu-project/qemu/-/issues/1651).
 
+
+## Features
+
+### Topics
+
+A way to share data streams with other processes, similar to pipes but optimized for sensor data and data distribution and access over many processes.
+
+Currently, the interfaces for topics are implemented via Syscalls which isn't very effective, but future versions will support push/pop operations with zero kernel overhead through memory mapping in the user-space.
+
+### Services
+
+// todo
+
+### Actions
+
+// todo
+
 ## Bootloader and kernel separation
 
 Because it simplifies linking and building the kernel as a whole. Linking both the kernel and bootloader is difficult(and error-prone) because it requires the linker to link symbols with VMA offsets that are not supported in size and causes more issues when it comes to relocation of the kernel. 

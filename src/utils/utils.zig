@@ -49,18 +49,18 @@ pub const CircBuff = struct {
 
     pub fn init(buff_addr: usize, buff_len: usize) CircBuff {
         var buff: []u8 = undefined;
-        buff.ptr = buff_addr;
+        buff.ptr = @intToPtr([*]u8, buff_addr);
         buff.len = buff_len;
 
         return .{ .buff = buff, .curr_read_ptr = 0, .curr_write_ptr = 0 };
     }
     pub fn write(self: *CircBuff, data: []u8) !void {
         if (self.curr_write_ptr + data.len > self.buff.len) return Error.BuffOutOfStorage;
-        std.mem.copy(u8, &self.buff[self.curr_write_ptr], data);
+        std.mem.copy(u8, self.buff[self.curr_write_ptr..], data);
         self.curr_write_ptr += data.len;
     }
 
-    pub fn read(self: *CircBuff, len: usize) !void {
+    pub fn read(self: *CircBuff, len: usize) ![]u8 {
         if (self.curr_read_ptr - len < 0) return Error.BuffOutOfStorage;
         self.curr_read_ptr -= len;
         return self.buff[self.curr_read_ptr..len];

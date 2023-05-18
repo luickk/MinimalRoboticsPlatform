@@ -182,3 +182,69 @@ pub fn continueProcess(pid: usize) void {
         : "x0", "x8"
     );
 }
+
+pub fn closeTopic(index: usize) void {
+    asm volatile (
+    // args
+        \\mov x0, %[index]
+        // sys call id
+        \\mov x8, #10
+        \\svc #0
+        :
+        : [index] "r" (index),
+        : "x0", "x8"
+    );
+}
+
+pub fn openTopic(index: usize) void {
+    asm volatile (
+    // args
+        \\mov x0, %[index]
+        // sys call id
+        \\mov x8, #11
+        \\svc #0
+        :
+        : [index] "r" (index),
+        : "x0", "x8"
+    );
+}
+
+pub fn pushToTopic(index: usize, data: []u8) void {
+    const data_ptr: usize = @ptrToInt(data.ptr);
+    const data_len = data.len;
+    asm volatile (
+    // args
+        \\mov x0, %[index]
+        \\mov x1, %[data_ptr]
+        \\mov x2, %[data_len]
+        // sys call id
+        \\mov x8, #12
+        \\svc #0
+        :
+        : [index] "r" (index),
+          [data_ptr] "r" (data_ptr),
+          [data_len] "r" (data_len),
+        : "x0", "x1", "x2", "x8"
+    );
+}
+
+pub fn popFromTopic(index: usize, len: usize) ?[]u8 {
+    const popped_data_ptr = asm volatile (
+    // args
+        \\mov x0, %[index]
+        \\mov x1, %[data_len]
+        // sys call id
+        \\mov x8, #13
+        \\svc #0
+        \\mov %[ret_data_ptr], x0
+        : [ret_data_ptr] "=r" (-> usize),
+        : [index] "r" (index),
+          [data_len] "r" (len),
+        : "x0", "x1", "x8"
+    );
+    // if (popped_data_len == 0) return null;
+    const ret_data: []u8 = undefined;
+    ret_data.ptr = @intToPtr([*]u8, popped_data_ptr);
+    ret_data.len = len;
+    return ret_data;
+}

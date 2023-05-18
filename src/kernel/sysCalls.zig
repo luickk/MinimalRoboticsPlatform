@@ -35,6 +35,10 @@ pub const sysCallTable = [_]Syscall{
     .{ .id = 7, .fn_call = &sleep },
     .{ .id = 8, .fn_call = &haltProcess },
     .{ .id = 9, .fn_call = &continueProcess },
+    .{ .id = 10, .fn_call = &closeTopic },
+    .{ .id = 11, .fn_call = &openTopic },
+    .{ .id = 12, .fn_call = &pushToTopic },
+    .{ .id = 13, .fn_call = &popFromTopic },
 };
 
 fn sysCallPrint(params_args: *CpuContext) void {
@@ -100,4 +104,31 @@ fn haltProcess(params_args: *CpuContext) void {
 fn continueProcess(params_args: *CpuContext) void {
     const pid: usize = params_args.x0;
     scheduler.setProcessState(pid, .running, params_args);
+}
+
+fn closeTopic(params_args: *CpuContext) void {
+    const index = params_args.x0;
+    topics.closeTopic(index);
+}
+
+fn openTopic(params_args: *CpuContext) void {
+    const index = params_args.x0;
+    topics.openTopic(index);
+}
+
+fn pushToTopic(params_args: *CpuContext) void {
+    const index = params_args.x0;
+    const data_ptr = params_args.x1;
+    const data_len = params_args.x2;
+    topics.push(index, @intToPtr(*u8, data_ptr), data_len) catch {};
+}
+
+fn popFromTopic(params_args: *CpuContext) void {
+    const index = params_args.x0;
+    const data_len = params_args.x1;
+    var data = topics.pop(index, data_len) catch {};
+    if (data) |return_data| {
+        params_args.x0 = @ptrToInt(return_data.ptr);
+        params_args.x1 = return_data.len;
+    }
 }

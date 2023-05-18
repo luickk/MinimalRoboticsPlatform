@@ -66,7 +66,6 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
                 bl_utils.panic();
             };
 
-            kprint("ss: {d} \n", .{boot_without_rom_new_kernel_loc});
             // creating virtual address space for kernel
             const kernel_mapping = mmu.Mapping{
                 .mem_size = board.config.mem.ram_size,

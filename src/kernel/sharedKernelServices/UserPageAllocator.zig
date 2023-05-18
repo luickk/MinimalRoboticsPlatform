@@ -33,8 +33,10 @@ pub const UserPageAllocator = struct {
     }
 
     pub fn allocNPage(self: *UserPageAllocator, n: usize) ![]u8 {
+        // kprint("{d}, {d}, {d} \n", .{ maxChunks, self.curr_page_pointer + n, self.kernel_mem.capacity() });
         if (n <= 0) return Error.PageAllocMinimum;
         if (self.curr_page_pointer + n > self.kernel_mem.capacity()) {
+            kprint("SEARCHING \n", .{});
             return try self.searchFreePages(n);
         }
         var ret_slice: []u8 = undefined;

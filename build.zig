@@ -7,8 +7,7 @@ const Error = error{BlExceedsRomSize};
 
 const raspi3b = @import("src/boards/raspi3b.zig");
 const qemuVirt = @import("src/boards/qemuVirt.zig");
-
-const currBoard = raspi3b;
+const currBoard = qemuVirt;
 
 // packages...
 // SOC builtin features
@@ -89,7 +88,8 @@ pub fn build(b: *std.build.Builder) !void {
 
     // try setEnvironment(b, build_and_run, build_mode, "src/environments/basicMultiProcess");
     // try setEnvironment(b, build_and_run, build_mode, "src/environments/basicMultithreading");
-    try setEnvironment(b, build_and_run, build_mode, "src/environments/multiProcAndThreading");
+    // try setEnvironment(b, build_and_run, build_mode, "src/environments/multiProcAndThreading");
+    try setEnvironment(b, build_and_run, build_mode, "src/environments/topicsTest");
     // try setEnvironment(b, build_and_run, build_mode, "src/environments/waitTest");
 
     build_and_run.dependOn(&update_linker_scripts_k.step);

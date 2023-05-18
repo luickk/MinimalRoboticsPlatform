@@ -29,6 +29,7 @@ pub fn setupGt() !void {
     );
     timerVal += try utils.calcTicksFromHertz(cnt_freq, board.config.scheduler_freq_in_hertz);
 
+    kprint("timer val: {d} \n", .{timerVal});
     asm volatile (
         \\msr CNTP_CVAL_EL0, %[cval]
         \\mov x0, 1

@@ -274,7 +274,10 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
     }
 
     {
-        var topics_tmp = Topics.init(100, &user_page_alloc);
+        var topics_tmp = Topics.init(&user_page_alloc) catch |e| {
+            kprint("[panic] Topics init error: {s} \n", .{@errorName(e)});
+            k_utils.panic();
+        };
         topics = &topics_tmp;
     }
 
