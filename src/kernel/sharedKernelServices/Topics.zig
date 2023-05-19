@@ -4,6 +4,7 @@ const board = @import("board");
 const kprint = @import("periph").uart.UartWriter(.ttbr1).kprint;
 
 const UserPageAllocator = @import("UserPageAllocator.zig").UserPageAllocator;
+const Scheduler = @import("Scheduler.zig").Scheduler;
 const arm = @import("arm");
 
 const topicBuffSize = 10240;
@@ -33,8 +34,9 @@ pub const Topic = struct {
 pub const Topics = struct {
     topics: [maxTopics]Topic,
     mem_pool: []u8,
+    scheduler: *Scheduler,
 
-    pub fn init(user_page_alloc: *UserPageAllocator) !Topics {
+    pub fn init(user_page_alloc: *UserPageAllocator, scheduler: *Scheduler) !Topics {
         const pages_req = (try std.math.mod(usize, maxTopics * topicBuffSize, board.config.mem.va_user_space_gran.page_size)) + 1;
         const topics_mem = try user_page_alloc.allocNPage(pages_req);
         var topics = [_]Topic{undefined} ** maxTopics;
@@ -44,6 +46,7 @@ pub const Topics = struct {
         return .{
             .topics = topics,
             .mem_pool = topics_mem,
+            .scheduler = scheduler,
         };
     }
 
@@ -56,12 +59,16 @@ pub const Topics = struct {
     }
 
     pub fn push(self: *Topics, index: usize, data_ptr: *u8, len: usize) !void {
+        // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
+        self.scheduler.switchMemContext(self.scheduler.processses[0].ttbr0.?, null);
+        const boot_userspace_data_addr = @ptrToInt(self.scheduler.current_process.app_mem.?.ptr) + @ptrToInt(data_ptr);
         if (index <= self.topics.len) {
             var data: []u8 = undefined;
-            data.ptr = @ptrCast([*]u8, data_ptr);
+            data.ptr = @intToPtr([*]u8, boot_userspace_data_addr);
             data.len = len;
             try self.topics[index].write(data);
         }
+        self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
     }
 
     pub fn pop(self: *Topics, index: usize, len: usize) !?[]u8 {

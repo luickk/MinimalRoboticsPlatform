@@ -7,6 +7,8 @@ const timerCfg = board.PeriphConfig(.ttbr1).Timer;
 const utils = @import("utils");
 
 var timerVal: u32 = 0;
+
+// global user required since timer is handleTimerIrq is called from the exception vector table
 extern var scheduler: *Scheduler;
 
 // raspberry 3b available timers: system timer (this one), arm timer, free runnning timer

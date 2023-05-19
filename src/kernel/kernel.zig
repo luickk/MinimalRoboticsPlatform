@@ -274,7 +274,7 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
     }
 
     {
-        var topics_tmp = Topics.init(&user_page_alloc) catch |e| {
+        var topics_tmp = Topics.init(&user_page_alloc, scheduler) catch |e| {
             kprint("[panic] Topics init error: {s} \n", .{@errorName(e)});
             k_utils.panic();
         };

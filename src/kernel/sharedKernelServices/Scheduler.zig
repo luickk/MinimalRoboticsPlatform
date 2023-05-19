@@ -81,61 +81,61 @@ pub const Error = error{
     ForkPermissionFault,
     ThreadPermissionFault,
 };
+
 const maxProcesss = 10;
-
-// globals
-
 var processses = [_]Process{Process.init()} ** maxProcesss;
-var processses_sleeping = [_]?*Process{null} ** maxProcesss;
-var current_process: *Process = &processses[0];
-
-var pid_counter: usize = 0;
 
 pub const Scheduler = struct {
     page_allocator: *UserPageAllocator,
     kernel_lma_offset: usize,
+    processses: *[maxProcesss]Process,
+    processses_sleeping: [maxProcesss]?*Process,
+    current_process: *Process,
+    pid_counter: usize,
 
     pub fn init(page_allocator: *UserPageAllocator, kernel_lma_offset: usize) Scheduler {
-        return Scheduler{
+        return .{
             .page_allocator = page_allocator,
             .kernel_lma_offset = kernel_lma_offset,
+            .processses_sleeping = [_]?*Process{null} ** maxProcesss,
+            .processses = &processses,
+            .current_process = &processses[0],
+            .pid_counter = 0,
         };
     }
 
     pub fn configRootBootProcess(self: *Scheduler) void {
-        _ = self;
         // the init process contains all relevant mem&cpu context information of the "main" kernel process
         // and as such has the highest priority
-        current_process.priority = 15;
-        current_process.priv_level = .boot;
-        current_process.state = .running;
-        current_process.pid = 0;
+        self.current_process.priority = 15;
+        self.current_process.priv_level = .boot;
+        self.current_process.state = .running;
+        self.current_process.pid = 0;
         var app_mem: []u8 = undefined;
         app_mem.ptr = @intToPtr([*]u8, board.config.mem.va_start);
         app_mem.len = board.config.mem.kernel_space_size;
-        current_process.app_mem = app_mem;
-        current_process.ttbr0 = ProccessorRegMap.readTTBR0();
-        current_process.ttbr1 = ProccessorRegMap.readTTBR1();
+        self.current_process.app_mem = app_mem;
+        self.current_process.ttbr0 = ProccessorRegMap.readTTBR0();
+        self.current_process.ttbr1 = ProccessorRegMap.readTTBR1();
 
-        pid_counter += 1;
+        self.pid_counter += 1;
     }
 
     // assumes that all process counter were inited to 0
     pub fn initProcessCounter(self: *Scheduler) void {
-        _ = self;
-        for (processses) |*process| {
+        for (self.processses) |*process| {
             process.counter = (process.counter >> 1) + process.priority;
         }
     }
     pub fn schedule(self: *Scheduler, irq_context: *CpuContext) void {
-        current_process.setPreempt(false);
-        current_process.counter = 0;
+        self.current_process.setPreempt(false);
+        self.current_process.counter = 0;
         // round robin for processes
         var next_proc_pid: usize = 0;
         var c: isize = -1;
         while (true) {
-            for (processses) |*process, i| {
-                if (i >= pid_counter) break;
+            for (self.processses) |*process, i| {
+                if (i >= self.pid_counter) break;
                 if (process.state == .running and process.counter > c) {
                     c = process.counter;
                     next_proc_pid = i;
@@ -143,59 +143,59 @@ pub const Scheduler = struct {
             }
 
             if (c != 0) break;
-            for (processses) |*process, i| {
-                if (i >= pid_counter) break;
+            for (self.processses) |*process, i| {
+                if (i >= self.pid_counter) break;
                 process.counter = (process.counter >> 1) + process.priority;
             }
         }
-        current_process.setPreempt(true);
-        self.switchContextToProcess(&processses[next_proc_pid], irq_context);
+        self.current_process.setPreempt(true);
+        self.switchContextToProcess(&self.processses[next_proc_pid], irq_context);
     }
 
     pub fn timerIntEvent(self: *Scheduler, irq_context: *CpuContext) void {
-        current_process.counter -= 1;
-        for (processses_sleeping) |proc, i| {
+        self.current_process.counter -= 1;
+        for (self.processses_sleeping) |proc, i| {
             if (proc) |process| {
                 if (process.sleep_counter <= 0) {
                     process.state = .running;
-                    processses_sleeping[i] = null;
+                    self.processses_sleeping[i] = null;
                 } else {
                     process.sleep_counter -= 1;
                 }
             }
         }
-        if (current_process.counter > 0 and current_process.preempt_count > 0) {
-            if (log) kprint("--------- PROC WAIT counter: {d} \n", .{current_process.counter});
+        if (self.current_process.counter > 0 and self.current_process.preempt_count > 0) {
+            if (log) kprint("--------- PROC WAIT counter: {d} \n", .{self.current_process.counter});
             // return all the way back to the exc vector table where cpu state is restored from the stack
             // if the task is done already, we don't return back to the process but schedule the next task
-            if (current_process.state == .running) return;
+            if (self.current_process.state == .running) return;
         }
         self.schedule(irq_context);
     }
     pub fn initAppsInScheduler(self: *Scheduler, apps: []const []const u8) !void {
-        current_process.setPreempt(false);
+        self.current_process.setPreempt(false);
         for (apps) |app| {
             const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, board.config.mem.va_user_space_gran.page_size);
             const app_mem = try self.page_allocator.allocNPage(req_pages);
 
-            var pid = pid_counter;
+            var pid = self.pid_counter;
 
             std.mem.copy(u8, app_mem, app);
-            processses[pid].cpu_context.elr_el1 = 0;
-            processses[pid].cpu_context.sp_el0 = alignForward(app.len + board.config.mem.app_stack_size, 16);
-            processses[pid].cpu_context.x0 = pid;
-            processses[pid].app_mem = app_mem;
-            processses[pid].priority = current_process.priority;
-            processses[pid].state = .running;
-            processses[pid].priv_level = .user;
-            processses[pid].counter = processses[pid].priority;
-            processses[pid].preempt_count = 1;
-            processses[pid].pid = pid;
+            self.processses[pid].cpu_context.elr_el1 = 0;
+            self.processses[pid].cpu_context.sp_el0 = alignForward(app.len + board.config.mem.app_stack_size, 16);
+            self.processses[pid].cpu_context.x0 = pid;
+            self.processses[pid].app_mem = app_mem;
+            self.processses[pid].priority = self.current_process.priority;
+            self.processses[pid].state = .running;
+            self.processses[pid].priv_level = .user;
+            self.processses[pid].counter = self.processses[pid].priority;
+            self.processses[pid].preempt_count = 1;
+            self.processses[pid].pid = pid;
 
             // initing the apps page-table
             {
                 // MMU page dir config
-                var page_table_write = try app_page_table.init(&processses[pid].page_table, self.kernel_lma_offset);
+                var page_table_write = try app_page_table.init(&self.processses[pid].page_table, self.kernel_lma_offset);
                 const user_space_mapping = mmu.Mapping{
                     .mem_size = board.config.mem.app_vm_mem_size,
                     .pointing_addr_start = self.kernel_lma_offset + board.config.mem.kernel_space_size + @ptrToInt(app_mem.ptr),
@@ -207,91 +207,89 @@ pub const Scheduler = struct {
                 };
                 try page_table_write.mapMem(user_space_mapping);
             }
-            processses[pid].ttbr0 = self.kernel_lma_offset + utils.toTtbr0(usize, @ptrToInt(&processses[pid].page_table));
-            pid_counter += 1;
+            self.processses[pid].ttbr0 = self.kernel_lma_offset + utils.toTtbr0(usize, @ptrToInt(&self.processses[pid].page_table));
+            self.pid_counter += 1;
         }
-        current_process.setPreempt(true);
+        self.current_process.setPreempt(true);
     }
 
     pub fn killProcess(self: *Scheduler, pid: usize, irq_context: *CpuContext) !void {
-        current_process.setPreempt(false);
-        try checkForPid(pid);
-        processses[pid].state = .done;
-        for (processses) |*proc| {
+        self.current_process.setPreempt(false);
+        try self.checkForPid(pid);
+        self.processses[pid].state = .done;
+        for (self.processses) |*proc| {
             if (proc.is_thread and proc.parent_pid == pid) {
                 proc.state = .done;
             }
         }
-        current_process.setPreempt(true);
+        self.current_process.setPreempt(true);
         self.schedule(irq_context);
     }
 
     pub fn deepForkProcess(self: *Scheduler, to_clone_pid: usize) !void {
-        current_process.setPreempt(false);
+        self.current_process.setPreempt(false);
         // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
-        switchMemContext(processses[0].ttbr0.?, null);
-        try checkForPid(to_clone_pid);
-        if (processses[to_clone_pid].priv_level == .boot) return Error.ForkPermissionFault;
+        self.switchMemContext(self.processses[0].ttbr0.?, null);
+        try self.checkForPid(to_clone_pid);
+        if (self.processses[to_clone_pid].priv_level == .boot) return Error.ForkPermissionFault;
 
         const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, board.config.mem.va_user_space_gran.page_size);
         var new_app_mem = try self.page_allocator.allocNPage(req_pages);
 
-        var new_pid = pid_counter;
+        var new_pid = self.pid_counter;
 
-        std.mem.copy(u8, new_app_mem, processses[to_clone_pid].app_mem.?);
-        processses[new_pid] = processses[to_clone_pid];
-        processses[new_pid].app_mem = new_app_mem;
-        processses[new_pid].ttbr0 = self.kernel_lma_offset + utils.toTtbr0(usize, @ptrToInt(&processses[new_pid].page_table));
-        processses[new_pid].pid = new_pid;
-        processses[new_pid].parent_pid = to_clone_pid;
-        processses[to_clone_pid].child_pid = new_pid;
-        pid_counter += 1;
+        std.mem.copy(u8, new_app_mem, self.processses[to_clone_pid].app_mem.?);
+        self.processses[new_pid] = self.processses[to_clone_pid];
+        self.processses[new_pid].app_mem = new_app_mem;
+        self.processses[new_pid].ttbr0 = self.kernel_lma_offset + utils.toTtbr0(usize, @ptrToInt(&self.processses[new_pid].page_table));
+        self.processses[new_pid].pid = new_pid;
+        self.processses[new_pid].parent_pid = to_clone_pid;
+        self.processses[to_clone_pid].child_pid = new_pid;
+        self.pid_counter += 1;
 
-        for (processses) |*proc| {
+        for (self.processses) |*proc| {
             if (proc.is_thread or proc.parent_pid == to_clone_pid) {
                 try self.cloneThread(proc.pid.?, new_pid);
             }
         }
 
-        current_process.setPreempt(true);
-        switchMemContext(current_process.ttbr0.?, null);
+        self.current_process.setPreempt(true);
+        self.switchMemContext(self.current_process.ttbr0.?, null);
     }
 
     pub fn cloneThread(self: *Scheduler, to_clone_thread_pid: usize, new_proc_pid: usize) !void {
-        _ = self;
-        try checkForPid(to_clone_thread_pid);
-        current_process.setPreempt(false);
-        if (!processses[to_clone_thread_pid].is_thread) return;
+        try self.checkForPid(to_clone_thread_pid);
+        self.current_process.setPreempt(false);
+        if (!self.processses[to_clone_thread_pid].is_thread) return;
 
-        var new_pid = pid_counter;
-        processses[new_pid] = processses[to_clone_thread_pid];
-        processses[new_pid].pid = new_pid;
-        processses[new_pid].parent_pid = new_proc_pid;
-        processses[new_pid].ttbr0 = processses[new_proc_pid].ttbr0;
-        processses[new_pid].ttbr1 = processses[new_proc_pid].ttbr1;
+        var new_pid = self.pid_counter;
+        self.processses[new_pid] = self.processses[to_clone_thread_pid];
+        self.processses[new_pid].pid = new_pid;
+        self.processses[new_pid].parent_pid = new_proc_pid;
+        self.processses[new_pid].ttbr0 = self.processses[new_proc_pid].ttbr0;
+        self.processses[new_pid].ttbr1 = self.processses[new_proc_pid].ttbr1;
 
-        pid_counter += 1;
-        current_process.setPreempt(true);
+        self.pid_counter += 1;
+        self.current_process.setPreempt(true);
     }
     pub fn createThreadFromCurrentProcess(self: *Scheduler, entry_fn_ptr: *const anyopaque, thread_fn_ptr: *const anyopaque, thread_stack_addr: usize, args: *anyopaque) void {
-        _ = self;
-        current_process.setPreempt(false);
-        var new_pid = pid_counter;
-        processses[new_pid].pid = new_pid;
-        processses[new_pid].is_thread = true;
-        processses[new_pid].counter = processses[current_process.pid.?].priority;
-        processses[new_pid].priority = processses[current_process.pid.?].priority;
-        processses[new_pid].parent_pid = current_process.pid.?;
-        processses[new_pid].cpu_context.x0 = @ptrToInt(thread_fn_ptr);
-        processses[new_pid].cpu_context.x1 = @ptrToInt(args);
-        processses[new_pid].cpu_context.elr_el1 = @ptrToInt(entry_fn_ptr);
-        processses[new_pid].cpu_context.sp_el0 = thread_stack_addr;
-        processses[new_pid].cpu_context.sp_el1 = thread_stack_addr;
-        processses[new_pid].priv_level = processses[current_process.pid.?].priv_level;
-        processses[new_pid].ttbr0 = processses[current_process.pid.?].ttbr0;
-        processses[new_pid].ttbr1 = processses[current_process.pid.?].ttbr1;
-        pid_counter += 1;
-        current_process.setPreempt(true);
+        self.current_process.setPreempt(false);
+        var new_pid = self.pid_counter;
+        self.processses[new_pid].pid = new_pid;
+        self.processses[new_pid].is_thread = true;
+        self.processses[new_pid].counter = self.processses[self.current_process.pid.?].priority;
+        self.processses[new_pid].priority = self.processses[self.current_process.pid.?].priority;
+        self.processses[new_pid].parent_pid = self.current_process.pid.?;
+        self.processses[new_pid].cpu_context.x0 = @ptrToInt(thread_fn_ptr);
+        self.processses[new_pid].cpu_context.x1 = @ptrToInt(args);
+        self.processses[new_pid].cpu_context.elr_el1 = @ptrToInt(entry_fn_ptr);
+        self.processses[new_pid].cpu_context.sp_el0 = thread_stack_addr;
+        self.processses[new_pid].cpu_context.sp_el1 = thread_stack_addr;
+        self.processses[new_pid].priv_level = self.processses[self.current_process.pid.?].priv_level;
+        self.processses[new_pid].ttbr0 = self.processses[self.current_process.pid.?].ttbr0;
+        self.processses[new_pid].ttbr1 = self.processses[self.current_process.pid.?].ttbr1;
+        self.pid_counter += 1;
+        self.current_process.setPreempt(true);
     }
 
     // provides a generic entry function (generic in regard to the thread and argument function since @call builtin needs them to properly invoke the thread start)
@@ -324,61 +322,59 @@ pub const Scheduler = struct {
     }
 
     pub fn killProcessAndChildrend(self: *Scheduler, starting_pid: usize, irq_context: *CpuContext) !void {
-        current_process.setPreempt(false);
-        try checkForPid(starting_pid);
-        processses[starting_pid].state = .done;
+        self.current_process.setPreempt(false);
+        try self.checkForPid(starting_pid);
+        self.processses[starting_pid].state = .done;
         var child_proc_pid: ?usize = starting_pid;
         while (child_proc_pid != null) {
-            processses[child_proc_pid.?].state = .done;
-            for (processses) |*proc| {
+            self.processses[child_proc_pid.?].state = .done;
+            for (self.processses) |*proc| {
                 if (proc.is_thread and proc.parent_pid == child_proc_pid.?) {
                     proc.state = .done;
                 }
             }
-            child_proc_pid = processses[child_proc_pid.?].child_pid;
+            child_proc_pid = self.processses[child_proc_pid.?].child_pid;
         }
-        current_process.setPreempt(true);
+        self.current_process.setPreempt(true);
         self.schedule(irq_context);
     }
 
     pub fn getCurrentProcessPid(self: *Scheduler) usize {
-        _ = self;
-        return current_process.pid.?;
+        return self.current_process.pid.?;
     }
     pub fn setProcessState(self: *Scheduler, pid: usize, state: Process.ProcessState, irq_context: *CpuContext) void {
-        processses[pid].state = state;
-        if (pid == current_process.pid) self.schedule(irq_context);
+        self.processses[pid].state = state;
+        if (pid == self.current_process.pid) self.schedule(irq_context);
     }
     pub fn setProcessAsleep(self: *Scheduler, pid: usize, sleep_time: usize, irq_context: *CpuContext) !void {
-        try checkForPid(pid);
-        for (processses_sleeping) |proc, i| {
+        try self.checkForPid(pid);
+        for (self.processses_sleeping) |proc, i| {
             if (proc == null) {
-                processses_sleeping[i] = &processses[pid];
+                self.processses_sleeping[i] = &self.processses[pid];
             }
         }
-        processses[pid].sleep_counter = sleep_time;
-        processses[pid].state = .sleeping;
+        self.processses[pid].sleep_counter = sleep_time;
+        self.processses[pid].state = .sleeping;
         self.schedule(irq_context);
     }
 
-    fn checkForPid(pid: usize) !void {
+    fn checkForPid(self: *Scheduler, pid: usize) !void {
         if (pid > maxProcesss) return Error.PidNotFound;
-        if (processses[pid].state == .done) return Error.TaskIsDone;
+        if (self.processses[pid].state == .done) return Error.TaskIsDone;
     }
 
     // args (process pointers) are past via registers
     fn switchContextToProcess(self: *Scheduler, next_process: *Process, irq_context: *CpuContext) void {
-        _ = self;
-        var prev_process = current_process;
-        current_process = next_process;
+        var prev_process = self.current_process;
+        self.current_process = next_process;
 
         switch (next_process.priv_level) {
             // .ttbr1 is an optional and null for user type processes
-            .user => switchMemContext(next_process.ttbr0, next_process.ttbr1),
-            .boot, .kernel => switchMemContext(next_process.ttbr0, next_process.ttbr1),
+            .user => self.switchMemContext(next_process.ttbr0, next_process.ttbr1),
+            .boot, .kernel => self.switchMemContext(next_process.ttbr0, next_process.ttbr1),
         }
 
-        switchCpuContext(prev_process, next_process, irq_context);
+        switchCpuContext(self, prev_process, next_process, irq_context);
     }
 
     fn switchCpuPrivLvl(priv_level: Process.PrivLevel) void {
@@ -394,12 +390,12 @@ pub const Scheduler = struct {
         }
     }
 
-    fn switchCpuContext(from: *Process, to: *Process, irq_context: *CpuContext) void {
+    fn switchCpuContext(self: *Scheduler, from: *Process, to: *Process, irq_context: *CpuContext) void {
         if (log) {
             kprint("from: ({s}, {s}, {*}) to ({s}, {s}, {*}) \n", .{ @tagName(from.priv_level), @tagName(from.state), from, @tagName(to.priv_level), @tagName(to.state), to });
-            kprint("current processses(n={d}): \n", .{pid_counter + 1});
-            for (processses) |*proc, i| {
-                if (i >= pid_counter) break;
+            kprint("current processses(n={d}): \n", .{self.pid_counter + 1});
+            for (self.processses) |*proc, i| {
+                if (i >= self.pid_counter) break;
                 kprint("pid: {d} {s}, {s}, {s}, (is thread) {any} \n", .{ i, @tagName(proc.priv_level), @tagName(proc.priv_level), @tagName(proc.state), proc.is_thread });
             }
         }
@@ -414,7 +410,8 @@ pub const Scheduler = struct {
         );
     }
 
-    fn switchMemContext(ttbr_0_addr: ?usize, ttbr_1_addr: ?usize) void {
+    pub fn switchMemContext(self: *Scheduler, ttbr_0_addr: ?usize, ttbr_1_addr: ?usize) void {
+        _ = self;
         if (ttbr_0_addr) |addr| ProccessorRegMap.setTTBR0(addr);
         if (ttbr_1_addr) |addr| ProccessorRegMap.setTTBR1(addr);
         if (ttbr_0_addr != null or ttbr_0_addr != null) {

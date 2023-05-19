@@ -14,6 +14,7 @@ const sharedKernelServices = @import("sharedKernelServices");
 const Scheduler = sharedKernelServices.Scheduler;
 const Topics = sharedKernelServices.Topics;
 
+// global user required since the scheduler calls are invoked via svc
 extern var scheduler: *Scheduler;
 extern var topics: *Topics;
 
@@ -120,7 +121,7 @@ fn pushToTopic(params_args: *CpuContext) void {
     const index = params_args.x0;
     const data_ptr = params_args.x1;
     const data_len = params_args.x2;
-    topics.push(index, @intToPtr(*u8, data_ptr), data_len) catch {};
+    topics.push(index, @intToPtr(*u8, data_ptr), data_len) catch return;
 }
 
 fn popFromTopic(params_args: *CpuContext) void {

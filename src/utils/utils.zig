@@ -55,7 +55,7 @@ pub const CircBuff = struct {
         return .{ .buff = buff, .curr_read_ptr = 0, .curr_write_ptr = 0 };
     }
     pub fn write(self: *CircBuff, data: []u8) !void {
-        if (self.curr_write_ptr + data.len > self.buff.len) return Error.BuffOutOfStorage;
+        if (self.curr_write_ptr + data.len > self.buff.len) return;
         std.mem.copy(u8, self.buff[self.curr_write_ptr..], data);
         self.curr_write_ptr += data.len;
     }
