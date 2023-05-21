@@ -16,8 +16,11 @@ var shared_mutex: *Mutex = &mutex;
 
 export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     kprint("app2 initial pid: {d} \n", .{pid});
+    sysCalls.openTopic(1);
+    var ret_buff = [_]u8{0} ** 1;
     while (true) {
-        test_counter += 1;
-        kprint("app{d} test print {d} \n", .{ pid, test_counter });
+        kprint("app{d} test pull \n", .{pid});
+        sysCalls.popFromTopic(1, &ret_buff);
+        kprint("topic pop: {d} \n", .{ret_buff[0]});
     }
 }

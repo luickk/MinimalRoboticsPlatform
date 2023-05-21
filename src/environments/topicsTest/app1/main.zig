@@ -8,9 +8,10 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     kprint("app1 initial pid: {d} \n", .{pid});
 
     sysCalls.openTopic(1);
-    var test_data = [_]u8{ 10, 10, 10 };
+    var counter: u8 = 0;
     while (true) {
-        kprint("app{d} test print/push \n", .{pid});
-        sysCalls.pushToTopic(1, &test_data);
+        kprint("app{d} test push \n", .{pid});
+        sysCalls.pushToTopic(1, &[_]u8{counter});
+        counter += 1;
     }
 }

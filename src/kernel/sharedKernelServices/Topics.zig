@@ -22,11 +22,11 @@ pub const Topic = struct {
         };
     }
 
-    pub fn write(self: *Topic, data: []u8) !void {
+    pub fn push(self: *Topic, data: []u8) !void {
         return self.circ_buff.write(data);
     }
 
-    pub fn read(self: *Topic, len: usize) ![]u8 {
+    pub fn pop(self: *Topic, len: usize) ![]u8 {
         return self.circ_buff.read(len);
     }
 };
@@ -61,20 +61,25 @@ pub const Topics = struct {
     pub fn push(self: *Topics, index: usize, data_ptr: *u8, len: usize) !void {
         // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
         self.scheduler.switchMemContext(self.scheduler.processses[0].ttbr0.?, null);
-        const boot_userspace_data_addr = @ptrToInt(self.scheduler.current_process.app_mem.?.ptr) + @ptrToInt(data_ptr);
+        defer self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
+
+        const userspace_app_mapping_data_addr = @ptrToInt(self.scheduler.current_process.app_mem.?.ptr) + @ptrToInt(data_ptr);
         if (index <= self.topics.len) {
             var data: []u8 = undefined;
-            data.ptr = @intToPtr([*]u8, boot_userspace_data_addr);
+            data.ptr = @intToPtr([*]u8, userspace_app_mapping_data_addr);
             data.len = len;
-            try self.topics[index].write(data);
+            try self.topics[index].push(data);
         }
-        self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
     }
 
-    pub fn pop(self: *Topics, index: usize, len: usize) !?[]u8 {
+    pub fn pop(self: *Topics, index: usize, ret_buff: []u8) !void {
+        // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
+        self.scheduler.switchMemContext(self.scheduler.processses[0].ttbr0.?, null);
+        defer self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
         if (index <= self.topics.len - 1) {
-            return try self.topics[index].read(len);
+            var data = try self.topics[index].pop(ret_buff.len);
+            const userspace_app_mapping_ret_buff = @intToPtr([]u8, @ptrToInt(self.scheduler.current_process.app_mem.?.ptr) + @ptrToInt(ret_buff.ptr));
+            std.mem.copy(u8, userspace_app_mapping_ret_buff, data);
         }
-        return null;
     }
 };

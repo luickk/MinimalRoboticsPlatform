@@ -1,3 +1,4 @@
+const std = @import("std");
 const periph = @import("periph");
 const pl011 = periph.Pl011(.ttbr1);
 
@@ -127,9 +128,7 @@ fn pushToTopic(params_args: *CpuContext) void {
 fn popFromTopic(params_args: *CpuContext) void {
     const index = params_args.x0;
     const data_len = params_args.x1;
-    var data = topics.pop(index, data_len) catch {};
-    if (data) |return_data| {
-        params_args.x0 = @ptrToInt(return_data.ptr);
-        params_args.x1 = return_data.len;
-    }
+    var ret_buff = @intToPtr([]u8, params_args.x2);
+    ret_buff.len = data_len;
+    topics.pop(index, ret_buff) catch return;
 }

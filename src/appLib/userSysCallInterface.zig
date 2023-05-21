@@ -228,23 +228,19 @@ pub fn pushToTopic(index: usize, data: []u8) void {
     );
 }
 
-pub fn popFromTopic(index: usize, len: usize) ?[]u8 {
-    const popped_data_ptr = asm volatile (
+pub fn popFromTopic(index: usize, ret_buff: []u8) void {
+    asm volatile (
     // args
         \\mov x0, %[index]
         \\mov x1, %[data_len]
+        \\mov x2, %[ret_buff]
         // sys call id
         \\mov x8, #13
         \\svc #0
-        \\mov %[ret_data_ptr], x0
-        : [ret_data_ptr] "=r" (-> usize),
+        :
         : [index] "r" (index),
-          [data_len] "r" (len),
-        : "x0", "x1", "x8"
+          [data_len] "r" (ret_buff.len),
+          [ret_buff] "r" (@ptrToInt(ret_buff.ptr)),
+        : "x0", "x1", "x2", "x8"
     );
-    // if (popped_data_len == 0) return null;
-    const ret_data: []u8 = undefined;
-    ret_data.ptr = @intToPtr([*]u8, popped_data_ptr);
-    ret_data.len = len;
-    return ret_data;
 }

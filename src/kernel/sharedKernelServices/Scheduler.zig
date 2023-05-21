@@ -230,6 +230,12 @@ pub const Scheduler = struct {
         self.current_process.setPreempt(false);
         // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
         self.switchMemContext(self.processses[0].ttbr0.?, null);
+
+        defer {
+            self.current_process.setPreempt(true);
+            self.switchMemContext(self.current_process.ttbr0.?, null);
+        }
+
         try self.checkForPid(to_clone_pid);
         if (self.processses[to_clone_pid].priv_level == .boot) return Error.ForkPermissionFault;
 
@@ -252,9 +258,6 @@ pub const Scheduler = struct {
                 try self.cloneThread(proc.pid.?, new_pid);
             }
         }
-
-        self.current_process.setPreempt(true);
-        self.switchMemContext(self.current_process.ttbr0.?, null);
     }
 
     pub fn cloneThread(self: *Scheduler, to_clone_thread_pid: usize, new_proc_pid: usize) !void {
