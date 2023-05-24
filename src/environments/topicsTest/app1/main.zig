@@ -10,7 +10,8 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     sysCalls.openTopic(1);
     var counter: u8 = 0;
     while (true) {
-        kprint("app{d} test push \n", .{pid});
+        // kprint("app{d} test push \n", .{pid});
+        // if (counter < 100)
         sysCalls.pushToTopic(1, &[_]u8{counter});
         counter += 1;
     }

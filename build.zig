@@ -7,7 +7,15 @@ const Error = error{BlExceedsRomSize};
 
 const raspi3b = @import("src/boards/raspi3b.zig");
 const qemuVirt = @import("src/boards/qemuVirt.zig");
+
+// const currBoard = raspi3b;
 const currBoard = qemuVirt;
+
+// const env_path = "src/environments/basicMultiProcess";
+// const env_path = "src/environments/basicMultithreading";
+// const env_path = "src/environments/multiProcAndThreading";
+const env_path = "src/environments/topicsTest";
+// const env_path = "src/environments/waitTest";
 
 // packages...
 // SOC builtin features
@@ -16,6 +24,7 @@ var arm = std.build.Pkg{ .name = "arm", .source = .{ .path = "src/arm/arm.zig" }
 var utils = std.build.Pkg{ .name = "utils", .source = .{ .path = "src/utils/utils.zig" } };
 // board pkg contains the configuration "template"(boardConfig.zig) and different configuration files for different boards
 var board = std.build.Pkg{ .name = "board", .source = .{ .path = "src/boards/" ++ @tagName(currBoard.config.board) ++ ".zig" } };
+var environment = std.build.Pkg{ .name = "environment", .source = .{ .path = env_path ++ "/envConfig.zig" } };
 // peripheral drivers
 var periph = std.build.Pkg{ .name = "periph", .source = .{ .path = "src/periph/periph.zig" } };
 // services that need to be accessed by kernel and other instances. the kernel allocator e.g.
@@ -29,7 +38,7 @@ pub fn build(b: *std.build.Builder) !void {
     var build_options = b.addOptions();
 
     // inter package dependencies
-    sharedKernelServices.dependencies = &.{ board, appLib, build_options.*.getPackage("build_options"), arm, utils, periph };
+    sharedKernelServices.dependencies = &.{ board, environment, appLib, build_options.*.getPackage("build_options"), arm, utils, periph };
     periph.dependencies = &.{board};
     utils.dependencies = &.{ board, arm };
     arm.dependencies = &.{ periph, utils, board, sharedKernelServices };
@@ -65,6 +74,7 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.addPackage(appLib);
     kernel_exe.addPackage(utils);
     kernel_exe.addPackage(board);
+    kernel_exe.addPackage(environment);
     kernel_exe.addPackage(periph);
     kernel_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
     kernel_exe.addOptions("build_options", build_options);
@@ -86,11 +96,7 @@ pub fn build(b: *std.build.Builder) !void {
 
     build_and_run.dependOn(&delete_app_bins.step);
 
-    // try setEnvironment(b, build_and_run, build_mode, "src/environments/basicMultiProcess");
-    // try setEnvironment(b, build_and_run, build_mode, "src/environments/basicMultithreading");
-    // try setEnvironment(b, build_and_run, build_mode, "src/environments/multiProcAndThreading");
-    try setEnvironment(b, build_and_run, build_mode, "src/environments/topicsTest");
-    // try setEnvironment(b, build_and_run, build_mode, "src/environments/waitTest");
+    try setEnvironment(b, build_and_run, build_mode, env_path);
 
     build_and_run.dependOn(&update_linker_scripts_k.step);
     build_and_run.dependOn(&scan_for_apps.step);

@@ -183,62 +183,62 @@ pub fn continueProcess(pid: usize) void {
     );
 }
 
-pub fn closeTopic(index: usize) void {
+pub fn closeTopic(id: usize) void {
     asm volatile (
     // args
-        \\mov x0, %[index]
+        \\mov x0, %[id]
         // sys call id
         \\mov x8, #10
         \\svc #0
         :
-        : [index] "r" (index),
+        : [id] "r" (id),
         : "x0", "x8"
     );
 }
 
-pub fn openTopic(index: usize) void {
+pub fn openTopic(id: usize) void {
     asm volatile (
     // args
-        \\mov x0, %[index]
+        \\mov x0, %[id]
         // sys call id
         \\mov x8, #11
         \\svc #0
         :
-        : [index] "r" (index),
+        : [id] "r" (id),
         : "x0", "x8"
     );
 }
 
-pub fn pushToTopic(index: usize, data: []u8) void {
+pub fn pushToTopic(id: usize, data: []u8) void {
     const data_ptr: usize = @ptrToInt(data.ptr);
     const data_len = data.len;
     asm volatile (
     // args
-        \\mov x0, %[index]
+        \\mov x0, %[id]
         \\mov x1, %[data_ptr]
         \\mov x2, %[data_len]
         // sys call id
         \\mov x8, #12
         \\svc #0
         :
-        : [index] "r" (index),
+        : [id] "r" (id),
           [data_ptr] "r" (data_ptr),
           [data_len] "r" (data_len),
         : "x0", "x1", "x2", "x8"
     );
 }
 
-pub fn popFromTopic(index: usize, ret_buff: []u8) void {
+pub fn popFromTopic(id: usize, ret_buff: []u8) void {
     asm volatile (
     // args
-        \\mov x0, %[index]
+        \\mov x0, %[id]
         \\mov x1, %[data_len]
         \\mov x2, %[ret_buff]
         // sys call id
         \\mov x8, #13
         \\svc #0
         :
-        : [index] "r" (index),
+        : [id] "r" (id),
           [data_len] "r" (ret_buff.len),
           [ret_buff] "r" (@ptrToInt(ret_buff.ptr)),
         : "x0", "x1", "x2", "x8"

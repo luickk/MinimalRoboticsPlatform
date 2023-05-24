@@ -109,26 +109,26 @@ fn continueProcess(params_args: *CpuContext) void {
 }
 
 fn closeTopic(params_args: *CpuContext) void {
-    const index = params_args.x0;
-    topics.closeTopic(index);
+    const id = params_args.x0;
+    topics.closeTopic(id);
 }
 
 fn openTopic(params_args: *CpuContext) void {
-    const index = params_args.x0;
-    topics.openTopic(index);
+    const id = params_args.x0;
+    topics.openTopic(id);
 }
 
 fn pushToTopic(params_args: *CpuContext) void {
-    const index = params_args.x0;
+    const id = params_args.x0;
     const data_ptr = params_args.x1;
     const data_len = params_args.x2;
-    topics.push(index, @intToPtr(*u8, data_ptr), data_len) catch return;
+    topics.push(id, @intToPtr(*u8, data_ptr), data_len) catch return;
 }
 
 fn popFromTopic(params_args: *CpuContext) void {
-    const index = params_args.x0;
+    const id = params_args.x0;
     const data_len = params_args.x1;
     var ret_buff = @intToPtr([]u8, params_args.x2);
     ret_buff.len = data_len;
-    topics.pop(index, ret_buff) catch return;
+    topics.pop(id, ret_buff) catch return;
 }

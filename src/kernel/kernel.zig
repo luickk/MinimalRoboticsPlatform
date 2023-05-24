@@ -304,7 +304,7 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
 
     var counter: usize = 0;
     while (true) {
-        kprint("while counter: {d} \n", .{counter});
+        // kprint("while counter: {d} \n", .{counter});
         // kprint("timer: {d} irq: {d} \n", .{ bcm2835Timer.RegMap.timerCs.*, bcm2835IntController.RegMap.enableIrq1.* });
         counter += 1;
     }

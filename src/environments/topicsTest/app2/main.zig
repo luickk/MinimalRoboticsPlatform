@@ -19,7 +19,6 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     sysCalls.openTopic(1);
     var ret_buff = [_]u8{0} ** 1;
     while (true) {
-        kprint("app{d} test pull \n", .{pid});
         sysCalls.popFromTopic(1, &ret_buff);
         kprint("topic pop: {d} \n", .{ret_buff[0]});
     }
