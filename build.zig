@@ -76,6 +76,8 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.addPackage(board);
     kernel_exe.addPackage(environment);
     kernel_exe.addPackage(periph);
+    // kernel_exe.addAnonymousPackage("env-config", .{ .source_file = .{ .path = "src/configTemplates/envConfigTemplate.zig" } });
+    // kernel_exe.addAnonymousModule("board-config", .{ .source_file = .{ .path = "src/configTemplates/boardConfigTemplate.zig" } });
     kernel_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
     kernel_exe.addOptions("build_options", build_options);
     kernel_exe.setBuildMode(build_mode);

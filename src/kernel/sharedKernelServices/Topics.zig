@@ -15,29 +15,95 @@ const topicBuffSize = 10240;
 pub const MultiBuff = struct {
     const Error = error{
         BuffOutOfSpace,
+        MaxRollOvers,
     };
     buff: []u8,
     behaviour_type: TopicBufferTypes,
     curr_read_write_ptr: usize,
 
-    pub fn init(buff_addr: usize, buff_len: usize, buff_type: TopicBufferTypes) MultiBuff {
+    scheduler: *Scheduler,
+
+    pub fn init(scheduler: *Scheduler, buff_addr: usize, buff_len: usize, buff_type: TopicBufferTypes) MultiBuff {
         var buff: []u8 = undefined;
         buff.ptr = @intToPtr([*]u8, buff_addr);
         buff.len = buff_len;
 
-        return .{ .buff = buff, .behaviour_type = buff_type, .curr_read_write_ptr = 0 };
+        return .{ .buff = buff, .behaviour_type = buff_type, .curr_read_write_ptr = 0, .scheduler = scheduler };
     }
+
     pub fn write(self: *MultiBuff, data: []u8) !void {
+        switch (self.behaviour_type) {
+            .RingBuffer => {
+                return self.write_ring_buff(data);
+            },
+            .ContinousBuffer => {
+                return self.write_continous_buff(data);
+            },
+        }
+    }
+
+    pub fn read(self: *MultiBuff, ret_buff: []u8) !void {
+        switch (self.behaviour_type) {
+            .RingBuffer => {
+                return self.read_ring_buff(ret_buff);
+            },
+            .ContinousBuffer => {
+                return self.read_continous_buff(ret_buff);
+            },
+        }
+    }
+
+    pub fn write_ring_buff(self: *MultiBuff, data: []u8) !void {
         if (self.curr_read_write_ptr + data.len > self.buff.len) return Error.BuffOutOfSpace;
         std.mem.copy(u8, self.buff[self.curr_read_write_ptr..], data);
         self.curr_read_write_ptr += data.len;
     }
 
-    pub fn read(self: *MultiBuff, len: usize) ![]u8 {
-        if (self.curr_read_write_ptr < len) return Error.BuffOutOfSpace;
-        var res = self.buff[self.curr_read_write_ptr - len .. self.curr_read_write_ptr];
-        self.curr_read_write_ptr -= len;
-        return res;
+    pub fn read_ring_buff(self: *MultiBuff, ret_buff: []u8) !void {
+        // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
+        self.scheduler.switchMemContext(self.scheduler.processses[0].ttbr0.?, null);
+        defer self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
+
+        if (self.curr_read_write_ptr < ret_buff.len) return Error.BuffOutOfSpace;
+        var data = self.buff[self.curr_read_write_ptr - ret_buff.len .. self.curr_read_write_ptr];
+        self.curr_read_write_ptr -= ret_buff.len;
+
+        const userspace_app_mapping_ret_buff = @intToPtr([]u8, @ptrToInt(self.scheduler.current_process.app_mem.?.ptr) + @ptrToInt(ret_buff.ptr));
+        std.mem.copy(u8, userspace_app_mapping_ret_buff, data);
+    }
+
+    pub fn write_continous_buff(self: *MultiBuff, data: []u8) !void {
+        var buff_pointer = try std.math.mod(usize, self.curr_read_write_ptr, self.buff.len);
+
+        std.mem.copy(u8, self.buff[buff_pointer..], data[0..self.buff.len]);
+        if (buff_pointer + data.len > self.buff.len) {
+            std.mem.copy(u8, self.buff[0..], data[self.buff.len..]);
+        }
+        self.curr_read_write_ptr += data.len;
+    }
+
+    pub fn read_continous_buff(self: *MultiBuff, ret_buff: []u8) !void {
+        // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
+        self.scheduler.switchMemContext(self.scheduler.processses[0].ttbr0.?, null);
+        defer self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
+
+        var buff_pointer = try std.math.mod(usize, self.curr_read_write_ptr, self.buff.len);
+
+        var lower_read_bound: usize = 0;
+        if (buff_pointer > ret_buff.len) lower_read_bound = buff_pointer - ret_buff.len;
+        var data = self.buff[lower_read_bound..buff_pointer];
+
+        const userspace_app_mapping_ret_buff = @intToPtr([]u8, @ptrToInt(self.scheduler.current_process.app_mem.?.ptr) + @ptrToInt(ret_buff.ptr));
+        std.mem.copy(u8, userspace_app_mapping_ret_buff, data);
+
+        if (buff_pointer < ret_buff.len) {
+            const rollover_size: usize = try std.math.sub(usize, buff_pointer, ret_buff.len);
+            // only one rollver is supported
+            if (rollover_size > self.buff.len) return Error.MaxRollOvers;
+
+            var rolled_over_data = self.buff[self.buff.len - rollover_size .. self.buff.len];
+            std.mem.copy(u8, @intToPtr([]u8, @ptrToInt(userspace_app_mapping_ret_buff.ptr) + data.len), rolled_over_data);
+        }
     }
 };
 
@@ -46,23 +112,21 @@ pub const Topic = struct {
     id: usize,
     opened: bool,
 
-    pub fn init(topic_mem: []u8, id: usize, buff_type: TopicBufferTypes) Topic {
+    pub fn init(scheduler: *Scheduler, topic_mem: []u8, id: usize, buff_type: TopicBufferTypes) Topic {
         kprint("init {d} \n", .{topic_mem.len});
         return .{
-            .buff = MultiBuff.init(@ptrToInt(topic_mem.ptr), topic_mem.len, buff_type),
+            .buff = MultiBuff.init(scheduler, @ptrToInt(topic_mem.ptr), topic_mem.len, buff_type),
             .id = id,
             .opened = false,
         };
     }
 
-    pub fn push(self: *Topic, data: []u8) !void {
+    pub fn write(self: *Topic, data: []u8) !void {
         return self.buff.write(data);
     }
 
-    pub fn pop(self: *Topic, len: usize) ![]u8 {
-        kprint("current level: {d} \n", .{self.buff.curr_read_write_ptr});
-        var ret = self.buff.read(len);
-        return ret;
+    pub fn read(self: *Topic, ret_buff: []u8) !void {
+        try self.buff.read(ret_buff);
     }
 };
 
@@ -76,7 +140,7 @@ pub const Topics = struct {
         const topics_mem = try user_page_alloc.allocNPage(pages_req);
         var topics = [_]Topic{undefined} ** env.env_config.conf_topics.len;
         for (env.env_config.conf_topics) |topic_conf, i| {
-            topics[i] = Topic.init(topics_mem[topicBuffSize * i .. ((topicBuffSize * i) + topicBuffSize)], topic_conf.id, topic_conf.buffer_type);
+            topics[i] = Topic.init(scheduler, topics_mem[topicBuffSize * i .. ((topicBuffSize * i) + topicBuffSize)], topic_conf.id, topic_conf.buffer_type);
         }
         return .{
             .topics = topics,
@@ -97,7 +161,7 @@ pub const Topics = struct {
         }
     }
 
-    pub fn push(self: *Topics, id: usize, data_ptr: *u8, len: usize) !void {
+    pub fn write(self: *Topics, id: usize, data_ptr: *u8, len: usize) !void {
         // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
         self.scheduler.switchMemContext(self.scheduler.processses[0].ttbr0.?, null);
         defer self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
@@ -107,18 +171,13 @@ pub const Topics = struct {
             var data: []u8 = undefined;
             data.ptr = @intToPtr([*]u8, userspace_app_mapping_data_addr);
             data.len = len;
-            try self.topics[index].push(data);
+            try self.topics[index].write(data);
         }
     }
 
-    pub fn pop(self: *Topics, id: usize, ret_buff: []u8) !void {
-        // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
-        self.scheduler.switchMemContext(self.scheduler.processses[0].ttbr0.?, null);
-        defer self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
+    pub fn read(self: *Topics, id: usize, ret_buff: []u8) !void {
         if (self.findTopicById(id)) |index| {
-            var data = try self.topics[index].pop(ret_buff.len);
-            const userspace_app_mapping_ret_buff = @intToPtr([]u8, @ptrToInt(self.scheduler.current_process.app_mem.?.ptr) + @ptrToInt(ret_buff.ptr));
-            std.mem.copy(u8, userspace_app_mapping_ret_buff, data);
+            try self.topics[index].read(ret_buff);
         }
     }
 
@@ -130,21 +189,3 @@ pub const Topics = struct {
         return null;
     }
 };
-
-test "MultiBuff test" {
-    var buff = [_]u8{0} ** 2048;
-    var rb = MultiBuff.init(@ptrToInt(&buff), buff.len);
-    var counter: u8 = 5;
-    try rb.write(&[_]u8{counter});
-    try std.testing.expect((try rb.read(1))[0] == counter);
-    try std.testing.expectError(MultiBuff.Error.BuffOutOfSpace, rb.read(1));
-    counter += 5;
-    try rb.write(&[_]u8{counter});
-    try std.testing.expect((try rb.read(1))[0] == counter);
-    counter += 5;
-    try rb.write(&[_]u8{counter});
-    try std.testing.expect((try rb.read(1))[0] == counter);
-    counter += 5;
-    try rb.write(&[_]u8{counter});
-    try std.testing.expect((try rb.read(1))[0] == counter);
-}

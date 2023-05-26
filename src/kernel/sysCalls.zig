@@ -122,7 +122,7 @@ fn pushToTopic(params_args: *CpuContext) void {
     const id = params_args.x0;
     const data_ptr = params_args.x1;
     const data_len = params_args.x2;
-    topics.push(id, @intToPtr(*u8, data_ptr), data_len) catch return;
+    topics.write(id, @intToPtr(*u8, data_ptr), data_len) catch return;
 }
 
 fn popFromTopic(params_args: *CpuContext) void {
@@ -130,5 +130,5 @@ fn popFromTopic(params_args: *CpuContext) void {
     const data_len = params_args.x1;
     var ret_buff = @intToPtr([]u8, params_args.x2);
     ret_buff.len = data_len;
-    topics.pop(id, ret_buff) catch return;
+    topics.read(id, ret_buff) catch return;
 }
