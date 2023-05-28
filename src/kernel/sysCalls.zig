@@ -41,6 +41,7 @@ pub const sysCallTable = [_]Syscall{
     .{ .id = 11, .fn_call = &openTopic },
     .{ .id = 12, .fn_call = &pushToTopic },
     .{ .id = 13, .fn_call = &popFromTopic },
+    .{ .id = 14, .fn_call = &waitForTopicUpdate },
 };
 
 fn sysCallPrint(params_args: *CpuContext) void {
@@ -131,4 +132,10 @@ fn popFromTopic(params_args: *CpuContext) void {
     var ret_buff = @intToPtr([]u8, params_args.x2);
     ret_buff.len = data_len;
     topics.read(id, ret_buff) catch return;
+}
+
+fn waitForTopicUpdate(params_args: *CpuContext) void {
+    const id = params_args.x0;
+    const wait_sem = params_args.x1;
+    topics.addSemaphoreToTopic(id, wait_sem);
 }

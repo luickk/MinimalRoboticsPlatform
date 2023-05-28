@@ -8,8 +8,11 @@ const kprint = @import("periph").uart.UartWriter(.ttbr1).kprint;
 const UserPageAllocator = @import("UserPageAllocator.zig").UserPageAllocator;
 const Scheduler = @import("Scheduler.zig").Scheduler;
 const arm = @import("arm");
+const appLib = @import("appLib");
+const Semaphore = appLib.Semaphore;
 
 const topicBuffSize = 10240;
+const maxWaitingTasks = 10;
 
 // changes behaviour based on runtime information
 pub const MultiBuff = struct {
@@ -111,6 +114,8 @@ pub const Topic = struct {
     buff: MultiBuff,
     id: usize,
     opened: bool,
+    waiting_tasks: [maxWaitingTasks]*Semaphore,
+    n_waiting_taks: usize,
 
     pub fn init(scheduler: *Scheduler, topic_mem: []u8, id: usize, buff_type: TopicBufferTypes) Topic {
         kprint("init {d} \n", .{topic_mem.len});
@@ -118,6 +123,8 @@ pub const Topic = struct {
             .buff = MultiBuff.init(scheduler, @ptrToInt(topic_mem.ptr), topic_mem.len, buff_type),
             .id = id,
             .opened = false,
+            .waiting_tasks = [_]*Semaphore{undefined} ** maxWaitingTasks,
+            .n_waiting_taks = 0,
         };
     }
 
@@ -164,7 +171,7 @@ pub const Topics = struct {
     pub fn write(self: *Topics, id: usize, data_ptr: *u8, len: usize) !void {
         // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
         self.scheduler.switchMemContext(self.scheduler.processses[0].ttbr0.?, null);
-        defer self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
+        errdefer self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
 
         const userspace_app_mapping_data_addr = @ptrToInt(self.scheduler.current_process.app_mem.?.ptr) + @ptrToInt(data_ptr);
         if (self.findTopicById(id)) |index| {
@@ -172,12 +179,23 @@ pub const Topics = struct {
             data.ptr = @intToPtr([*]u8, userspace_app_mapping_data_addr);
             data.len = len;
             try self.topics[index].write(data);
+            self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
+            for (self.topics[index].waiting_tasks) |semaphore| {
+                semaphore.signal();
+            }
         }
     }
 
     pub fn read(self: *Topics, id: usize, ret_buff: []u8) !void {
         if (self.findTopicById(id)) |index| {
             try self.topics[index].read(ret_buff);
+        }
+    }
+
+    pub fn addSemaphoreToTopic(self: *Topics, id: usize, wait_sem_addr: usize) void {
+        if (self.findTopicById(id)) |index| {
+            self.topics[index].waiting_tasks[self.topics[index].n_waiting_taks] = @intToPtr(*Semaphore, wait_sem_addr);
+            self.topics[index].n_waiting_taks += 1;
         }
     }
 

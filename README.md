@@ -34,6 +34,13 @@ A way to share data streams with other processes, similar to pipes but optimized
 
 Currently, the interfaces for topics are implemented via Syscalls which isn't very effective, but future versions will support push/pop operations with zero kernel overhead through memory mapping in the user-space.
 
+#### What kind of data is it for?
+
+Topics can be used for all kinds of statically sized data. Depending on the amount of data per time unit, there a re different methods of retrievals. 
+- `waitForTopicUpdate` (which leverages a semaphore) can be used to wait for data in a separate thread. 
+- `popFromTopic` could be used to get a unit of the latest(depending on the buffer type) data
+- // todo: a way to stream larger amounts of data efficiently. As soon as userspace memory-mapping is implemented, efficient high-bandwith reads of streaming data will be possible
+
 ### Services
 
 // todo

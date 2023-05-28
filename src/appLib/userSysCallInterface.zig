@@ -3,6 +3,7 @@ const board = @import("board");
 const alignForward = std.mem.alignForward;
 const AppAllocator = @import("AppAllocator.zig").AppAllocator;
 const Mutex = @import("Mutex.zig").Mutex;
+const Semaphore = @import("Semaphore.zig").Semaphore;
 const utils = @import("utils");
 
 const Error = error{
@@ -243,4 +244,23 @@ pub fn popFromTopic(id: usize, ret_buff: []u8) void {
           [ret_buff] "r" (@ptrToInt(ret_buff.ptr)),
         : "x0", "x1", "x2", "x8"
     );
+}
+
+pub fn waitForTopicUpdate(id: usize) void {
+    const wait_sem = Semaphore.init();
+
+    asm volatile (
+    // args
+        \\mov x0, %[id]
+        \\mov x1, %[sem_addr]
+        // sys call id
+        \\mov x8, #14
+        \\svc #0
+        :
+        : [id] "r" (id),
+          [sem_addr] "r" (@ptrToInt(&wait_sem)),
+        : "x0", "x1", "x8"
+    );
+
+    wait_sem.wait();
 }
