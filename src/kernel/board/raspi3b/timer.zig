@@ -7,6 +7,7 @@ const timerCfg = board.PeriphConfig(.ttbr1).Timer;
 const utils = @import("utils");
 
 var timerVal: u32 = 0;
+var initialTimerHi: u32 = 0;
 
 // global user required since timer is handleTimerIrq is called from the exception vector table
 extern var scheduler: *Scheduler;
@@ -15,7 +16,7 @@ extern var scheduler: *Scheduler;
 // raspberry system timer frequency is 1 Mhz
 var cnt_freq: u32 = 1000000;
 
-const ticks = @truncate(u32, try utils.calcTicksFromHertz(cnt_freq, board.config.scheduler_freq_in_hertz));
+var increasePerTick: u32 = 0;
 
 pub const RegMap = struct {
     pub const timerCs = @intToPtr(*volatile u32, timerCfg.base_address + 0x0);
@@ -36,22 +37,27 @@ pub const RegValues = struct {
 };
 
 pub fn initTimer() !void {
+    initialTimerHi = RegMap.timerHi.*;
     timerVal = RegMap.timerLo.*;
-    timerVal += @truncate(u32, try utils.calcTicksFromHertz(cnt_freq, board.config.scheduler_freq_in_hertz));
+    increasePerTick = @truncate(u32, try utils.calcTicksFromHertz(cnt_freq, board.config.scheduler_freq_in_hertz));
+    timerVal += increasePerTick;
     RegMap.timerC1.* = timerVal;
 }
 
 // the qemu system timer is weird. It only triggers an interrupt if timerC1 is == timerLo instead of timerC1 is <= timerLo.
 // Qemu devs stated that this is intended and what the documentation is saying, but are also doubting that this is the physical bcm2835 implementation
+// more on that issue here: https://gitlab.com/qemu-project/qemu/-/issues/1651
+// also I'm unsure how overflows are handled since it's not described in the docs properly
 pub fn handleTimerIrq(irq_context: *CpuContext) !void {
-    timerVal = RegMap.timerLo.*;
-    if (@addWithOverflow(u32, timerVal, ticks, &timerVal)) {
+    timerVal = RegMap.timerLo.* + increasePerTick;
+    if (initialTimerHi != RegMap.timerHi.*) {
         timerVal = RegMap.timerLo.*;
-        timerVal += @truncate(u32, try utils.calcTicksFromHertz(cnt_freq, board.config.scheduler_freq_in_hertz));
+        timerVal += increasePerTick;
+        initialTimerHi = RegMap.timerHi.*;
     }
 
     RegMap.timerC1.* = timerVal;
     RegMap.timerCs.* = RegMap.timerCs.* | RegValues.timerCsM1;
-    // print("benis \n");
+
     scheduler.timerIntEvent(irq_context);
 }

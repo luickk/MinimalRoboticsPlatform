@@ -16,6 +16,8 @@ The Rust code can still be found in the separate [rust branch](https://github.co
 
 ## Compatibility
 
+### Boards and their requirements
+
 | generic int. cont. | generic timer | boot with rom | boot without rom | bcm2835 interrupt controller | bcm2835 timer |             |
 |--------------------|---------------|---------------|------------------|------------------------------|---------------|-------------|
 | ✅                  | ✅             | ✅             | ❌                | ❌                            | ❌             | qemu virt   |
@@ -23,7 +25,6 @@ The Rust code can still be found in the separate [rust branch](https://github.co
 | ✅                  | ✅             | ❌             | ✅                | ❌                            | ❌             | raspberry 4 |
 
 The Generic interrupt controler, generic timer, booting with/out rom, bcm2835 interrupt controller are all supported, thus all of the three boards are bootable. 
-The bcm2835 timer is making problems though, I think the issue is stemming from qemu. I created an [issue on the gh](https://gitlab.com/qemu-project/qemu/-/issues/1651).
 
 
 ## Features
