@@ -8,13 +8,13 @@ const Error = error{BlExceedsRomSize};
 const raspi3b = @import("src/boards/raspi3b.zig");
 const qemuVirt = @import("src/boards/qemuVirt.zig");
 
-// const currBoard = raspi3b;
-const currBoard = qemuVirt;
+const currBoard = raspi3b;
+// const currBoard = qemuVirt;
 
-// const env_path = "src/environments/basicMultiProcess";
+const env_path = "src/environments/basicMultiProcess";
 // const env_path = "src/environments/basicMultithreading";
 // const env_path = "src/environments/multiProcAndThreading";
-const env_path = "src/environments/topicsTest";
+// const env_path = "src/environments/topicsTest";
 // const env_path = "src/environments/waitTest";
 
 // packages...

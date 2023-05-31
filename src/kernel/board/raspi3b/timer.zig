@@ -15,6 +15,8 @@ extern var scheduler: *Scheduler;
 // raspberry system timer frequency is 1 Mhz
 var cnt_freq: u32 = 1000000;
 
+const ticks = @truncate(u32, try utils.calcTicksFromHertz(cnt_freq, board.config.scheduler_freq_in_hertz));
+
 pub const RegMap = struct {
     pub const timerCs = @intToPtr(*volatile u32, timerCfg.base_address + 0x0);
     pub const timerLo = @intToPtr(*volatile u32, timerCfg.base_address + 0x4);
@@ -39,8 +41,10 @@ pub fn initTimer() !void {
     RegMap.timerC1.* = timerVal;
 }
 
+// the qemu system timer is weird. It only triggers an interrupt if timerC1 is == timerLo instead of timerC1 is <= timerLo.
+// Qemu devs stated that this is intended and what the documentation is saying, but are also doubting that this is the physical bcm2835 implementation
 pub fn handleTimerIrq(irq_context: *CpuContext) !void {
-    const ticks = @truncate(u32, try utils.calcTicksFromHertz(cnt_freq, board.config.scheduler_freq_in_hertz));
+    timerVal = RegMap.timerLo.*;
     if (@addWithOverflow(u32, timerVal, ticks, &timerVal)) {
         timerVal = RegMap.timerLo.*;
         timerVal += @truncate(u32, try utils.calcTicksFromHertz(cnt_freq, board.config.scheduler_freq_in_hertz));

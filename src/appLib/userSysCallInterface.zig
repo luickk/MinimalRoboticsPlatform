@@ -246,21 +246,18 @@ pub fn popFromTopic(id: usize, ret_buff: []u8) void {
     );
 }
 
-pub fn waitForTopicUpdate(id: usize) void {
-    const wait_sem = Semaphore.init();
-
+pub fn waitForTopicUpdate(topic_id: usize) void {
+    const pid = getPid();
     asm volatile (
     // args
-        \\mov x0, %[id]
-        \\mov x1, %[sem_addr]
+        \\mov x0, %[topic_id]
+        \\mov x1, %[pid]
         // sys call id
         \\mov x8, #14
         \\svc #0
         :
-        : [id] "r" (id),
-          [sem_addr] "r" (@ptrToInt(&wait_sem)),
+        : [topic_id] "r" (topic_id),
+          [pid] "r" (pid),
         : "x0", "x1", "x8"
     );
-
-    wait_sem.wait();
 }

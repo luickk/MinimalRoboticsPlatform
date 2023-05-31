@@ -3,6 +3,7 @@ const utils = @import("utils");
 const board = @import("board");
 const env = @import("environment");
 const TopicBufferTypes = env.envConfTemplate.EnvConfig.TopicBufferTypes;
+const ProccessorRegMap = arm.processor.ProccessorRegMap;
 const kprint = @import("periph").uart.UartWriter(.ttbr1).kprint;
 
 const UserPageAllocator = @import("UserPageAllocator.zig").UserPageAllocator;
@@ -114,7 +115,7 @@ pub const Topic = struct {
     buff: MultiBuff,
     id: usize,
     opened: bool,
-    waiting_tasks: [maxWaitingTasks]*Semaphore,
+    waiting_tasks: [maxWaitingTasks]Semaphore,
     n_waiting_taks: usize,
 
     pub fn init(scheduler: *Scheduler, topic_mem: []u8, id: usize, buff_type: TopicBufferTypes) Topic {
@@ -123,7 +124,7 @@ pub const Topic = struct {
             .buff = MultiBuff.init(scheduler, @ptrToInt(topic_mem.ptr), topic_mem.len, buff_type),
             .id = id,
             .opened = false,
-            .waiting_tasks = [_]*Semaphore{undefined} ** maxWaitingTasks,
+            .waiting_tasks = [_]Semaphore{Semaphore.init(0)} ** maxWaitingTasks,
             .n_waiting_taks = 0,
         };
     }
@@ -180,10 +181,14 @@ pub const Topics = struct {
             data.len = len;
             try self.topics[index].write(data);
             self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
-            for (self.topics[index].waiting_tasks) |semaphore| {
-                semaphore.signal();
+            kprint("bb: {any} \n", .{self.topics[index].waiting_tasks});
+            for (self.topics[index].waiting_tasks) |*semaphore| {
+                if (semaphore.pid != null) {
+                    semaphore.*.signal();
+                    semaphore.reset();
+                }
             }
-        }
+        } else self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
     }
 
     pub fn read(self: *Topics, id: usize, ret_buff: []u8) !void {
@@ -192,10 +197,14 @@ pub const Topics = struct {
         }
     }
 
-    pub fn addSemaphoreToTopic(self: *Topics, id: usize, wait_sem_addr: usize) void {
-        if (self.findTopicById(id)) |index| {
-            self.topics[index].waiting_tasks[self.topics[index].n_waiting_taks] = @intToPtr(*Semaphore, wait_sem_addr);
+    pub fn makeTaskWait(self: *Topics, topic_id: usize, pid: usize) void {
+        if (self.findTopicById(topic_id)) |index| {
+            kprint("before {any} \n", .{self.topics[index].waiting_tasks[self.topics[index].n_waiting_taks]});
+            kprint("pc: {d} \n", .{ProccessorRegMap.getCurrentPc()});
+            self.topics[index].waiting_tasks[self.topics[index].n_waiting_taks].wait(pid);
+            kprint("after \n", .{});
             self.topics[index].n_waiting_taks += 1;
+            kprint("inside \n", .{});
         }
     }
 
