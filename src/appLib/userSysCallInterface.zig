@@ -3,7 +3,6 @@ const board = @import("board");
 const alignForward = std.mem.alignForward;
 const AppAllocator = @import("AppAllocator.zig").AppAllocator;
 const Mutex = @import("Mutex.zig").Mutex;
-const Semaphore = @import("Semaphore.zig").Semaphore;
 const utils = @import("utils");
 
 const Error = error{

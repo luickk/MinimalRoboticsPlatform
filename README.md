@@ -18,10 +18,10 @@ The Rust code can still be found in the separate [rust branch](https://github.co
 
 ### Boards and their requirements
 
-| generic int. cont. | generic timer | boot with rom | boot without rom | bcm2835 interrupt controller | bcm2835 timer |             |
+| generic int. cont. | generic timer | boot with rom | boot without rom | bcm2835 interrupt controller | bcm2835 system timer |             |
 |--------------------|---------------|---------------|------------------|------------------------------|---------------|-------------|
 | ✅                  | ✅             | ✅             | ❌                | ❌                            | ❌             | qemu virt   |
-| ❌                  | ❌             | ❌             | ✅                | ✅                            | ✅             | raspberry3b |
+| ❌                  | ❌             | ❌             | ✅                | ✅                            | ❌             | raspberry3b |
 | ✅                  | ✅             | ❌             | ✅                | ❌                            | ❌             | raspberry 4 |
 
 The Generic interrupt controler, generic timer, booting with/out rom, bcm2835 interrupt controller are all supported, thus all of the three boards are bootable. 

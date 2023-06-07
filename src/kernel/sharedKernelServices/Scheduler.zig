@@ -345,9 +345,9 @@ pub const Scheduler = struct {
     pub fn getCurrentProcessPid(self: *Scheduler) usize {
         return self.current_process.pid.?;
     }
-    pub fn setProcessState(self: *Scheduler, pid: usize, state: Process.ProcessState, irq_context: *CpuContext) void {
+    pub fn setProcessState(self: *Scheduler, pid: usize, state: Process.ProcessState, irq_context: ?*CpuContext) void {
         self.processses[pid].state = state;
-        if (pid == self.current_process.pid) self.schedule(irq_context);
+        if (pid == self.current_process.pid and irq_context != null) self.schedule(irq_context.?);
     }
     pub fn setProcessAsleep(self: *Scheduler, pid: usize, sleep_time: usize, irq_context: *CpuContext) !void {
         try self.checkForPid(pid);

@@ -43,15 +43,17 @@ pub const config = boardConfig.BoardConfig{
 
 pub fn PeriphConfig(comptime addr_space: boardConfig.AddrSpace) type {
     const new_ttbr1_device_base_ = 0x30000000;
-    comptime var device_base_tmp: usize = 0x3f000000;
+    const device_base_mapping_bare: usize = 0x3f000000;
+    comptime var device_base_mapping_new: usize = undefined;
 
-    if (addr_space.isKernelSpace())
-        device_base_tmp = config.mem.va_start + new_ttbr1_device_base_;
+    if (addr_space.isKernelSpace()) {
+        device_base_mapping_new = config.mem.va_start + new_ttbr1_device_base_;
+    } else device_base_mapping_new = device_base_mapping_bare;
 
     return struct {
         pub const device_base_size: usize = 0xA000000;
         pub const new_ttbr1_device_base: usize = new_ttbr1_device_base_;
-        pub const device_base: usize = device_base_tmp;
+        pub const device_base: usize = device_base_mapping_new;
 
         pub const Pl011 = struct {
             pub const base_address: u64 = device_base + 0x201000;
@@ -66,6 +68,10 @@ pub fn PeriphConfig(comptime addr_space: boardConfig.AddrSpace) type {
 
         pub const Timer = struct {
             pub const base_address: usize = device_base + 0x00003000;
+        };
+
+        pub const ArmGenericTimer = struct {
+            pub const base_address: usize = device_base + 0x1000040;
         };
 
         pub const InterruptController = struct {

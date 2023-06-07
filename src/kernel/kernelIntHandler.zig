@@ -25,7 +25,7 @@ pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(
     };
 
     switch (int_type_en) {
-        .el0Sync => {
+        .el0Sync, .el1Sync => {
             var ec = @truncate(u6, context.esr_el1 >> 26);
             var ec_en = std.meta.intToEnum(ProccessorRegMap.Esr_el1.ExceptionClass, ec) catch {
                 kprint("Error decoding ExceptionClass 0x{x} \n", .{ec});
@@ -57,24 +57,24 @@ pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(
                 },
             }
         },
-        .el1Sync => {
-            var ec = @truncate(u6, context.esr_el1 >> 26);
-            var ec_en = std.meta.intToEnum(ProccessorRegMap.Esr_el1.ExceptionClass, ec) catch {
-                kprint("Error decoding ExceptionClass 0x{x} \n", .{ec});
-                printExc(&context, int_type_en);
-                return;
-            };
-            switch (ec_en) {
-                .bkptInstExecAarch64 => {
-                    kprint("[kernel] halting execution due to debug trap\n", .{});
-                    printContext(&context);
-                    haltExec(true, on_stack_context);
-                },
-                else => {
-                    printExc(&context, int_type_en);
-                },
-            }
-        },
+        // .el1Sync => {
+        //     var ec = @truncate(u6, context.esr_el1 >> 26);
+        //     var ec_en = std.meta.intToEnum(ProccessorRegMap.Esr_el1.ExceptionClass, ec) catch {
+        //         kprint("Error decoding ExceptionClass 0x{x} \n", .{ec});
+        //         printExc(&context, int_type_en);
+        //         return;
+        //     };
+        //     switch (ec_en) {
+        //         .bkptInstExecAarch64 => {
+        //             kprint("[kernel] halting execution due to debug trap\n", .{});
+        //             printContext(&context);
+        //             haltExec(true, on_stack_context);
+        //         },
+        //         else => {
+        //             printExc(&context, int_type_en);
+        //         },
+        //     }
+        // },
         // timer interrupts with custom timers per board
         .el1Irq, .el0Irq => {
             if (board.config.board == .raspi3b) {

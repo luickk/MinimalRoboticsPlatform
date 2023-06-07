@@ -113,14 +113,14 @@ _exception_vector_table:
 
 .macro EXCEPTION_VECTOR int_type
     SAVE_CPU_CONTEXT
-    bl disableIrq
+    // bl disableIrq
     
     // set stack as arg
     ldr x1, #\int_type
     mov x0, sp
     bl trapHandler
     
-    bl enableIrq
+    // bl enableIrq
     // restoreContextFromStack are fns exported from CpuContext.zig
     b _restoreContextWithoutSwitchFromSp
 .endm

@@ -11,10 +11,9 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     var counter: u8 = 0;
     while (true) {
         // kprint("app{d} test push \n", .{pid});
-        if (counter < 100) {
-            sysCalls.pushToTopic(1, &[_]u8{counter});
-            kprint("pushin: {d} \n", .{counter});
-            counter += 1;
-        }
+        kprint("trying \n", .{});
+        sysCalls.pushToTopic(1, &[_]u8{counter});
+        kprint("pushin: {d} \n", .{counter});
+        counter += 1;
     }
 }

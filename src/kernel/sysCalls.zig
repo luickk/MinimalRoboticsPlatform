@@ -15,8 +15,7 @@ const sharedKernelServices = @import("sharedKernelServices");
 const Scheduler = sharedKernelServices.Scheduler;
 const Topics = sharedKernelServices.Topics;
 
-const appLib = @import("appLib");
-const Semaphore = appLib.Semaphore;
+const Semaphore = sharedKernelServices.KSemaphore;
 
 // global user required since the scheduler calls are invoked via svc
 extern var scheduler: *Scheduler;
@@ -140,5 +139,5 @@ fn popFromTopic(params_args: *CpuContext) void {
 fn waitForTopicUpdate(params_args: *CpuContext) void {
     const topic_id = params_args.x0;
     const pid = params_args.x1;
-    topics.makeTaskWait(topic_id, pid);
+    topics.makeTaskWait(topic_id, pid, params_args);
 }

@@ -10,7 +10,8 @@ const UserPageAllocator = @import("UserPageAllocator.zig").UserPageAllocator;
 const Scheduler = @import("Scheduler.zig").Scheduler;
 const arm = @import("arm");
 const appLib = @import("appLib");
-const Semaphore = appLib.Semaphore;
+const Semaphore = @import("KSemaphore.zig").Semaphore;
+const CpuContext = arm.cpuContext.CpuContext;
 
 const topicBuffSize = 10240;
 const maxWaitingTasks = 10;
@@ -64,10 +65,6 @@ pub const MultiBuff = struct {
     }
 
     pub fn read_ring_buff(self: *MultiBuff, ret_buff: []u8) !void {
-        // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
-        self.scheduler.switchMemContext(self.scheduler.processses[0].ttbr0.?, null);
-        defer self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
-
         if (self.curr_read_write_ptr < ret_buff.len) return Error.BuffOutOfSpace;
         var data = self.buff[self.curr_read_write_ptr - ret_buff.len .. self.curr_read_write_ptr];
         self.curr_read_write_ptr -= ret_buff.len;
@@ -87,10 +84,6 @@ pub const MultiBuff = struct {
     }
 
     pub fn read_continous_buff(self: *MultiBuff, ret_buff: []u8) !void {
-        // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
-        self.scheduler.switchMemContext(self.scheduler.processses[0].ttbr0.?, null);
-        defer self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
-
         var buff_pointer = try std.math.mod(usize, self.curr_read_write_ptr, self.buff.len);
 
         var lower_read_bound: usize = 0;
@@ -115,16 +108,15 @@ pub const Topic = struct {
     buff: MultiBuff,
     id: usize,
     opened: bool,
-    waiting_tasks: [maxWaitingTasks]Semaphore,
+    waiting_tasks: [maxWaitingTasks]?Semaphore,
     n_waiting_taks: usize,
 
     pub fn init(scheduler: *Scheduler, topic_mem: []u8, id: usize, buff_type: TopicBufferTypes) Topic {
-        kprint("init {d} \n", .{topic_mem.len});
         return .{
             .buff = MultiBuff.init(scheduler, @ptrToInt(topic_mem.ptr), topic_mem.len, buff_type),
             .id = id,
             .opened = false,
-            .waiting_tasks = [_]Semaphore{Semaphore.init(0)} ** maxWaitingTasks,
+            .waiting_tasks = [_]?Semaphore{null} ** maxWaitingTasks,
             .n_waiting_taks = 0,
         };
     }
@@ -172,7 +164,7 @@ pub const Topics = struct {
     pub fn write(self: *Topics, id: usize, data_ptr: *u8, len: usize) !void {
         // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
         self.scheduler.switchMemContext(self.scheduler.processses[0].ttbr0.?, null);
-        errdefer self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
+        defer self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
 
         const userspace_app_mapping_data_addr = @ptrToInt(self.scheduler.current_process.app_mem.?.ptr) + @ptrToInt(data_ptr);
         if (self.findTopicById(id)) |index| {
@@ -180,31 +172,33 @@ pub const Topics = struct {
             data.ptr = @intToPtr([*]u8, userspace_app_mapping_data_addr);
             data.len = len;
             try self.topics[index].write(data);
-            self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
-            kprint("bb: {any} \n", .{self.topics[index].waiting_tasks});
             for (self.topics[index].waiting_tasks) |*semaphore| {
-                if (semaphore.pid != null) {
-                    semaphore.*.signal();
-                    semaphore.reset();
+                if (semaphore.* != null) {
+                    semaphore.*.?.signal(self.scheduler);
+                    semaphore.* = null;
+                    self.topics[index].n_waiting_taks -= 1;
                 }
             }
-        } else self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
+        }
     }
 
     pub fn read(self: *Topics, id: usize, ret_buff: []u8) !void {
+        // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
+        self.scheduler.switchMemContext(self.scheduler.processses[0].ttbr0.?, null);
+        defer self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
+
         if (self.findTopicById(id)) |index| {
             try self.topics[index].read(ret_buff);
         }
     }
 
-    pub fn makeTaskWait(self: *Topics, topic_id: usize, pid: usize) void {
+    pub fn makeTaskWait(self: *Topics, topic_id: usize, pid: usize, irq_context: *CpuContext) void {
         if (self.findTopicById(topic_id)) |index| {
-            kprint("before {any} \n", .{self.topics[index].waiting_tasks[self.topics[index].n_waiting_taks]});
-            kprint("pc: {d} \n", .{ProccessorRegMap.getCurrentPc()});
-            self.topics[index].waiting_tasks[self.topics[index].n_waiting_taks].wait(pid);
-            kprint("after \n", .{});
+            // is increased before Semaphore wait call because that may invoke the scheduler which would thus not increase the counter
             self.topics[index].n_waiting_taks += 1;
-            kprint("inside \n", .{});
+            // todo => implement error if n_waiting_tasks is full
+            self.topics[index].waiting_tasks[self.topics[index].n_waiting_taks - 1] = Semaphore.init(0);
+            self.topics[index].waiting_tasks[self.topics[index].n_waiting_taks - 1].?.wait(pid, self.scheduler, irq_context);
         }
     }
 

@@ -286,14 +286,21 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
             kprint("[panic] generic timer error: {s} \n", .{@errorName(e)});
             k_utils.panic();
         };
-        kprint("[kernel] timer inited \n", .{});
     }
 
     if (board.config.board == .raspi3b) {
-        bcm2835Timer.initTimer() catch |e| {
-            kprint("[panic] bcm2835Timer error: {s} \n", .{@errorName(e)});
+        // either enable bcm2845 specific system timer:
+        // bcm2835Timer.initTimer() catch |e| {
+        //     kprint("[panic] bcm2835Timer error: {s} \n", .{@errorName(e)});
+        //     k_utils.panic();
+        // };
+        // or enable the arm generic timer:
+        gt.setupGt() catch |e| {
+            kprint("[panic] generic timer error: {s} \n", .{@errorName(e)});
             k_utils.panic();
         };
+        @intToPtr(*volatile u32, board.PeriphConfig(.ttbr1).ArmGenericTimer.base_address).* = 1 << 1 | 1 << 3;
+
         kprint("[kernel] timer inited \n", .{});
     }
 
