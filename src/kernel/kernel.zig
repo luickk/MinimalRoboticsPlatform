@@ -255,23 +255,8 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
         k_utils.panic();
     };
 
-    {
-        kprint("[kernel] starting scheduler \n", .{});
-
-        var scheduler_tmp = Scheduler.init(&user_page_alloc, kernel_lma_offset);
-
-        scheduler = &scheduler_tmp;
-
-        // boot process = this process
-        scheduler.configRootBootProcess();
-
-        scheduler.initAppsInScheduler(&apps) catch |e| {
-            kprint("[panic] Scheduler initAppsInScheduler error: {s} \n", .{@errorName(e)});
-            k_utils.panic();
-        };
-
-        scheduler.initProcessCounter();
-    }
+    var scheduler_tmp = Scheduler.init(&user_page_alloc, kernel_lma_offset);
+    scheduler = &scheduler_tmp;
 
     {
         var topics_tmp = Topics.init(&user_page_alloc, scheduler) catch |e| {
@@ -279,6 +264,19 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
             k_utils.panic();
         };
         topics = &topics_tmp;
+    }
+
+    {
+        kprint("[kernel] starting scheduler \n", .{});
+        // boot process = this process
+        scheduler.configRootBootProcess();
+
+        scheduler.initAppsInScheduler(&apps, topics) catch |e| {
+            kprint("[panic] Scheduler initAppsInScheduler error: {s} \n", .{@errorName(e)});
+            k_utils.panic();
+        };
+
+        scheduler.initProcessCounter();
     }
 
     if (board.config.board == .qemuVirt) {

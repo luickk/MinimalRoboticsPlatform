@@ -135,6 +135,7 @@ pub const Topics = struct {
     mem_pool: []u8,
     scheduler: *Scheduler,
 
+    // the scheduler is a double pointer because the Topics are inited before the scheduler, so the scheduler pointer changes
     pub fn init(user_page_alloc: *UserPageAllocator, scheduler: *Scheduler) !Topics {
         const pages_req = (try std.math.mod(usize, env.env_config.conf_topics.len * topicBuffSize, board.config.mem.va_user_space_gran.page_size)) + 1;
         const topics_mem = try user_page_alloc.allocNPage(pages_req);

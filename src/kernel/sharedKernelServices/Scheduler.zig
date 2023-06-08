@@ -8,6 +8,7 @@ const b_options = @import("build_options");
 const arm = @import("arm");
 const mmu = arm.mmu;
 const KernelAlloc = @import("KernelAllocator.zig").KernelAllocator;
+const Topics = @import("Topics.zig").Topics;
 const ThreadArgs = @import("appLib").sysCalls.ThreadArgs;
 const ProccessorRegMap = arm.processor.ProccessorRegMap;
 const CpuContext = arm.cpuContext.CpuContext;
@@ -172,7 +173,7 @@ pub const Scheduler = struct {
         }
         self.schedule(irq_context);
     }
-    pub fn initAppsInScheduler(self: *Scheduler, apps: []const []const u8) !void {
+    pub fn initAppsInScheduler(self: *Scheduler, apps: []const []const u8, topics: *Topics) !void {
         self.current_process.setPreempt(false);
         for (apps) |app| {
             const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, board.config.mem.va_user_space_gran.page_size);
@@ -206,6 +207,22 @@ pub const Scheduler = struct {
                     .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .read_write },
                 };
                 try page_table_write.mapMem(user_space_mapping);
+            }
+
+            // initing the apps topics-interface
+            {
+                // MMU page dir config
+                var page_table_write = try app_page_table.init(&self.processses[pid].page_table, self.kernel_lma_offset);
+                const topics_interace_mapping = mmu.Mapping{
+                    .mem_size = topics.mem_pool.len,
+                    .pointing_addr_start = self.kernel_lma_offset + board.config.mem.kernel_space_size + @ptrToInt(topics.mem_pool.ptr),
+                    .virt_addr_start = 0x20000000,
+                    .granule = board.boardConfig.Granule.Fourk,
+                    .addr_space = .ttbr0,
+                    .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .read_write, .attrIndex = .mair0 },
+                    .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .read_write },
+                };
+                try page_table_write.mapMem(topics_interace_mapping);
             }
             self.processses[pid].ttbr0 = self.kernel_lma_offset + utils.toTtbr0(usize, @ptrToInt(&self.processses[pid].page_table));
             self.pid_counter += 1;
@@ -345,10 +362,12 @@ pub const Scheduler = struct {
     pub fn getCurrentProcessPid(self: *Scheduler) usize {
         return self.current_process.pid.?;
     }
+
     pub fn setProcessState(self: *Scheduler, pid: usize, state: Process.ProcessState, irq_context: ?*CpuContext) void {
         self.processses[pid].state = state;
         if (pid == self.current_process.pid and irq_context != null) self.schedule(irq_context.?);
     }
+
     pub fn setProcessAsleep(self: *Scheduler, pid: usize, sleep_time: usize, irq_context: *CpuContext) !void {
         try self.checkForPid(pid);
         for (self.processses_sleeping) |proc, i| {

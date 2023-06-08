@@ -42,7 +42,7 @@ pub fn build(b: *std.build.Builder) !void {
     periph.dependencies = &.{board};
     utils.dependencies = &.{ board, arm };
     arm.dependencies = &.{ periph, utils, board, sharedKernelServices };
-    appLib.dependencies = &.{ board, utils };
+    appLib.dependencies = &.{ board, utils, sharedKernelServices };
 
     // bootloader
     const bl_exe = b.addExecutable("bootloader", null);
