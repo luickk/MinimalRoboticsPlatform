@@ -9,15 +9,13 @@ const kprint = @import("periph").uart.UartWriter(.ttbr1).kprint;
 const UserPageAllocator = @import("UserPageAllocator.zig").UserPageAllocator;
 const Scheduler = @import("Scheduler.zig").Scheduler;
 const arm = @import("arm");
-const appLib = @import("appLib");
 const Semaphore = @import("KSemaphore.zig").Semaphore;
 const CpuContext = arm.cpuContext.CpuContext;
 
-const topicBuffSize = 10240;
 const maxWaitingTasks = 10;
 
 // changes behaviour based on runtime information
-pub const MultiBuff = struct {
+pub const UsersapceMultiBuff = struct {
     const Error = error{
         BuffOutOfSpace,
         MaxRollOvers,
@@ -26,17 +24,15 @@ pub const MultiBuff = struct {
     behaviour_type: TopicBufferTypes,
     curr_read_write_ptr: usize,
 
-    scheduler: *Scheduler,
-
-    pub fn init(scheduler: *Scheduler, buff_addr: usize, buff_len: usize, buff_type: TopicBufferTypes) MultiBuff {
+    pub fn init(buff_addr: usize, buff_len: usize, buff_type: TopicBufferTypes) UsersapceMultiBuff {
         var buff: []u8 = undefined;
         buff.ptr = @intToPtr([*]u8, buff_addr);
         buff.len = buff_len;
 
-        return .{ .buff = buff, .behaviour_type = buff_type, .curr_read_write_ptr = 0, .scheduler = scheduler };
+        return .{ .buff = buff, .behaviour_type = buff_type, .curr_read_write_ptr = 0};
     }
 
-    pub fn write(self: *MultiBuff, data: []u8) !void {
+    pub fn write(self: *UsersapceMultiBuff, data: []u8) !void {
         switch (self.behaviour_type) {
             .RingBuffer => {
                 return self.write_ring_buff(data);
@@ -47,33 +43,33 @@ pub const MultiBuff = struct {
         }
     }
 
-    pub fn read(self: *MultiBuff, ret_buff: []u8) !void {
+    pub fn read(self: *UsersapceMultiBuff, ret_buff: []u8, topics_mem_offset: ?usize) !void {
         switch (self.behaviour_type) {
             .RingBuffer => {
-                return self.read_ring_buff(ret_buff);
+                return self.read_ring_buff(ret_buff, topics_mem_offset);
             },
             .ContinousBuffer => {
-                return self.read_continous_buff(ret_buff);
+                return self.read_continous_buff(ret_buff, topics_mem_offset);
             },
         }
     }
 
-    pub fn write_ring_buff(self: *MultiBuff, data: []u8) !void {
+    pub fn write_ring_buff(self: *UsersapceMultiBuff, data: []u8) !void {
         if (self.curr_read_write_ptr + data.len > self.buff.len) return Error.BuffOutOfSpace;
         std.mem.copy(u8, self.buff[self.curr_read_write_ptr..], data);
         self.curr_read_write_ptr += data.len;
     }
 
-    pub fn read_ring_buff(self: *MultiBuff, ret_buff: []u8) !void {
+    pub fn read_ring_buff(self: *UsersapceMultiBuff, ret_buff: []u8, topics_mem_offset: ?usize) !void {
         if (self.curr_read_write_ptr < ret_buff.len) return Error.BuffOutOfSpace;
         var data = self.buff[self.curr_read_write_ptr - ret_buff.len .. self.curr_read_write_ptr];
         self.curr_read_write_ptr -= ret_buff.len;
 
-        const userspace_app_mapping_ret_buff = @intToPtr([]u8, @ptrToInt(self.scheduler.current_process.app_mem.?.ptr) + @ptrToInt(ret_buff.ptr));
+        const userspace_app_mapping_ret_buff = @intToPtr([]u8, (topics_mem_offset orelse 0) + @ptrToInt(ret_buff.ptr));
         std.mem.copy(u8, userspace_app_mapping_ret_buff, data);
     }
 
-    pub fn write_continous_buff(self: *MultiBuff, data: []u8) !void {
+    pub fn write_continous_buff(self: *UsersapceMultiBuff, data: []u8) !void {
         var buff_pointer = try std.math.mod(usize, self.curr_read_write_ptr, self.buff.len);
 
         std.mem.copy(u8, self.buff[buff_pointer..], data[0..self.buff.len]);
@@ -83,14 +79,14 @@ pub const MultiBuff = struct {
         self.curr_read_write_ptr += data.len;
     }
 
-    pub fn read_continous_buff(self: *MultiBuff, ret_buff: []u8) !void {
+    pub fn read_continous_buff(self: *UsersapceMultiBuff, ret_buff: []u8, topics_mem_offset: ?usize) !void {
         var buff_pointer = try std.math.mod(usize, self.curr_read_write_ptr, self.buff.len);
 
         var lower_read_bound: usize = 0;
         if (buff_pointer > ret_buff.len) lower_read_bound = buff_pointer - ret_buff.len;
         var data = self.buff[lower_read_bound..buff_pointer];
 
-        const userspace_app_mapping_ret_buff = @intToPtr([]u8, @ptrToInt(self.scheduler.current_process.app_mem.?.ptr) + @ptrToInt(ret_buff.ptr));
+        const userspace_app_mapping_ret_buff = @intToPtr([]u8, (topics_mem_offset orelse 0) + @ptrToInt(ret_buff.ptr));
         std.mem.copy(u8, userspace_app_mapping_ret_buff, data);
 
         if (buff_pointer < ret_buff.len) {
@@ -105,15 +101,15 @@ pub const MultiBuff = struct {
 };
 
 pub const Topic = struct {
-    buff: MultiBuff,
+    buff: UsersapceMultiBuff,
     id: usize,
     opened: bool,
     waiting_tasks: [maxWaitingTasks]?Semaphore,
     n_waiting_taks: usize,
 
-    pub fn init(scheduler: *Scheduler, topic_mem: []u8, id: usize, buff_type: TopicBufferTypes) Topic {
+    pub fn init(topic_mem: []u8, id: usize, buff_type: TopicBufferTypes) Topic {
         return .{
-            .buff = MultiBuff.init(scheduler, @ptrToInt(topic_mem.ptr), topic_mem.len, buff_type),
+            .buff = UsersapceMultiBuff.init(@ptrToInt(topic_mem.ptr), topic_mem.len, buff_type),
             .id = id,
             .opened = false,
             .waiting_tasks = [_]?Semaphore{null} ** maxWaitingTasks,
@@ -125,8 +121,8 @@ pub const Topic = struct {
         return self.buff.write(data);
     }
 
-    pub fn read(self: *Topic, ret_buff: []u8) !void {
-        try self.buff.read(ret_buff);
+    pub fn read(self: *Topic, ret_buff: []u8, topics_mem_offset: ?usize) !void {
+        try self.buff.read(ret_buff, topics_mem_offset);
     }
 };
 
@@ -137,11 +133,15 @@ pub const Topics = struct {
 
     // the scheduler is a double pointer because the Topics are inited before the scheduler, so the scheduler pointer changes
     pub fn init(user_page_alloc: *UserPageAllocator, scheduler: *Scheduler) !Topics {
-        const pages_req = (try std.math.mod(usize, env.env_config.conf_topics.len * topicBuffSize, board.config.mem.va_user_space_gran.page_size)) + 1;
+        var accumulatedTopicsBuffSize: usize = 0;
+        for (env.env_config.conf_topics) |topic_conf| {
+            accumulatedTopicsBuffSize += topic_conf.buffer_size;
+        }
+        const pages_req = (try std.math.mod(usize, accumulatedTopicsBuffSize, board.config.mem.va_user_space_gran.page_size)) + 1;
         const topics_mem = try user_page_alloc.allocNPage(pages_req);
         var topics = [_]Topic{undefined} ** env.env_config.conf_topics.len;
         for (env.env_config.conf_topics) |topic_conf, i| {
-            topics[i] = Topic.init(scheduler, topics_mem[topicBuffSize * i .. ((topicBuffSize * i) + topicBuffSize)], topic_conf.id, topic_conf.buffer_type);
+            topics[i] = Topic.init(topics_mem[topic_conf.buffer_size * i .. ((topic_conf.buffer_size * i) + topic_conf.buffer_size)], topic_conf.id, topic_conf.buffer_type);
         }
         return .{
             .topics = topics,
@@ -189,7 +189,7 @@ pub const Topics = struct {
         defer self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
 
         if (self.findTopicById(id)) |index| {
-            try self.topics[index].read(ret_buff);
+            try self.topics[index].read(ret_buff, @ptrToInt(self.scheduler.current_process.app_mem.?.ptr));
         }
     }
 

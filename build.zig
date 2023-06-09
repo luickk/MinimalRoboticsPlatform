@@ -38,11 +38,11 @@ pub fn build(b: *std.build.Builder) !void {
     var build_options = b.addOptions();
 
     // inter package dependencies
-    sharedKernelServices.dependencies = &.{ board, environment, appLib, build_options.*.getPackage("build_options"), arm, utils, periph };
+    sharedKernelServices.dependencies = &.{ board, environment, arm, utils, periph };
     periph.dependencies = &.{board};
     utils.dependencies = &.{ board, arm };
     arm.dependencies = &.{ periph, utils, board, sharedKernelServices };
-    appLib.dependencies = &.{ board, utils, sharedKernelServices };
+    appLib.dependencies = &.{ board, utils, environment, sharedKernelServices };
 
     // bootloader
     const bl_exe = b.addExecutable("bootloader", null);

@@ -39,7 +39,7 @@ var user_page_alloc = UserPageAllocator.init() catch |e| {
     @compileError(@errorName(e));
 };
 
-// pointer is now global, ! kernel main lifetime needs to be equal to schedulers.. !
+// pointer is now global, ! kernel main lifetime needs to be equal to schedulers lt.. !
 export var scheduler: *Scheduler = undefined;
 export var topics: *Topics = undefined;
 

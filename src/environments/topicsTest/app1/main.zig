@@ -16,7 +16,7 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
         kprint("pushin: {d} \n", .{counter});
         counter += 1;
 
-        const topics_interfaces_read = @intToPtr(*volatile [1000]usize, 0x20000000).*;
-        kprint("topics interface read: {any} \n", .{topics_interfaces_read});
+        // const topics_interfaces_read = @intToPtr(*volatile [1000]usize, 0x20000000).*;
+        // kprint("topics interface read: {any} \n", .{topics_interfaces_read});
     }
 }

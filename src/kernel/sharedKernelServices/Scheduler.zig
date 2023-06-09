@@ -9,7 +9,6 @@ const arm = @import("arm");
 const mmu = arm.mmu;
 const KernelAlloc = @import("KernelAllocator.zig").KernelAllocator;
 const Topics = @import("Topics.zig").Topics;
-const ThreadArgs = @import("appLib").sysCalls.ThreadArgs;
 const ProccessorRegMap = arm.processor.ProccessorRegMap;
 const CpuContext = arm.cpuContext.CpuContext;
 const UserPageAllocator = @import("UserPageAllocator.zig").UserPageAllocator;
