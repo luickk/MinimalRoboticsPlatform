@@ -23,7 +23,7 @@ pub const Semaphore = struct {
         if (self.i < 0) {
             self.locked_tasks_index += 1;
             self.waiting_processes[self.locked_tasks_index] = pid;
-        scheduler.setProcessState(pid, .halted, irq_context);
+            sysCalls.haltProcess(pid);   
         }
     }
 
@@ -32,7 +32,7 @@ pub const Semaphore = struct {
             if (self.waiting_processes[self.locked_tasks_index]) |locked_pid| {
                 self.i += 1;
                 self.locked_tasks_index -= 1;
-                scheduler.setProcessState(locked_pid, .running, null);
+                sysCalls.continueProcess(locked_pid);
             }   
         }
         

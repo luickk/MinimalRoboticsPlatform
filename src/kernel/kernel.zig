@@ -5,7 +5,7 @@ const board = @import("board");
 // kernel services
 const sharedKernelServices = @import("sharedKernelServices");
 const Scheduler = sharedKernelServices.Scheduler;
-const Topics = sharedKernelServices.Topics;
+const Topics = sharedKernelServices.SysCallsTopicsInterface;
 // KernelAllocator and UserPageAllocator types are inited in sharedKernelServices!.
 const KernelAllocator = sharedKernelServices.KernelAllocator;
 const UserPageAllocator = sharedKernelServices.UserPageAllocator;

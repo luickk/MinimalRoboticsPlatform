@@ -14,7 +14,8 @@ const currBoard = qemuVirt;
 // const env_path = "src/environments/basicMultiProcess";
 // const env_path = "src/environments/basicMultithreading";
 // const env_path = "src/environments/multiProcAndThreading";
-const env_path = "src/environments/topicsTest";
+const env_path = "src/environments/sysCallTopicsTest";
+// const env_path = "src/environments/sharedMemTopicsTest";
 // const env_path = "src/environments/waitTest";
 
 // packages...
@@ -32,17 +33,20 @@ var sharedKernelServices = std.build.Pkg{ .name = "sharedKernelServices", .sourc
 // package for all applications to call syscall
 var appLib = std.build.Pkg{ .name = "appLib", .source = .{ .path = "src/appLib/appLib.zig" } };
 
+var sharedServices = std.build.Pkg{ .name = "sharedServices", .source = .{ .path = "src/sharedServices/sharedServices.zig" } };
+
 pub fn build(b: *std.build.Builder) !void {
     currBoard.config.checkConfig();
     const build_mode = std.builtin.Mode.ReleaseFast;
     var build_options = b.addOptions();
 
     // inter package dependencies
-    sharedKernelServices.dependencies = &.{ board, environment, arm, utils, periph };
+    sharedServices.dependencies = &.{ board, environment };
+    sharedKernelServices.dependencies = &.{ board, environment, appLib, arm, utils, sharedServices, periph };
     periph.dependencies = &.{board};
     utils.dependencies = &.{ board, arm };
     arm.dependencies = &.{ periph, utils, board, sharedKernelServices };
-    appLib.dependencies = &.{ board, utils, environment, sharedKernelServices };
+    appLib.dependencies = &.{ board, utils, environment, sharedServices, sharedKernelServices };
 
     // bootloader
     const bl_exe = b.addExecutable("bootloader", null);
@@ -72,6 +76,7 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.addPackage(arm);
     kernel_exe.addPackage(sharedKernelServices);
     kernel_exe.addPackage(appLib);
+    kernel_exe.addPackage(sharedServices);
     kernel_exe.addPackage(utils);
     kernel_exe.addPackage(board);
     kernel_exe.addPackage(environment);

@@ -13,7 +13,7 @@ const k_utils = @import("utils.zig");
 
 const sharedKernelServices = @import("sharedKernelServices");
 const Scheduler = sharedKernelServices.Scheduler;
-const Topics = sharedKernelServices.Topics;
+const Topics = sharedKernelServices.SysCallsTopicsInterface;
 
 const Semaphore = sharedKernelServices.KSemaphore;
 
