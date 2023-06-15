@@ -60,6 +60,7 @@ pub const BoardConfig = struct {
 
     board: SupportedBoards,
     mem: BoardMemLayout,
+    // timerType: kpi.TimerKpi(initTimer, handleTimerIrq),
     // if it's null, the frequency mus be read from the board at runtime
     timer_freq_in_hertz: ?usize,
     scheduler_freq_in_hertz: usize,

@@ -1,5 +1,5 @@
 const std = @import("std");
-pub const Scheduler = @import("Scheduler.zig").Scheduler;
+const Scheduler = @import("Scheduler.zig").Scheduler;
 const arm = @import("arm");
 const CpuContext = arm.cpuContext.CpuContext;
 const periph = @import("periph");

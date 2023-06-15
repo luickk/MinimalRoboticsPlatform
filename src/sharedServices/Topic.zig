@@ -19,6 +19,8 @@ pub const UsersapceMultiBuff = struct {
     };
     buff: []u8,
     behaviour_type: TopicBufferTypes,
+
+    // this is the only state which is restored, all other variables will reset upon each call when used by SharedMemTopicsInterface
     curr_read_write_ptr: usize,
 
     pub fn init(topic_mem: []u8, buff_type: TopicBufferTypes) UsersapceMultiBuff {
@@ -49,6 +51,7 @@ pub const UsersapceMultiBuff = struct {
 
     pub fn write_ring_buff(self: *UsersapceMultiBuff, data: []u8) !void {
         if (self.curr_read_write_ptr + data.len > self.buff.len) return Error.BuffOutOfSpace;
+        // kprint("copying {any} to {*} \n", .{data, self.buff.ptr});
         std.mem.copy(u8, self.buff[self.curr_read_write_ptr..], data);
         self.curr_read_write_ptr += data.len;
     }

@@ -33,7 +33,7 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
         kprint("pushed: {d} \n", .{counter});
         // _ = topics_interf;        
         // topics_interfaces_read[20] = 69;
-        kprint("topics interface read: {any} \n", .{topics_interfaces_read.*});
-        // _ = topics_interfaces_read;
+        // kprint("topics interface read: {any} \n", .{topics_interfaces_read.*});
+        _ = topics_interfaces_read;
     }
 }

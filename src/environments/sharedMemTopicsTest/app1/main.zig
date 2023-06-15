@@ -24,6 +24,10 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
         while (true) {}
     };
     while (true) {
-        kprint("read: {any} \n", .{topics_interf.read(1, &ret_buff)});
+        topics_interf.read(1, &ret_buff) catch |e| {
+            kprint("app3 read err: {s} \n", .{ @errorName(e) });
+            while (true) {}      
+        };
+        kprint("read: {any} \n", .{ret_buff});
     }
 }

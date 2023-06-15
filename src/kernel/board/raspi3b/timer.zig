@@ -36,7 +36,7 @@ pub const RegValues = struct {
     pub const timerCsM3: u32 = 1 << 3;
 };
 
-pub fn initTimer() !void {
+pub fn initTimer() void {
     initialTimerHi = RegMap.timerHi.*;
     timerVal = RegMap.timerLo.*;
     increasePerTick = @truncate(u32, try utils.calcTicksFromHertz(cnt_freq, board.config.scheduler_freq_in_hertz));
@@ -48,7 +48,7 @@ pub fn initTimer() !void {
 // Qemu devs stated that this is intended and what the documentation is saying, but are also doubting that this is the physical bcm2835 implementation
 // more on that issue here: https://gitlab.com/qemu-project/qemu/-/issues/1651
 // also I'm unsure how overflows are handled since it's not described in the docs properly
-pub fn handleTimerIrq(irq_context: *CpuContext) !void {
+pub fn handleTimerIrq() void {
     timerVal = RegMap.timerLo.* + increasePerTick;
     if (initialTimerHi != RegMap.timerHi.*) {
         timerVal = RegMap.timerLo.*;
@@ -58,6 +58,4 @@ pub fn handleTimerIrq(irq_context: *CpuContext) !void {
 
     RegMap.timerC1.* = timerVal;
     RegMap.timerCs.* = RegMap.timerCs.* | RegValues.timerCsM1;
-
-    scheduler.timerIntEvent(irq_context);
 }

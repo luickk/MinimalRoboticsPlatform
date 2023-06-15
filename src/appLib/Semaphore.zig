@@ -1,7 +1,5 @@
 const std = @import("std");
-pub const Scheduler = @import("Scheduler.zig").Scheduler;
-const arm = @import("arm");
-const CpuContext = arm.cpuContext.CpuContext;
+const sysCalls = @import("userSysCallInterface.zig");
 const periph = @import("periph");
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 
@@ -18,16 +16,16 @@ pub const Semaphore = struct {
             .i = s,
         };
     }
-    pub fn wait(self: *Semaphore, pid: usize, scheduler: *Scheduler, irq_context: *CpuContext) void {
+    pub fn wait(self: *Semaphore, pid: usize) void {
         self.i -= 1;
         if (self.i < 0) {
             self.locked_tasks_index += 1;
             self.waiting_processes[self.locked_tasks_index] = pid;
-            sysCalls.haltProcess(pid);   
+            sysCalls.haltProcess(pid);
         }
     }
 
-    pub fn signal(self: *Semaphore, scheduler: *Scheduler) void {
+    pub fn signal(self: *Semaphore) void {
         if (self.i < 0) {
             if (self.waiting_processes[self.locked_tasks_index]) |locked_pid| {
                 self.i += 1;
