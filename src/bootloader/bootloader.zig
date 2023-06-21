@@ -15,12 +15,9 @@ const pl011 = periph.Pl011(.ttbr0);
 const kprint = periph.uart.UartWriter(.ttbr0).kprint;
 
 const arm = @import("arm");
-const gic = arm.gicv2.Gic(.ttbr0);
+const gic = arm.gicv2.Gic(board.PeriphConfig(.ttbr0).GicV2);
 const ProccessorRegMap = arm.processor.ProccessorRegMap;
 const mmu = arm.mmu;
-
-// raspberry
-const bcm2835IntController = arm.bcm2835IntController.InterruptController(.ttbr0);
 
 const Granule = board.boardConfig.Granule;
 const GranuleParams = board.boardConfig.GranuleParams;
@@ -148,9 +145,6 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         ProccessorRegMap.nop();
         ProccessorRegMap.nop();
     }
-
-    if (board.config.board == .raspi3b)
-        bcm2835IntController.init();
 
     // GIC Init
     if (board.config.board == .qemuVirt) {

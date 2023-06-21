@@ -1,22 +1,25 @@
 pub const boardConfig = @import("boardConfig.zig");
+const kpi = @import("kpi");
+
+const timerDriver = @import("timerDriver");
+const bcm2835Timer = timerDriver.bcm2835Timer;
+const genericTimer = timerDriver.genericTimer;
+const bcm2835IntController = @import("interruptControllerDriver").bcm2835InterruptController;
 
 // mmu starts at lvl1 for which 0xFFFFFF8000000000 is the lowest possible va
 const vaStart: usize = 0xFFFFFF8000000000;
-pub const config = boardConfig.BoardConfig{
+
+
+pub const config = boardConfig.BoardConfig {
     .board = .raspi3b,
-    .mem = boardConfig.BoardConfig.BoardMemLayout{
+    .mem = .{
         .va_start = vaStart,
         .bl_stack_size = 0x10000,
         .k_stack_size = 0x10000,
         .app_stack_size = 0x20000,
         .app_vm_mem_size = 0x1000000,
 
-        .has_rom = false,
-        // the kernel is loaded by into 0x8000 ram by the gpu, so no relocation (or rom) required
-        .rom_start_addr = null,
         .rom_size = null,
-        // address to which the bl is loaded if there is NO rom(which is the case for the raspberry 3b)!
-        // if there is rom, the bootloader must be loaded to 0x0 (and bl_load_addr = null)
         .bl_load_addr = 0x80000,
 
         // the raspberries addressable memory is all ram
@@ -37,9 +40,34 @@ pub const config = boardConfig.BoardConfig{
     },
     .timer_freq_in_hertz = 1000000,
     .scheduler_freq_in_hertz = 250,
-    // , "-d", "trace:bcm2835_systmr*", "-D", "./log.txt"
-    .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "raspi3b", "-device", "loader,addr=0x80000,file=zig-out/bin/bootloader.bin,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
 };
+
+// --- driver ---
+
+// todo => fix bootloader addresspace missmatch!!
+
+const GenericTimerType = genericTimer.GenericTimer(null, config.scheduler_freq_in_hertz);
+var genericTimerInst = GenericTimerType.init();
+
+// const Bcm2835TimerType = bcm2835Timer.Bcm2835Timer(PeriphConfig(.ttbr1).Timer.base_address, config.scheduler_freq_in_hertz);
+// var bcm2835TimerInst = Bcm2835TimerType.init();
+
+const TimerKpiType = kpi.TimerKpi(*GenericTimerType, GenericTimerType.Error, GenericTimerType.setupGt, GenericTimerType.timerInt);
+// const TimerKpiType = kpi.TimerKpi(*Bcm2835TimerType, Bcm2835TimerType.Error, Bcm2835TimerType.initTimer, Bcm2835TimerType.handleTimerIrq);
+
+
+// interrupt controller
+const Bcm2835InterruptControllerType = bcm2835IntController.InterruptController(PeriphConfig(.ttbr1).InterruptController.base_address);
+const SecondaryInterruptControllerKpiType = kpi.SecondaryInterruptControllerKpi(*Bcm2835InterruptControllerType, Bcm2835InterruptControllerType.Error, Bcm2835InterruptControllerType.initIc, Bcm2835InterruptControllerType.addIcHandler);
+var secondaryInterruptControllerInst = Bcm2835InterruptControllerType.init();
+
+pub const driver = boardConfig.Driver(TimerKpiType, SecondaryInterruptControllerKpiType) {
+    .timerDriver = TimerKpiType.init(&genericTimerInst),
+    // .timerDriver = TimerKpiType.init(&bcm2835TimerInst),
+    .secondaryInterruptConrtollerDriver = SecondaryInterruptControllerKpiType.init(&secondaryInterruptControllerInst),
+};
+
+// -- driver --
 
 pub fn PeriphConfig(comptime addr_space: boardConfig.AddrSpace) type {
     const new_ttbr1_device_base_ = 0x30000000;

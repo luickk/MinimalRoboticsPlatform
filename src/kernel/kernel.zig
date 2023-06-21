@@ -15,9 +15,11 @@ const intHandle = @import("kernelIntHandler.zig");
 const sysCalls = @import("sysCalls.zig");
 const b_options = @import("build_options");
 
+const kpi = @import("kpi");
+
 // arm specific periphs
 const arm = @import("arm");
-const gic = arm.gicv2.Gic(.ttbr1);
+const gic = arm.gicv2.Gic(board.PeriphConfig(.ttbr1).GicV2);
 const InterruptIds = gic.InterruptIds;
 const gt = arm.genericTimer;
 const ProccessorRegMap = arm.processor.ProccessorRegMap;
@@ -32,12 +34,12 @@ const old_mapping_kprint = periph.uart.UartWriter(.ttbr0).kprint;
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 
 // raspberry specific periphs
-const bcm2835IntController = arm.bcm2835IntController.InterruptController(.ttbr1);
-const bcm2835Timer = @import("board/raspi3b/timer.zig");
+// const bcm2835IntController = arm.bcm2835IntController.InterruptController(.ttbr1);
 
 var user_page_alloc = UserPageAllocator.init() catch |e| {
     @compileError(@errorName(e));
 };
+
 
 // pointer is now global, ! kernel main lifetime needs to be equal to schedulers lt.. !
 export var scheduler: *Scheduler = undefined;
@@ -46,12 +48,23 @@ export var topics: *Topics = undefined;
 const apps = blk: {
     var apps_addresses = [_][]const u8{undefined} ** b_options.apps.len;
     for (b_options.apps) |app, i| {
-        const app_file = @embedFile("bins/" ++ app);
+        const app_file = @embedFile("bins/apps/" ++ app);
         apps_addresses[i] = app_file;
     }
 
     break :blk apps_addresses;
 };
+
+const kernel_apps = blk: {
+    var apps_addresses = [_][]const u8{undefined} ** b_options.kernelApps.len;
+    for (b_options.kernelApps) |app, i| {
+        const app_file = @embedFile("bins/kernelApps/" ++ app);
+        apps_addresses[i] = app_file;
+    }
+
+    break :blk apps_addresses;
+};
+
 
 export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text.kernel_main") callconv(.C) noreturn {
     // !! kernel sp is set in the Bootloader!!
@@ -238,8 +251,9 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
         });
     }
 
+
     if (board.config.board == .raspi3b) {
-        bcm2835IntController.init();
+        // bcm2835IntController.init();
 
         ProccessorRegMap.DaifReg.setDaifClr(.{
             .debug = true,
@@ -276,31 +290,22 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
             k_utils.panic();
         };
 
+        scheduler.initKernelAppsInScheduler(&kspace_alloc, &kernel_apps) catch |e| {
+            kprint("[panic] Scheduler initKernelAppsInScheduler error: {s} \n", .{@errorName(e)});
+            k_utils.panic();
+        };
+
         scheduler.initProcessCounter();
     }
 
-    if (board.config.board == .qemuVirt) {
-        gt.setupGt() catch |e| {
-            kprint("[panic] generic timer error: {s} \n", .{@errorName(e)});
-            k_utils.panic();
-        };
-    }
 
-    if (board.config.board == .raspi3b) {
-        // either enable bcm2845 specific system timer:
-        // bcm2835Timer.initTimer() catch |e| {
-        //     kprint("[panic] bcm2835Timer error: {s} \n", .{@errorName(e)});
-        //     k_utils.panic();
-        // };
-        // or enable the arm generic timer:
-        gt.setupGt() catch |e| {
-            kprint("[panic] generic timer error: {s} \n", .{@errorName(e)});
-            k_utils.panic();
-        };
-        @intToPtr(*volatile u32, board.PeriphConfig(.ttbr1).ArmGenericTimer.base_address).* = 1 << 1 | 1 << 3;
+    if (board.config.board == .raspi3b) @intToPtr(*volatile u32, board.PeriphConfig(.ttbr1).ArmGenericTimer.base_address).* = 1 << 1 | 1 << 3;
 
-        kprint("[kernel] timer inited \n", .{});
-    }
+    board.driver.timerDriver.initTimerDriver() catch |e| {
+        kprint("[panic] timer driver error: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+    kprint("[kernel] timer inited \n", .{});
 
     // scheduler.createKernelThread(&kspace_alloc, kernelThread, .{"testArg"}) catch |e| {
     //     kprint("[panic] createKernelThread error: {s} \n", .{@errorName(e)});

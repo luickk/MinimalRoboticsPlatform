@@ -38,11 +38,8 @@ pub const BoardConfig = struct {
         k_stack_size: usize,
         app_stack_size: usize,
         app_vm_mem_size: usize,
-
-        has_rom: bool,
-        rom_start_addr: ?usize,
-        rom_size: ?usize,
         bl_load_addr: ?usize,
+        rom_size: ?usize,
 
         ram_start_addr: usize,
         ram_size: usize,
@@ -60,11 +57,9 @@ pub const BoardConfig = struct {
 
     board: SupportedBoards,
     mem: BoardMemLayout,
-    // timerType: kpi.TimerKpi(initTimer, handleTimerIrq),
     // if it's null, the frequency mus be read from the board at runtime
     timer_freq_in_hertz: ?usize,
     scheduler_freq_in_hertz: usize,
-    qemu_launch_command: []const []const u8,
 
     pub fn checkConfig(self: BoardConfig) void {
         if (!self.mem.has_rom and self.mem.rom_start_addr == null and self.mem.bl_load_addr == null)
@@ -78,3 +73,12 @@ pub const BoardConfig = struct {
             @panic("if rom is disabled, both rom addr and len have to be null \n");
     }
 };
+
+pub fn Driver(comptime TimerType: type, comptime SecondaryInterruptControllerType: type) type {
+
+    return struct {
+        timerDriver: TimerType,
+        secondaryInterruptConrtollerDriver: SecondaryInterruptControllerType,
+
+    };
+}

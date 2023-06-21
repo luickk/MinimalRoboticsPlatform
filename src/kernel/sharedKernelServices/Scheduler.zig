@@ -13,7 +13,12 @@ const ProccessorRegMap = arm.processor.ProccessorRegMap;
 const CpuContext = arm.cpuContext.CpuContext;
 const UserPageAllocator = @import("UserPageAllocator.zig").UserPageAllocator;
 
-const app_page_table = mmu.PageTable(board.config.mem.app_vm_mem_size, board.boardConfig.Granule.Fourk) catch |e| {
+const app_page_table = mmu.PageTable(board.config.mem.app_vm_mem_size, board.config.mem.va_user_space_gran) catch |e| {
+    @compileError(@errorName(e));
+};
+
+
+const kernel_page_table = mmu.PageTable(board.config.mem.app_vm_mem_size, board.config.mem.va_kernel_space_gran) catch |e| {
     @compileError(@errorName(e));
 };
 
@@ -223,6 +228,47 @@ pub const Scheduler = struct {
                 };
                 try page_table_write.mapMem(topics_interace_mapping);
             }
+            self.processses[pid].ttbr0 = self.kernel_lma_offset + utils.toTtbr0(usize, @ptrToInt(&self.processses[pid].page_table));
+            self.pid_counter += 1;
+        }
+        self.current_process.setPreempt(true);
+    }
+
+     pub fn initKernelAppsInScheduler(self: *Scheduler, kernel_allocator: *KernelAlloc, kapps: []const []const u8) !void {
+        self.current_process.setPreempt(false);
+        for (kapps) |app| {
+            const app_mem = try kernel_allocator.alloc(u8, board.config.mem.app_vm_mem_size, 4096);
+
+            var pid = self.pid_counter;
+
+            std.mem.copy(u8, app_mem, app);
+            self.processses[pid].cpu_context.elr_el1 = 0;
+            self.processses[pid].cpu_context.sp_el0 = alignForward(app.len + board.config.mem.app_stack_size, 16);
+            self.processses[pid].cpu_context.x0 = pid;
+            self.processses[pid].app_mem = app_mem;
+            self.processses[pid].priority = self.current_process.priority;
+            self.processses[pid].state = .running;
+            self.processses[pid].priv_level = .kernel;
+            self.processses[pid].counter = self.processses[pid].priority;
+            self.processses[pid].preempt_count = 1;
+            self.processses[pid].pid = pid;
+
+            // initing the apps page-table
+            {
+                // MMU page dir config
+                var page_table_write = try kernel_page_table.init(&self.processses[pid].page_table, self.kernel_lma_offset);
+                const kernel_space_mapping = mmu.Mapping{
+                    .mem_size = board.config.mem.app_vm_mem_size,
+                    .pointing_addr_start = self.kernel_lma_offset + @ptrToInt(app_mem.ptr),
+                    .virt_addr_start = 0,
+                    .granule = board.boardConfig.Granule.Fourk,
+                    .addr_space = .ttbr1,
+                    .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .attrIndex = .mair0 },
+                    .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write },
+                };
+                try page_table_write.mapMem(kernel_space_mapping);
+            }
+
             self.processses[pid].ttbr0 = self.kernel_lma_offset + utils.toTtbr0(usize, @ptrToInt(&self.processses[pid].page_table));
             self.pid_counter += 1;
         }

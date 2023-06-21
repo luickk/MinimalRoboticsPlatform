@@ -1,10 +1,14 @@
-const AddrSpace = @import("board").boardConfig.AddrSpace;
+const std = @import("std");
+const board = @import("board");
+const arm = @import("arm");
 
-pub fn InterruptController(comptime addr_space: AddrSpace) type {
-    const base_address = @import("board").PeriphConfig(addr_space).InterruptController.base_address;
+const cpuContext = arm.cpuContext;
+
+pub fn InterruptController(comptime base_address: usize) type {
+    // const base_address = @import("board").PeriphConfig(addr_space).InterruptController.base_address;
     return struct {
         const Self = @This();
-
+        pub const Error = anyerror;
         pub const RegMap = struct {
             pub const pendingBasic = @intToPtr(*volatile u32, base_address + 0);
             pub const pendingIrq1 = @intToPtr(*volatile u32, base_address + 0x4);
@@ -104,14 +108,24 @@ pub fn InterruptController(comptime addr_space: AddrSpace) type {
                 notDefined = 0,
             };
         };
-        const icAddr = @import("board").PeriphConfig(addr_space).InterruptController;
-        pub fn init() void {
+
+        handler_fn: ?*fn(cpu_context: *cpuContext.CpuContext) void,
+
+        pub fn init() Self {
+            return .{
+                .handler_fn = null,
+            };
+        }
+        pub fn initIc(self: *Self) Error!void {
+            _ = self;
             // enabling all irq types
             // enalbles system timer
             RegMap.enableIrq1.* = 1 << 1;
             // RegMap.enableIrq2.* = 1 << 1;
             // RegMap.enableIrqBasic.* = 1 << 1;
-
+        }
+        pub fn addIcHandler(self: *Self, handler_fn: *fn(cpu_context: *cpuContext.CpuContext) void) Error!void {
+            self.handler_fn = handler_fn;
         }
     };
 }

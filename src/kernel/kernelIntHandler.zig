@@ -7,7 +7,7 @@ const periph = @import("periph");
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 const board = @import("board");
 const sysCalls = @import("sysCalls.zig");
-const bcm2835IntHandle = @import("board/raspi3b/bcm2835IntHandle.zig");
+// const bcm2835IntHandle = @import("board/raspi3b/bcm2835IntHandle.zig");
 const gic = arm.gicv2;
 const gt = arm.genericTimer;
 
@@ -57,37 +57,17 @@ pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(
                 },
             }
         },
-        // .el1Sync => {
-        //     var ec = @truncate(u6, context.esr_el1 >> 26);
-        //     var ec_en = std.meta.intToEnum(ProccessorRegMap.Esr_el1.ExceptionClass, ec) catch {
-        //         kprint("Error decoding ExceptionClass 0x{x} \n", .{ec});
-        //         printExc(&context, int_type_en);
-        //         return;
-        //     };
-        //     switch (ec_en) {
-        //         .bkptInstExecAarch64 => {
-        //             kprint("[kernel] halting execution due to debug trap\n", .{});
-        //             printContext(&context);
-        //             haltExec(true, on_stack_context);
-        //         },
-        //         else => {
-        //             printExc(&context, int_type_en);
-        //         },
-        //     }
-        // },
         // timer interrupts with custom timers per board
         .el1Irq, .el0Irq => {
-            if (board.config.board == .raspi3b) {
-                bcm2835IntHandle.irqHandler(&context) catch |e| {
-                    kprint("[panic] raspberry timer error: {s} \n", .{@errorName(e)});
-                    k_utils.panic();
-                };
-            }
-            if (board.config.board == .qemuVirt)
-                gt.timerInt(&context) catch |e| {
-                    kprint("[panic] generic timer error: {s} \n", .{@errorName(e)});
-                    k_utils.panic();
-                };
+            // board.driver.secondaryInterruptConrtollerDriver.handleIrqSecondary(&context) catch |e| {
+            //     kprint("kernel secondary irq handler error {s} \n", .{@errorName(e)});
+            //     return;
+            // };
+            
+            board.driver.timerDriver.timerTick(&context) catch |e| {
+                kprint("kernel timer error {s} \n", .{@errorName(e)});
+                return;
+            };
         },
         else => {
             printExc(&context, int_type_en);

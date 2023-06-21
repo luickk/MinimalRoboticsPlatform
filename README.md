@@ -7,6 +7,12 @@ The whole project is designed to support multiple boards, as for example a Raspb
 
 The end product is meant to be a compromise between a Real Time Operating system and a Microcontroller, to offer the best of both worlds on a modern Soc.
 
+The idea is that the kernel and its drivers are fixed and generically usable across Arm Socs. The actual user implementation of the projects is meant to happen in `src/environment` where every new dir is a new env. and every environment is built from separately compiled user/ kernel privileged apps. The apps can talk to each other with a variety of kernel provided interfaces, such as topics, services, actions and so on. Since every app is compiled on its own and completely isolated by the kernel, regarding their communications, which is compile time defined, maximum static runtime safety and security should be given.
+
+Thanks to Zigs lazy compilation, driver handlers can be implemented and not be used or replaced, depending on the choice of board.
+
+The goal as such is to provide a development platform that reduces complex runtime defined communications and allocations to an absolute minimum, whilst also being flexible enough to be used across a number of boards.
+
 ## Why not Rust?
 
 I began this project in Rust but decided to switch to Zig (equally modern). Here is why.
@@ -60,7 +66,7 @@ The bootloader is really custom and does a few things differently. One of the pr
 ## MMU
 
 I wrote a mmu "composer" with which one can simply configure and then generate/ write the pagetables. The page table generation supports 3 lvls and 4-16k granule. 64k is also possible but another level has to be added to the `TransLvl` enum in `src/board/boardConfig.zig` and it's not fully tested yet.
-Ideally I wanted the page tables to be generated at comptime, but in order to have multiple translation levels, the mmu needs absolute physical addresses, which cannot be known at compile time(only relative addresses). Alternative the memory can be statically reserved and written at runtime, which is not an option for the bootloader though because it is possibly located in rom, and cannot write to statically reserved memory, leaving the only option, allocating the bootloader page table on the ram (together with the stack). The kernel on the other hand could reserve at least the kernel space page tables, since they are static in size, but for consistency reasons kernel and userspace have linker-reserved memory.
+Ideally I wanted the page tables to be generated at comptime, but in order to have multiple translation levels, the mmu needs absolute physical addresses, which cannot be known at compile time(only relative addresses). Alternatively the memory can be statically reserved and written at runtime, which is not an option for the bootloader though because it is possibly located in rom, and cannot write to statically reserved memory, leaving the only option, allocating the bootloader page table on the ram (together with the stack). The kernel on the other hand could reserve at least the kernel space page tables, since they are static in size, but for consistency reasons kernel and userspace have linker-reserved memory.
 
 ### Addresses
 

@@ -1,10 +1,11 @@
 const std = @import("std");
 const board = @import("board");
 
+pub const Error = error{
+    SchedulerFreqTooLow,
+};
 pub fn calcTicksFromHertz(timer_freq_in_hertz: usize, wanted_freq_in_hertz: usize) !usize {
-    const Error = error{
-        SchedulerFreqTooLow,
-    };
+    
 
     if (wanted_freq_in_hertz > timer_freq_in_hertz) return Error.SchedulerFreqTooLow;
     return (try std.math.divTrunc(usize, timer_freq_in_hertz, wanted_freq_in_hertz));
