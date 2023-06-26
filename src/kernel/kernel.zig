@@ -1,7 +1,7 @@
 const std = @import("std");
 const utils = @import("utils");
 const board = @import("board");
-
+const kernelThreads = @import("kernelThreads");
 // kernel services
 const sharedKernelServices = @import("sharedKernelServices");
 const Scheduler = sharedKernelServices.Scheduler;
@@ -16,6 +16,8 @@ const sysCalls = @import("sysCalls.zig");
 const b_options = @import("build_options");
 
 const kpi = @import("kpi");
+
+const alignForward = std.mem.alignForward;
 
 // arm specific periphs
 const arm = @import("arm");
@@ -54,17 +56,6 @@ const apps = blk: {
 
     break :blk apps_addresses;
 };
-
-const kernel_apps = blk: {
-    var apps_addresses = [_][]const u8{undefined} ** b_options.kernelApps.len;
-    for (b_options.kernelApps) |app, i| {
-        const app_file = @embedFile("bins/kernelApps/" ++ app);
-        apps_addresses[i] = app_file;
-    }
-
-    break :blk apps_addresses;
-};
-
 
 export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text.kernel_main") callconv(.C) noreturn {
     // !! kernel sp is set in the Bootloader!!
@@ -290,11 +281,6 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
             k_utils.panic();
         };
 
-        scheduler.initKernelAppsInScheduler(&kspace_alloc, &kernel_apps) catch |e| {
-            kprint("[panic] Scheduler initKernelAppsInScheduler error: {s} \n", .{@errorName(e)});
-            k_utils.panic();
-        };
-
         scheduler.initProcessCounter();
     }
 
@@ -305,24 +291,44 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
         kprint("[panic] timer driver error: {s} \n", .{@errorName(e)});
         k_utils.panic();
     };
+
+    board.driver.secondaryInterruptConrtollerDriver.initIcDriver() catch |e| {
+        kprint("[panic] initIcDriver error: {s} \n", .{@errorName(e)});
+        k_utils.panic();
+    };
+
+
     kprint("[kernel] timer inited \n", .{});
 
-    // scheduler.createKernelThread(&kspace_alloc, kernelThread, .{"testArg"}) catch |e| {
-    //     kprint("[panic] createKernelThread error: {s} \n", .{@errorName(e)});
-    //     k_utils.panic();
-    // };
+    // kernel thread scheduler init
+    {
+        const kernel_threads_runtime_init = kernelThreads.registerKernelThreads(.{scheduler}) catch |e| {
+            kprint("[panic] register kernel Threads error: {s} \n", .{@errorName(e)});
+            k_utils.panic();
+        };
+        for (kernel_threads_runtime_init) |runtime_init| {
+            const thread_stack_mem = kspace_alloc.alloc(u8, board.config.mem.k_stack_size, 16) catch |e| {
+                kprint("[panic] kernel thread runtime init allocation error: {s} \n", .{@errorName(e)});
+                k_utils.panic();
+            };
+            var thread_stack_start: []u8 = undefined;
+            thread_stack_start.ptr = @intToPtr([*]u8, @ptrToInt(thread_stack_mem.ptr) + thread_stack_mem.len);
+            thread_stack_start.len = thread_stack_mem.len;
+            std.mem.copy(u8, thread_stack_start, runtime_init.arg_mem);
+
+            const entry_fn = runtime_init.entry_fn;
+            var thread_fn_ptr = runtime_init.thread_fn_ptr;
+            const thread_stack_addr = @ptrToInt(thread_stack_start.ptr) - alignForward(runtime_init.arg_size, 16);
+            const args_ptr = thread_stack_start.ptr;
+            scheduler.createThreadFromCurrentProcess(entry_fn, thread_fn_ptr, thread_stack_addr, @ptrCast(*anyopaque, args_ptr));
+        }
+    }
 
     var counter: usize = 0;
     while (true) {
         // kprint("while counter: {d} \n", .{counter});
         // kprint("timer: {d} irq: {d} \n", .{ bcm2835Timer.RegMap.timerCs.*, bcm2835IntController.RegMap.enableIrq1.* });
         counter += 1;
-    }
-}
-
-fn kernelThread(test_arg: []const u8) void {
-    while (true) {
-        kprint("KERNEL THREAD {s} \n", .{test_arg});
     }
 }
 

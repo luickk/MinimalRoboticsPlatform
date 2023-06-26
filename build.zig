@@ -56,6 +56,9 @@ var sharedKernelServices = std.build.Pkg{ .name = "sharedKernelServices", .sourc
 // package for all applications to call syscall
 var appLib = std.build.Pkg{ .name = "appLib", .source = .{ .path = "src/appLib/appLib.zig" } };
 
+//kernel threads
+var kernelThreads = std.build.Pkg{ .name = "kernelThreads", .source = .{ .path = env_path ++ "/kernelThreads/threads.zig" } };
+
 // driver packages
 var interruptControllerDriver = std.build.Pkg{ .name = "interruptControllerDriver", .source = .{ .path = "src/boards/drivers/interruptController/interruptController.zig" } };
 var timerDriver = std.build.Pkg{ .name = "timerDriver", .source = .{ .path = "src/boards/drivers/timer/timer.zig" } };
@@ -69,6 +72,7 @@ pub fn build(b: *std.build.Builder) !void {
     var build_options = b.addOptions();
 
     // inter package dependencies
+    kernelThreads.dependencies = &.{ board, arm, sharedKernelServices, periph };
     kpi.dependencies = &.{ sharedKernelServices, arm };
     interruptControllerDriver.dependencies = &.{ board, arm };
     timerDriver.dependencies = &.{ board, utils };
@@ -113,6 +117,7 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.addPackage(kpi);
     kernel_exe.addPackage(board);
     kernel_exe.addPackage(environment);
+    kernel_exe.addPackage(kernelThreads);
     kernel_exe.addPackage(periph);
     kernel_exe.addPackage(interruptControllerDriver);
     kernel_exe.addPackage(timerDriver);
@@ -132,18 +137,15 @@ pub fn build(b: *std.build.Builder) !void {
     const update_linker_scripts_k = UpdateLinkerScripts.create(b, .kernel, temp_bl_ld, temp_kernel_ld, currBoard);
     const delete_app_bins = b.addRemoveDirTree("src/kernel/bins");
     const scan_for_apps = ScanForApps.create(b, build_options);
-    const scan_for_kernel_apps = ScanForKernelApps.create(b, build_options);
 
     const build_and_run = b.step("qemu", "emulate the kernel with no graphics and output uart to console");
     const launch_with_gdb = b.option(bool, "gdb", "Launch qemu with -s -S to allow for net gdb debugging") orelse false;
 
     build_and_run.dependOn(&delete_app_bins.step);
-
     try setEnvironment(b, build_and_run, build_mode, env_path);
 
     build_and_run.dependOn(&update_linker_scripts_k.step);
     build_and_run.dependOn(&scan_for_apps.step);
-    build_and_run.dependOn(&scan_for_kernel_apps.step);
     build_and_run.dependOn(&kernel_exe.install_step.?.step);
     build_and_run.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = .bin, .dest_dir = .{ .custom = "../src/bootloader/bins/" } }).step);
 
@@ -162,6 +164,7 @@ pub fn build(b: *std.build.Builder) !void {
     const delete_zig_cache = b.addRemoveDirTree("zig-cache");
     const delete_zig_out = b.addRemoveDirTree("zig-out");
     const delete_bl_bins = b.addRemoveDirTree("src/bootloader/bins");
+    const delete_k_bins = b.addRemoveDirTree("src/kernel/bins");
     const create_bins = CreateTmpSrcBins.create(b);
 
     clean.dependOn(&delete_zig_cache.step);
@@ -169,28 +172,20 @@ pub fn build(b: *std.build.Builder) !void {
     clean.dependOn(&delete_zig_cache.step);
     clean.dependOn(&delete_zig_out.step);
     clean.dependOn(&delete_bl_bins.step);
+    clean.dependOn(&delete_k_bins.step);
     clean.dependOn(&delete_app_bins.step);
     clean.dependOn(&create_bins.step);
 }
 
 fn setEnvironment(b: *std.build.Builder, step: *std.build.Step, build_mode: std.builtin.Mode, comptime path: []const u8) !void {
-    var dir = try std.fs.cwd().openIterableDir(path, .{});
+    const user_apps_path = path ++ "/userApps/";
+    var dir = try std.fs.cwd().openIterableDir(user_apps_path, .{});
     var it = dir.iterate();
     while (try it.next()) |folder| {
-        if (std.mem.eql(u8, folder.name, "kernelApps") or folder.kind != .Directory) continue;
-        const app = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ path, folder.name }));
+        if (folder.kind != .Directory) continue;
+        const app = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ user_apps_path, folder.name }));
         step.dependOn(&app.install_step.?.step);
         step.dependOn(&app.installRaw(try b.allocator.dupe(u8, folder.name), .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/apps/" } }).step);
-    }
-
-    const kernel_apps_path =  path ++ "/kernelApps/";
-    dir = try std.fs.cwd().openIterableDir(kernel_apps_path, .{});
-    it = dir.iterate();
-    while (try it.next()) |folder| {
-        if (folder.kind != .Directory) continue;
-        const app = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ kernel_apps_path, folder.name }));
-        step.dependOn(&app.install_step.?.step);
-        step.dependOn(&app.installRaw(try b.allocator.dupe(u8, folder.name), .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/kernelApps/" } }).step);
     }
 }
 
@@ -316,8 +311,7 @@ const CreateTmpSrcBins = struct {
 
     fn doStep(step: *std.build.Step) !void {
         _ = step;
-        try std.fs.cwd().makeDir("src/kernel/bins/apps");
-        try std.fs.cwd().makeDir("src/kernel/bins/kernelApps");
+        try std.fs.cwd().makeDir("src/kernel/bins/");
         try std.fs.cwd().makeDir("src/bootloader/bins/");
     }
 };
@@ -354,43 +348,6 @@ const ScanForApps = struct {
                 try apps.append(file.name);
             }
             self.build_options.addOption([]const []const u8, "apps", apps.items);
-        }
-    }
-};
-
-
-const ScanForKernelApps = struct {
-    step: std.build.Step,
-    builder: *std.build.Builder,
-    build_options: *std.build.OptionsStep,
-
-    pub fn create(b: *std.build.Builder, build_options: *std.build.OptionsStep) *ScanForKernelApps {
-        const self = b.allocator.create(ScanForKernelApps) catch unreachable;
-        self.* = .{ .step = std.build.Step.init(.custom, "ScanForKernelApps", b.allocator, ScanForKernelApps.doStep), .builder = b, .build_options = build_options };
-        return self;
-    }
-
-    fn doStep(step: *std.build.Step) !void {
-        const self = @fieldParentPtr(ScanForApps, "step", step);
-        // searching for apps in apps/
-        {
-            var apps = std.ArrayList([]const u8).init(self.builder.allocator);
-            defer apps.deinit();
-
-            var dir = std.fs.cwd().openIterableDir("src/kernel/bins/kernelApps/", .{}) catch |e| {
-                if (e == error.FileNotFound) {
-                    self.build_options.addOption([]const []const u8, "kernelApps", &.{});
-                    return;
-                } else {
-                    return e;
-                }
-            };
-            var it = dir.iterate();
-            while (try it.next()) |file| {
-                if (file.kind != .File) continue;
-                try apps.append(file.name);
-            }
-            self.build_options.addOption([]const []const u8, "kernelApps", apps.items);
         }
     }
 };

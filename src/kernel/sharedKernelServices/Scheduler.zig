@@ -234,47 +234,6 @@ pub const Scheduler = struct {
         self.current_process.setPreempt(true);
     }
 
-     pub fn initKernelAppsInScheduler(self: *Scheduler, kernel_allocator: *KernelAlloc, kapps: []const []const u8) !void {
-        self.current_process.setPreempt(false);
-        for (kapps) |app| {
-            const app_mem = try kernel_allocator.alloc(u8, board.config.mem.app_vm_mem_size, 4096);
-
-            var pid = self.pid_counter;
-
-            std.mem.copy(u8, app_mem, app);
-            self.processses[pid].cpu_context.elr_el1 = 0;
-            self.processses[pid].cpu_context.sp_el0 = alignForward(app.len + board.config.mem.app_stack_size, 16);
-            self.processses[pid].cpu_context.x0 = pid;
-            self.processses[pid].app_mem = app_mem;
-            self.processses[pid].priority = self.current_process.priority;
-            self.processses[pid].state = .running;
-            self.processses[pid].priv_level = .kernel;
-            self.processses[pid].counter = self.processses[pid].priority;
-            self.processses[pid].preempt_count = 1;
-            self.processses[pid].pid = pid;
-
-            // initing the apps page-table
-            {
-                // MMU page dir config
-                var page_table_write = try kernel_page_table.init(&self.processses[pid].page_table, self.kernel_lma_offset);
-                const kernel_space_mapping = mmu.Mapping{
-                    .mem_size = board.config.mem.app_vm_mem_size,
-                    .pointing_addr_start = self.kernel_lma_offset + @ptrToInt(app_mem.ptr),
-                    .virt_addr_start = 0,
-                    .granule = board.boardConfig.Granule.Fourk,
-                    .addr_space = .ttbr1,
-                    .flags_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write, .attrIndex = .mair0 },
-                    .flags_non_last_lvl = mmu.TableDescriptorAttr{ .accessPerm = .only_el1_read_write },
-                };
-                try page_table_write.mapMem(kernel_space_mapping);
-            }
-
-            self.processses[pid].ttbr0 = self.kernel_lma_offset + utils.toTtbr0(usize, @ptrToInt(&self.processses[pid].page_table));
-            self.pid_counter += 1;
-        }
-        self.current_process.setPreempt(true);
-    }
-
     pub fn killProcess(self: *Scheduler, pid: usize, irq_context: *CpuContext) !void {
         self.current_process.setPreempt(false);
         try self.checkForPid(pid);
@@ -358,10 +317,10 @@ pub const Scheduler = struct {
     }
 
     // provides a generic entry function (generic in regard to the thread and argument function since @call builtin needs them to properly invoke the thread start)
-    fn KernelThreadInstance(comptime thread_fn: anytype, comptime Args: type) type {
+    pub fn KernelThreadInstance(comptime thread_fn: anytype, comptime Args: type) type {
         const ThreadFn = @TypeOf(thread_fn);
         return struct {
-            fn threadEntry(entry_fn: *ThreadFn, entry_args: *Args) callconv(.C) void {
+            pub fn threadEntry(entry_fn: *ThreadFn, entry_args: *Args) callconv(.C) void {
                 @call(.{ .modifier = .auto }, entry_fn, entry_args.*);
             }
         };
@@ -380,7 +339,7 @@ pub const Scheduler = struct {
         std.mem.copy(u8, thread_stack_start, arg_mem);
 
         const entry_fn = &(KernelThreadInstance(thread_fn, @TypeOf(args)).threadEntry);
-        const thread_fn_ptr = &thread_fn;
+        var thread_fn_ptr = &thread_fn;
         const thread_stack_addr = @ptrToInt(thread_stack_start.ptr) - alignForward(@sizeOf(@TypeOf(args)), 16);
         const args_ptr = thread_stack_start.ptr;
         self.createThreadFromCurrentProcess(@ptrCast(*const anyopaque, entry_fn), @ptrCast(*const anyopaque, thread_fn_ptr), thread_stack_addr, @ptrCast(*anyopaque, args_ptr));
@@ -435,11 +394,7 @@ pub const Scheduler = struct {
         var prev_process = self.current_process;
         self.current_process = next_process;
 
-        switch (next_process.priv_level) {
-            // .ttbr1 is an optional and null for user type processes
-            .user => self.switchMemContext(next_process.ttbr0, next_process.ttbr1),
-            .boot, .kernel => self.switchMemContext(next_process.ttbr0, next_process.ttbr1),
-        }
+        if (next_process.priv_level == .user) self.switchMemContext(next_process.ttbr0, null);
 
         switchCpuContext(self, prev_process, next_process, irq_context);
     }
@@ -458,6 +413,7 @@ pub const Scheduler = struct {
     }
 
     fn switchCpuContext(self: *Scheduler, from: *Process, to: *Process, irq_context: *CpuContext) void {
+        kprint("curr pc: {d} \n", .{ ProccessorRegMap.getCurrentPc() });
         if (log) {
             kprint("from: ({s}, {s}, {*}) to ({s}, {s}, {*}) \n", .{ @tagName(from.priv_level), @tagName(from.state), from, @tagName(to.priv_level), @tagName(to.state), to });
             kprint("current processses(n={d}): \n", .{self.pid_counter + 1});

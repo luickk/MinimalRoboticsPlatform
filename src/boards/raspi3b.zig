@@ -46,19 +46,19 @@ pub const config = boardConfig.BoardConfig {
 
 // todo => fix bootloader addresspace missmatch!!
 
-const GenericTimerType = genericTimer.GenericTimer(null, config.scheduler_freq_in_hertz);
+pub const GenericTimerType = genericTimer.GenericTimer(null, config.scheduler_freq_in_hertz);
 var genericTimerInst = GenericTimerType.init();
 
-// const Bcm2835TimerType = bcm2835Timer.Bcm2835Timer(PeriphConfig(.ttbr1).Timer.base_address, config.scheduler_freq_in_hertz);
+// pub const Bcm2835TimerType = bcm2835Timer.Bcm2835Timer(PeriphConfig(.ttbr1).Timer.base_address, config.scheduler_freq_in_hertz);
 // var bcm2835TimerInst = Bcm2835TimerType.init();
 
-const TimerKpiType = kpi.TimerKpi(*GenericTimerType, GenericTimerType.Error, GenericTimerType.setupGt, GenericTimerType.timerInt);
-// const TimerKpiType = kpi.TimerKpi(*Bcm2835TimerType, Bcm2835TimerType.Error, Bcm2835TimerType.initTimer, Bcm2835TimerType.handleTimerIrq);
+pub const TimerKpiType = kpi.TimerKpi(*GenericTimerType, GenericTimerType.Error, GenericTimerType.setupGt, GenericTimerType.timerInt);
+// pub const TimerKpiType = kpi.TimerKpi(*Bcm2835TimerType, Bcm2835TimerType.Error, Bcm2835TimerType.initTimer, Bcm2835TimerType.handleTimerIrq);
 
 
 // interrupt controller
 const Bcm2835InterruptControllerType = bcm2835IntController.InterruptController(PeriphConfig(.ttbr1).InterruptController.base_address);
-const SecondaryInterruptControllerKpiType = kpi.SecondaryInterruptControllerKpi(*Bcm2835InterruptControllerType, Bcm2835InterruptControllerType.Error, Bcm2835InterruptControllerType.initIc, Bcm2835InterruptControllerType.addIcHandler);
+pub const SecondaryInterruptControllerKpiType = kpi.SecondaryInterruptControllerKpi(*Bcm2835InterruptControllerType, Bcm2835InterruptControllerType.Error, Bcm2835InterruptControllerType.initIc, Bcm2835InterruptControllerType.addIcHandler, Bcm2835InterruptControllerType.RegMap);
 var secondaryInterruptControllerInst = Bcm2835InterruptControllerType.init();
 
 pub const driver = boardConfig.Driver(TimerKpiType, SecondaryInterruptControllerKpiType) {

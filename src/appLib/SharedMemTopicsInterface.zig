@@ -36,7 +36,7 @@ pub const SharedMemTopicsInterface = struct {
         used_topics_mem += topics_buff_state_mem.len;
         fixedTopicMemPoolInterface.len = pages_req * board.config.mem.va_user_space_gran.page_size;
         for (env.env_config.conf_topics) |topic_conf, i| {
-            // todo => align 
+            // todo => align with alignForward()
             // used_topics_mem = @ptrToInt(@alignCast(8, @intToPtr(*u8, used_topics_mem)));
             topics[i] = Topic.init(fixedTopicMemPoolInterface, topic_conf.id, topic_conf.buffer_type);        
         }

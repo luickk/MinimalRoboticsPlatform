@@ -4,14 +4,12 @@
 
 The goal is to build a minimalistic robotic platform for embedded projects. The idea is to enable applications to run on this kernel with std support as well as a kernel-provided, robotics-specific toolset. Such a toolset includes communication, control, state handling, and other critical robotic domains. This would enable an ultra-light, simplistic and highly integrated robotic platform.
 The whole project is designed to support multiple boards, as for example a Raspberry Pi or a NVIDIA Jetson Nano. To begin with, basic kernel features are implemented on a virtual machine (qemu virt armv7).
-
 The end product is meant to be a compromise between a Real Time Operating system and a Microcontroller, to offer the best of both worlds on a modern Soc.
 
-The idea is that the kernel and its drivers are fixed and generically usable across Arm Socs. The actual user implementation of the projects is meant to happen in `src/environment` where every new dir is a new env. and every environment is built from separately compiled user/ kernel privileged apps. The apps can talk to each other with a variety of kernel provided interfaces, such as topics, services, actions and so on. Since every app is compiled on its own and completely isolated by the kernel, regarding their communications, which is compile time defined, maximum static runtime safety and security should be given.
-
+The idea is that the kernel and its drivers are fixed and generically usable across Arm Socs. The actual user implementation of the projects is meant to happen in `src/environment/*yourCustomEnvironmentName*` where every new dir is a new env. and every environment is built from separately compiled user/ kernel privileged apps. The apps can talk to each other with a variety of kernel provided interfaces, such as topics, services, actions and so on. Since every app is compiled on its own and completely isolated by the kernel, regarding their communications, which is compile time defined, maximum static runtime safety and security should be given.
 Thanks to Zigs lazy compilation, driver handlers can be implemented and not be used or replaced, depending on the choice of board.
 
-The goal as such is to provide a development platform that reduces complex runtime defined communications and allocations to an absolute minimum, whilst also being flexible enough to be used across a number of boards.
+This project is aiming to build an experience that gives the end user (developer) as much guidance and form as necessary, to build a safe and secure platform, with as much freedom as possible. This is achieved by reducing complex runtime defined communications and allocations to an absolute minimum, whilst also being flexible enough to be used across a number of boards.
 
 ## Why not Rust?
 
