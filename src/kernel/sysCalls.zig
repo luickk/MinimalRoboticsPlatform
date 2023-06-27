@@ -30,10 +30,10 @@ pub const Syscall = struct {
 
 pub const sysCallTable = [_]Syscall{
     .{ .id = 0, .fn_call = &sysCallPrint },
-    .{ .id = 1, .fn_call = &killProcess },
+    .{ .id = 1, .fn_call = &killTask },
     .{ .id = 2, .fn_call = &forkProcess },
     .{ .id = 3, .fn_call = &getPid },
-    .{ .id = 4, .fn_call = &killProcessRecursively },
+    .{ .id = 4, .fn_call = &killTaskRecursively },
     // sys call id 5 is not used
     .{ .id = 6, .fn_call = &createThread },
     .{ .id = 7, .fn_call = &sleep },
@@ -56,19 +56,19 @@ fn sysCallPrint(params_args: *CpuContext) void {
     pl011.write(sliced_data);
 }
 
-fn killProcess(params_args: *CpuContext) void {
+fn killTask(params_args: *CpuContext) void {
     kprint("[kernel] killing task with pid: {d} \n", .{params_args.x0});
-    scheduler.killProcess(params_args.x0, params_args) catch |e| {
-        kprint("[panic] killProcess error: {s}\n", .{@errorName(e)});
+    scheduler.killTask(params_args.x0) catch |e| {
+        kprint("[panic] killTask error: {s}\n", .{@errorName(e)});
         k_utils.panic();
     };
 }
 
 // kill a process and all its children processes
-fn killProcessRecursively(params_args: *CpuContext) void {
+fn killTaskRecursively(params_args: *CpuContext) void {
     kprint("[kernel] killing task and children starting with pid: {d} \n", .{params_args.x0});
-    scheduler.killProcessAndChildrend(params_args.x0, params_args) catch |e| {
-        kprint("[panic] killProcessRecursively error: {s}\n", .{@errorName(e)});
+    scheduler.killTaskAndChildrend(params_args.x0) catch |e| {
+        kprint("[panic] killTaskRecursively error: {s}\n", .{@errorName(e)});
         k_utils.panic();
     };
 }

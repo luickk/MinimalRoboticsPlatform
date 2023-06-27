@@ -17,8 +17,8 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
         kprint("app{d} test print {d} \n", .{ pid, test_counter });
         // if (test_counter == 40000) {
         //     test_counter += 1;
-        //     // sysCalls.killProcess(1);
-        //     sysCalls.killProcessRecursively(1);
+        //     // sysCalls.killTask(1);
+        //     sysCalls.killTaskRecursively(1);
         // }
     }
 }

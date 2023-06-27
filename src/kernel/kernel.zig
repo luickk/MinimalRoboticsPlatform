@@ -2,6 +2,7 @@ const std = @import("std");
 const utils = @import("utils");
 const board = @import("board");
 const kernelThreads = @import("kernelThreads");
+const setupRoutines = @import("setupRoutines");
 // kernel services
 const sharedKernelServices = @import("sharedKernelServices");
 const Scheduler = sharedKernelServices.Scheduler;
@@ -285,44 +286,32 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
     }
 
 
-    if (board.config.board == .raspi3b) @intToPtr(*volatile u32, board.PeriphConfig(.ttbr1).ArmGenericTimer.base_address).* = 1 << 1 | 1 << 3;
-
+    // kernel setup routines execution
+    inline for (setupRoutines.setupRoutines) |routine| {
+        kprint("1 \n", .{});
+        routine(scheduler);
+        kprint("2 \n", .{});
+    }   
+    kprint("LOL \n", .{});
+    
     board.driver.timerDriver.initTimerDriver() catch |e| {
         kprint("[panic] timer driver error: {s} \n", .{@errorName(e)});
         k_utils.panic();
     };
+    kprint("[kernel] timer inited \n", .{});    
 
     board.driver.secondaryInterruptConrtollerDriver.initIcDriver() catch |e| {
         kprint("[panic] initIcDriver error: {s} \n", .{@errorName(e)});
         k_utils.panic();
     };
 
-
-    kprint("[kernel] timer inited \n", .{});
-
     // kernel thread scheduler init
-    {
-        const kernel_threads_runtime_init = kernelThreads.registerKernelThreads(.{scheduler}) catch |e| {
-            kprint("[panic] register kernel Threads error: {s} \n", .{@errorName(e)});
+    inline for (kernelThreads.threads) |generic_thread| {
+        scheduler.createKernelThread(&kspace_alloc, generic_thread, .{scheduler}) catch |e| {
+            kprint("[panic] kernel thread createKernelThread error: {s} \n", .{@errorName(e)});
             k_utils.panic();
         };
-        for (kernel_threads_runtime_init) |runtime_init| {
-            const thread_stack_mem = kspace_alloc.alloc(u8, board.config.mem.k_stack_size, 16) catch |e| {
-                kprint("[panic] kernel thread runtime init allocation error: {s} \n", .{@errorName(e)});
-                k_utils.panic();
-            };
-            var thread_stack_start: []u8 = undefined;
-            thread_stack_start.ptr = @intToPtr([*]u8, @ptrToInt(thread_stack_mem.ptr) + thread_stack_mem.len);
-            thread_stack_start.len = thread_stack_mem.len;
-            std.mem.copy(u8, thread_stack_start, runtime_init.arg_mem);
-
-            const entry_fn = runtime_init.entry_fn;
-            var thread_fn_ptr = runtime_init.thread_fn_ptr;
-            const thread_stack_addr = @ptrToInt(thread_stack_start.ptr) - alignForward(runtime_init.arg_size, 16);
-            const args_ptr = thread_stack_start.ptr;
-            scheduler.createThreadFromCurrentProcess(entry_fn, thread_fn_ptr, thread_stack_addr, @ptrCast(*anyopaque, args_ptr));
-        }
-    }
+    }   
 
     var counter: usize = 0;
     while (true) {

@@ -29,7 +29,7 @@ pub const Process = struct {
         running,
         halted,
         sleeping,
-        done,
+        dead,
     };
     pub const PrivLevel = enum(usize) {
         // initial task that comes up after the bootloader
@@ -82,7 +82,7 @@ pub const Process = struct {
 
 pub const Error = error{
     PidNotFound,
-    TaskIsDone,
+    TaskIsDead,
     ForkPermissionFault,
     ThreadPermissionFault,
 };
@@ -132,7 +132,7 @@ pub const Scheduler = struct {
             process.counter = (process.counter >> 1) + process.priority;
         }
     }
-    pub fn schedule(self: *Scheduler, irq_context: *CpuContext) void {
+    pub fn schedule(self: *Scheduler, irq_context: ?*CpuContext) void {
         self.current_process.setPreempt(false);
         self.current_process.counter = 0;
         // round robin for processes
@@ -172,7 +172,7 @@ pub const Scheduler = struct {
         if (self.current_process.counter > 0 and self.current_process.preempt_count > 0) {
             if (log) kprint("--------- PROC WAIT counter: {d} \n", .{self.current_process.counter});
             // return all the way back to the exc vector table where cpu state is restored from the stack
-            // if the task is done already, we don't return back to the process but schedule the next task
+            // if the task is dead already, we don't return back to the process but schedule the next task
             if (self.current_process.state == .running) return;
         }
         self.schedule(irq_context);
@@ -234,17 +234,22 @@ pub const Scheduler = struct {
         self.current_process.setPreempt(true);
     }
 
-    pub fn killProcess(self: *Scheduler, pid: usize, irq_context: *CpuContext) !void {
+    pub fn killTask(self: *Scheduler, pid: usize) !void {
         self.current_process.setPreempt(false);
         try self.checkForPid(pid);
-        self.processses[pid].state = .done;
+        self.processses[pid].state = .dead;
         for (self.processses) |*proc| {
             if (proc.is_thread and proc.parent_pid == pid) {
-                proc.state = .done;
+                proc.state = .dead;
             }
         }
         self.current_process.setPreempt(true);
-        self.schedule(irq_context);
+        self.schedule(null);
+    }
+
+    pub fn exitTask(self: *Scheduler) !noreturn {
+        try self.killTaskAndChildrend(self.current_process.pid.?);
+        while(true){}
     }
 
     pub fn deepForkProcess(self: *Scheduler, to_clone_pid: usize) !void {
@@ -340,27 +345,28 @@ pub const Scheduler = struct {
 
         const entry_fn = &(KernelThreadInstance(thread_fn, @TypeOf(args)).threadEntry);
         var thread_fn_ptr = &thread_fn;
+
         const thread_stack_addr = @ptrToInt(thread_stack_start.ptr) - alignForward(@sizeOf(@TypeOf(args)), 16);
         const args_ptr = thread_stack_start.ptr;
         self.createThreadFromCurrentProcess(@ptrCast(*const anyopaque, entry_fn), @ptrCast(*const anyopaque, thread_fn_ptr), thread_stack_addr, @ptrCast(*anyopaque, args_ptr));
     }
 
-    pub fn killProcessAndChildrend(self: *Scheduler, starting_pid: usize, irq_context: *CpuContext) !void {
+    pub fn killTaskAndChildrend(self: *Scheduler, starting_pid: usize) !void {
         self.current_process.setPreempt(false);
         try self.checkForPid(starting_pid);
-        self.processses[starting_pid].state = .done;
+        self.processses[starting_pid].state = .dead;
         var child_proc_pid: ?usize = starting_pid;
         while (child_proc_pid != null) {
-            self.processses[child_proc_pid.?].state = .done;
+            self.processses[child_proc_pid.?].state = .dead;
             for (self.processses) |*proc| {
                 if (proc.is_thread and proc.parent_pid == child_proc_pid.?) {
-                    proc.state = .done;
+                    proc.state = .dead;
                 }
             }
             child_proc_pid = self.processses[child_proc_pid.?].child_pid;
         }
         self.current_process.setPreempt(true);
-        self.schedule(irq_context);
+        self.schedule(null);
     }
 
     pub fn getCurrentProcessPid(self: *Scheduler) usize {
@@ -386,11 +392,11 @@ pub const Scheduler = struct {
 
     fn checkForPid(self: *Scheduler, pid: usize) !void {
         if (pid > maxProcesss) return Error.PidNotFound;
-        if (self.processses[pid].state == .done) return Error.TaskIsDone;
+        if (self.processses[pid].state == .dead) return Error.TaskIsDead;
     }
 
     // args (process pointers) are past via registers
-    fn switchContextToProcess(self: *Scheduler, next_process: *Process, irq_context: *CpuContext) void {
+    fn switchContextToProcess(self: *Scheduler, next_process: *Process, irq_context: ?*CpuContext) void {
         var prev_process = self.current_process;
         self.current_process = next_process;
 
@@ -412,7 +418,8 @@ pub const Scheduler = struct {
         }
     }
 
-    fn switchCpuContext(self: *Scheduler, from: *Process, to: *Process, irq_context: *CpuContext) void {
+    // irq_context is optional in case the previous scheduled task is not needed anymore
+    fn switchCpuContext(self: *Scheduler, from: *Process, to: *Process, irq_context: ?*CpuContext) void {
         kprint("curr pc: {d} \n", .{ ProccessorRegMap.getCurrentPc() });
         if (log) {
             kprint("from: ({s}, {s}, {*}) to ({s}, {s}, {*}) \n", .{ @tagName(from.priv_level), @tagName(from.state), from, @tagName(to.priv_level), @tagName(to.state), to });
@@ -422,7 +429,7 @@ pub const Scheduler = struct {
                 kprint("pid: {d} {s}, {s}, {s}, (is thread) {any} \n", .{ i, @tagName(proc.priv_level), @tagName(proc.priv_level), @tagName(proc.state), proc.is_thread });
             }
         }
-        from.cpu_context = irq_context.*;
+        if (irq_context) |context| from.cpu_context = context.*;
         switchCpuPrivLvl(to.priv_level);
         // restore Context and erets
         asm volatile (

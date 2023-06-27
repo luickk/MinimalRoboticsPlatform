@@ -6,6 +6,7 @@ pub fn Bcm2835Timer(comptime base_address: ?usize, comptime scheduler_freq_in_he
         const Self = @This();
         
         pub const Error = anyerror;
+        pub const timer_name = "bcm2835_timer";
 
         // raspberry 3b available timers: system timer (this one), arm timer, free runnning timer
         // raspberry system timer frequency is 1 Mhz
@@ -66,6 +67,15 @@ pub fn Bcm2835Timer(comptime base_address: ?usize, comptime scheduler_freq_in_he
 
             RegMap.timerC1.* = self.timerVal;
             RegMap.timerCs.* = RegMap.timerCs.* | RegValues.timerCsM1;
+        }
+
+
+        pub fn isEnabled(self: *Self) !bool {
+            _ = self;
+            if (RegMap.timerCs.* & RegValues.timerCsM1 != 0) {
+                return true;
+            }
+            return false;
         }
     };
 }

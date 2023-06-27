@@ -10,15 +10,13 @@ const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 const sharedKernelServices = @import("sharedKernelServices");
 const Scheduler = sharedKernelServices.Scheduler;
 
-pub fn threadFn(scheduler: *Scheduler) void {
+pub fn bcm2835IrqHandlerSetup(scheduler: *Scheduler) void {
+    _ = scheduler;
     board.driver.secondaryInterruptConrtollerDriver.addIcHandler(&irqHandler) catch |e| {
-        kprint("[panic] addIcHandler error: {s} \n", .{@errorName(e)});
-        // k_utils.panic();
+        kprint("[error] addIcHandler error: {s} \n", .{@errorName(e)});
         while(true) {}
     };
-    while (true) {
-        kprint("bcm2835IrqHandler THREAD \n", .{});
-    }
+    kprint("inited raspberry secondary Ic \n", .{});
 }
 
 pub const RegValues = struct {

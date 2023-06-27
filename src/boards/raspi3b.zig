@@ -49,11 +49,11 @@ pub const config = boardConfig.BoardConfig {
 pub const GenericTimerType = genericTimer.GenericTimer(null, config.scheduler_freq_in_hertz);
 var genericTimerInst = GenericTimerType.init();
 
-// pub const Bcm2835TimerType = bcm2835Timer.Bcm2835Timer(PeriphConfig(.ttbr1).Timer.base_address, config.scheduler_freq_in_hertz);
-// var bcm2835TimerInst = Bcm2835TimerType.init();
+pub const Bcm2835TimerType = bcm2835Timer.Bcm2835Timer(PeriphConfig(.ttbr1).Timer.base_address, config.scheduler_freq_in_hertz);
+var bcm2835TimerInst = Bcm2835TimerType.init();
 
-pub const TimerKpiType = kpi.TimerKpi(*GenericTimerType, GenericTimerType.Error, GenericTimerType.setupGt, GenericTimerType.timerInt);
-// pub const TimerKpiType = kpi.TimerKpi(*Bcm2835TimerType, Bcm2835TimerType.Error, Bcm2835TimerType.initTimer, Bcm2835TimerType.handleTimerIrq);
+pub const GenericTimerKpiType = kpi.TimerKpi(*GenericTimerType, GenericTimerType.Error, GenericTimerType.setupGt, GenericTimerType.timerInt, GenericTimerType.timer_name);
+pub const Bcm2835TimerKpiType = kpi.TimerKpi(*Bcm2835TimerType, Bcm2835TimerType.Error, Bcm2835TimerType.initTimer, Bcm2835TimerType.handleTimerIrq, Bcm2835TimerType.timer_name);
 
 
 // interrupt controller
@@ -61,9 +61,9 @@ const Bcm2835InterruptControllerType = bcm2835IntController.InterruptController(
 pub const SecondaryInterruptControllerKpiType = kpi.SecondaryInterruptControllerKpi(*Bcm2835InterruptControllerType, Bcm2835InterruptControllerType.Error, Bcm2835InterruptControllerType.initIc, Bcm2835InterruptControllerType.addIcHandler, Bcm2835InterruptControllerType.RegMap);
 var secondaryInterruptControllerInst = Bcm2835InterruptControllerType.init();
 
-pub const driver = boardConfig.Driver(TimerKpiType, SecondaryInterruptControllerKpiType) {
-    .timerDriver = TimerKpiType.init(&genericTimerInst),
-    // .timerDriver = TimerKpiType.init(&bcm2835TimerInst),
+pub const driver = boardConfig.Driver(GenericTimerKpiType, SecondaryInterruptControllerKpiType) {
+    .timerDriver = GenericTimerKpiType.init(&genericTimerInst),
+    // .timerDriver = Bcm2835TimerKpiType.init(&bcm2835TimerInst),
     .secondaryInterruptConrtollerDriver = SecondaryInterruptControllerKpiType.init(&secondaryInterruptControllerInst),
 };
 

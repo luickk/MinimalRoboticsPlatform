@@ -49,7 +49,7 @@ pub const SysCallPrint = struct {
     }
 };
 
-pub fn killProcess(pid: usize) noreturn {
+pub fn killTask(pid: usize) noreturn {
     asm volatile (
     // args
         \\mov x0, %[pid]
@@ -87,7 +87,7 @@ pub fn getPid() usize {
     );
 }
 
-pub fn killProcessRecursively(starting_pid: usize) void {
+pub fn killTaskRecursively(starting_pid: usize) void {
     asm volatile (
     // args
         \\mov x0, %[pid]

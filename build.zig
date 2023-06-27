@@ -58,6 +58,7 @@ var appLib = std.build.Pkg{ .name = "appLib", .source = .{ .path = "src/appLib/a
 
 //kernel threads
 var kernelThreads = std.build.Pkg{ .name = "kernelThreads", .source = .{ .path = env_path ++ "/kernelThreads/threads.zig" } };
+var setupRoutines = std.build.Pkg{ .name = "setupRoutines", .source = .{ .path = env_path ++ "/setupRoutines/routines.zig" } };
 
 // driver packages
 var interruptControllerDriver = std.build.Pkg{ .name = "interruptControllerDriver", .source = .{ .path = "src/boards/drivers/interruptController/interruptController.zig" } };
@@ -73,9 +74,10 @@ pub fn build(b: *std.build.Builder) !void {
 
     // inter package dependencies
     kernelThreads.dependencies = &.{ board, arm, sharedKernelServices, periph };
+    setupRoutines.dependencies = &.{ board, arm, sharedKernelServices, periph };
     kpi.dependencies = &.{ sharedKernelServices, arm };
     interruptControllerDriver.dependencies = &.{ board, arm };
-    timerDriver.dependencies = &.{ board, utils };
+    timerDriver.dependencies = &.{ board, utils, periph };
     board.dependencies = &.{ kpi, utils, arm, interruptControllerDriver, timerDriver };
     sharedServices.dependencies = &.{ board, environment };
     sharedKernelServices.dependencies = &.{ board, environment, appLib, arm, utils, sharedServices, periph };
@@ -118,6 +120,7 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.addPackage(board);
     kernel_exe.addPackage(environment);
     kernel_exe.addPackage(kernelThreads);
+    kernel_exe.addPackage(setupRoutines);
     kernel_exe.addPackage(periph);
     kernel_exe.addPackage(interruptControllerDriver);
     kernel_exe.addPackage(timerDriver);

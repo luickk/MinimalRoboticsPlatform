@@ -59,15 +59,14 @@ pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(
         },
         // timer interrupts with custom timers per board
         .el1Irq, .el0Irq => {
-            // board.driver.secondaryInterruptConrtollerDriver.handleIrqSecondary(&context) catch |e| {
-            //     kprint("kernel secondary irq handler error {s} \n", .{@errorName(e)});
-            //     return;
-            // };
-            
-            board.driver.timerDriver.timerTick(&context) catch |e| {
-                kprint("kernel timer error {s} \n", .{@errorName(e)});
-                return;
-            };
+            if (board.driver.secondaryInterruptConrtollerDriver.context.handler_fn) |handler| handler(&context);
+            kprint("int CALLED \n", .{});   
+            if (std.mem.eql(u8, board.driver.timerDriver.timer_name, "arm_gt")) {
+                board.driver.timerDriver.timerTick(&context) catch |e| {
+                    kprint("kernel timer error {s} \n", .{@errorName(e)});
+                    return;
+                };
+            }
         },
         else => {
             printExc(&context, int_type_en);

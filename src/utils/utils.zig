@@ -4,6 +4,7 @@ const board = @import("board");
 pub const Error = error{
     SchedulerFreqTooLow,
 };
+
 pub fn calcTicksFromHertz(timer_freq_in_hertz: usize, wanted_freq_in_hertz: usize) !usize {
     
 
