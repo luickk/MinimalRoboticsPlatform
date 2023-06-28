@@ -37,14 +37,20 @@ The Generic interrupt controler, generic timer, booting with/out rom, bcm2835 in
 
 A way to share data streams with other processes, similar to pipes but optimized for sensor data and data distribution and access over many processes.
 
-Currently, the interfaces for topics are implemented via Syscalls which isn't very effective, but future versions will support push/pop operations with zero kernel overhead through memory mapping in the user-space.
+How many topics and in which configuration must be setup at compiletime in the `envConfig.zig` of the project. Each Topic can be configured in its buffer type, size, identifier and so on. In the runtime phase of the platform, every topic then behaves according to its configuration and can be addressed through its fixed id.
+
+There are two ways to communicate over a Topic, one is through SysCalls and the other is through direct mapped memory, which is very effective but less easy to use. Also, currently both ways of communicating on a Topic must not be mixed so only either one of both can be used.
 
 #### What kind of data is it for?
 
 Topics can be used for all kinds of statically sized data. Depending on the amount of data per time unit, there a re different methods of retrievals. 
-- `waitForTopicUpdate` (which leverages a semaphore) can be used to wait for data in a separate thread. 
-- `popFromTopic` could be used to get a unit of the latest(depending on the buffer type) data
-- // todo: a way to stream larger amounts of data efficiently. As soon as userspace memory-mapping is implemented, efficient high-bandwith reads of streaming data will be possible
+- `userSysCallInterface.waitForTopicUpdate(..)` (which leverages a semaphore) can be used to wait for data in a separate thread
+- `userSysCallInterface.popFromTopic(..)` reads n unit of the latest(depending on the buffer type) data
+- `userSysCallInterface.pushToTopic(..)` pushes n units of data to the topic
+
+Uses direct mapped memory to read/write to a Topic. Is also bound to all preconfigured parameters including the buffer type.
+- `ShareMemTopicsInterface.read(..)` 
+- `ShareMemTopicsInterface.write(..)`
 
 ### Services
 

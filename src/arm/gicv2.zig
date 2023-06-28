@@ -1,4 +1,7 @@
 const std = @import("std");
+const arm = @import("arm");
+const mmu = @import("mmu.zig");
+const AddrSpace = @import("board").boardConfig.AddrSpace;
 
 // identifiers for the vector table addr_handler call
 pub const ExceptionType = enum(u64) {
@@ -43,15 +46,11 @@ export const el032Irq = ExceptionType.el032Irq;
 export const el032Fiq = ExceptionType.el032Fiq;
 export const el032Err = ExceptionType.el032Err;
 
-pub fn Gic(comptime gicdBase: usize) type {
+pub fn Gic(comptime addr_space: AddrSpace) type {
+    const gicCfg = @import("board").PeriphConfig(addr_space).GicV2;
     return struct {
-        const Self = @This();
-        pub fn init() Self {
-            return .{};
-        }
         // initialize gic controller
-        pub fn initGicDriver(self: *Self) !void {
-            _ = self;
+        pub fn init() !void {
             Gicc.init();
             try Gicd.init();
         }
@@ -70,6 +69,8 @@ pub fn Gic(comptime gicdBase: usize) type {
 
         // 8.8 The GIC Distributor register map
         pub const GicdRegMap = struct {
+            pub const gicdBase = gicCfg.base_address; // gicd mmio base address
+
             // Enables interrupts and affinity routing
             pub const ctlr = @intToPtr(*volatile u32, gicdBase + 0x0);
             // Deactivates the corresponding interrupt. These registers are used when saving and restoring GIC state.
@@ -106,7 +107,7 @@ pub fn Gic(comptime gicdBase: usize) type {
 
         // 8.12 the gic cpu interface register map
         pub const GiccRegMap = struct {
-            pub const giccBase = gicdBase + 0x10000; // gicc mmio base address
+            pub const giccBase = gicCfg.base_address + 0x10000; // gicc mmio base address
 
             // cpu interface control register
             pub const ctlr = @intToPtr(*volatile u32, giccBase + 0x000);

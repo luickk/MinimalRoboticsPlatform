@@ -15,7 +15,7 @@ const pl011 = periph.Pl011(.ttbr0);
 const kprint = periph.uart.UartWriter(.ttbr0).kprint;
 
 const arm = @import("arm");
-const gic = arm.gicv2.Gic(board.PeriphConfig(.ttbr0).GicV2);
+const gic = arm.gicv2.Gic(.ttbr0);
 const ProccessorRegMap = arm.processor.ProccessorRegMap;
 const mmu = arm.mmu;
 

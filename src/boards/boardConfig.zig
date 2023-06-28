@@ -74,11 +74,24 @@ pub const BoardConfig = struct {
     }
 };
 
-pub fn Driver(comptime TimerType: type, comptime SecondaryInterruptControllerType: type) type {
-
+pub fn Driver(comptime TimerType: type, comptime SecondaryInterruptControllerType: ?type) type {
     return struct {
         timerDriver: TimerType,
-        secondaryInterruptConrtollerDriver: SecondaryInterruptControllerType,
-
+        secondaryInterruptConrtollerDriver: ?(SecondaryInterruptControllerType orelse usize),
     };
 }
+
+
+
+// pub fn Driver(comptime TimerType: type, comptime SecondaryInterruptControllerType: ?type) type {
+//     if (SecondaryInterruptControllerType != null) {
+//         return struct {
+//             timerDriver: TimerType,
+//             secondaryInterruptConrtollerDriver: SecondaryInterruptControllerType.?,    
+//         };
+//     } else {    
+//         return struct {
+//             timerDriver: TimerType,
+//         };
+//     }
+// }

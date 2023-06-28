@@ -1,4 +1,7 @@
 pub const boardConfig = @import("boardConfig.zig");
+const kpi = @import("kpi");
+
+const timerDriver = @import("timerDriver");const genericTimer = timerDriver.genericTimer;
 
 // mmu starts at lvl1 for which 0xFFFFFF8000000000 is the lowest possible va
 const vaStart: usize = 0xFFFFFF8000000000;
@@ -12,9 +15,6 @@ pub const config = boardConfig.BoardConfig{
         .app_stack_size = 0x20000,
         .app_vm_mem_size = 0x1000000,
 
-        .has_rom = true,
-        // qemus virt machine has no rom
-        .rom_start_addr = 0,
         .rom_size = 0x40000000,
         // since the bootloader is loaded at 0x no bl_load_addr is required
         // (currently only supported for boot without rom)
@@ -39,9 +39,16 @@ pub const config = boardConfig.BoardConfig{
     // null means that the value is not known at compile time but has to be read from a reg or periph
     .timer_freq_in_hertz = null,
     .scheduler_freq_in_hertz = 250,
-    // arm_gt, gic
-    // "-d", "trace:gic*", "-D", "./log.txt"
-    .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "virt", "-m", "10G", "-cpu", "cortex-a53", "-device", "loader,file=zig-out/bin/bootloader.bin,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
+};
+
+
+pub const GenericTimerType = genericTimer.GenericTimer(null, config.scheduler_freq_in_hertz);
+var genericTimerInst = GenericTimerType.init();
+pub const GenericTimerKpiType = kpi.TimerKpi(*GenericTimerType, GenericTimerType.Error, GenericTimerType.setupGt, GenericTimerType.timerInt, GenericTimerType.timer_name);
+
+pub const driver = boardConfig.Driver(GenericTimerKpiType, null) {
+    .timerDriver = GenericTimerKpiType.init(&genericTimerInst),
+    .secondaryInterruptConrtollerDriver = null,
 };
 
 pub fn PeriphConfig(comptime addr_space: boardConfig.AddrSpace) type {

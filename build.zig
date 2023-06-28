@@ -29,8 +29,24 @@ const raspi3b = BoardBuildConf {
 };
 
 
-const currBoard = raspi3b;
-// const currBoard = qemuVirt;
+const qemuVirt = BoardBuildConf {
+    .boardName = "qemuVirt",
+    .has_rom = true,
+    // qemus virt machine has no rom
+    .rom_start_addr = 0,
+    // is duplicate and has to be changed here and in the runtime config file
+    .va_start = 0xFFFFFF8000000000,
+    // is duplicat and address to which the bl is loaded if there is NO rom(which is the case for the raspberry 3b)!
+    // if there is rom, the bootloader must be loaded to 0x0 (and bl_load_addr = null)
+    .bl_load_addr = null,
+    // arm_gt, gic
+    // "-d", "trace:gic*", "-D", "./log.txt"
+    .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "virt", "-m", "10G", "-cpu", "cortex-a53", "-device", "loader,file=zig-out/bin/bootloader.bin,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
+};
+
+
+// const currBoard = raspi3b;
+const currBoard = qemuVirt;
 
 const env_path = "src/environments/basicMultiProcess";
 // const env_path = "src/environments/basicMultithreading";

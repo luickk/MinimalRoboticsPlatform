@@ -22,9 +22,6 @@ const alignForward = std.mem.alignForward;
 
 // arm specific periphs
 const arm = @import("arm");
-const gic = arm.gicv2.Gic(board.PeriphConfig(.ttbr1).GicV2);
-const InterruptIds = gic.InterruptIds;
-const gt = arm.genericTimer;
 const ProccessorRegMap = arm.processor.ProccessorRegMap;
 const mmu = arm.mmu;
 
@@ -202,60 +199,6 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
 
     kprint("[kernel] kernel boot complete \n", .{});
 
-    // // tests
-    // tests.testUserSpaceMem(10);
-    // ProccessorRegMap.exceptionSvc();
-
-    if (board.config.board == .qemuVirt) {
-        gic.init() catch |e| {
-            kprint("[panic] gic init error: {s}\n", .{@errorName(e)});
-            k_utils.panic();
-        };
-
-        gic.Gicd.gicdConfig(InterruptIds.non_secure_physical_timer, 0x2) catch |e| {
-            kprint("[panic] gicd gicdConfig error: {s}\n", .{@errorName(e)});
-            k_utils.panic();
-        };
-        gic.Gicd.gicdSetPriority(InterruptIds.non_secure_physical_timer, 0) catch |e| {
-            kprint("[panic] gicd setPriority error: {s}\n", .{@errorName(e)});
-            k_utils.panic();
-        };
-        gic.Gicd.gicdSetTarget(InterruptIds.non_secure_physical_timer, 1) catch |e| {
-            kprint("[panic] gicd setTarget error: {s}\n", .{@errorName(e)});
-            k_utils.panic();
-        };
-
-        gic.Gicd.gicdClearPending(InterruptIds.non_secure_physical_timer) catch |e| {
-            kprint("[panic] gicd clearPending error: {s}\n", .{@errorName(e)});
-            k_utils.panic();
-        };
-
-        gic.Gicd.gicdEnableInt(InterruptIds.non_secure_physical_timer) catch |e| {
-            kprint("[panic] gicdEnableInt address calc error: {s}\n", .{@errorName(e)});
-            k_utils.panic();
-        };
-
-        ProccessorRegMap.DaifReg.setDaifClr(.{
-            .debug = true,
-            .serr = true,
-            .irqs = true,
-            .fiqs = true,
-        });
-    }
-
-
-    if (board.config.board == .raspi3b) {
-        // bcm2835IntController.init();
-
-        ProccessorRegMap.DaifReg.setDaifClr(.{
-            .debug = true,
-            .serr = true,
-            .irqs = true,
-            .fiqs = true,
-        });
-        kprint("[kernel] ic inited \n", .{});
-    }
-
     tests.testUserPageAlloc(&user_page_alloc) catch |e| {
         kprint("[panic] testUserPageAlloc test error: {s} \n", .{@errorName(e)});
         k_utils.panic();
@@ -288,11 +231,8 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
 
     // kernel setup routines execution
     inline for (setupRoutines.setupRoutines) |routine| {
-        kprint("1 \n", .{});
         routine(scheduler);
-        kprint("2 \n", .{});
     }   
-    kprint("LOL \n", .{});
     
     board.driver.timerDriver.initTimerDriver() catch |e| {
         kprint("[panic] timer driver error: {s} \n", .{@errorName(e)});
@@ -300,10 +240,12 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
     };
     kprint("[kernel] timer inited \n", .{});    
 
-    board.driver.secondaryInterruptConrtollerDriver.initIcDriver() catch |e| {
-        kprint("[panic] initIcDriver error: {s} \n", .{@errorName(e)});
-        k_utils.panic();
-    };
+    if (board.driver.secondaryInterruptConrtollerDriver != null) |SecondaryIc| {
+        SecondaryIc.initIcDriver() catch |e| {
+            kprint("[panic] initIcDriver error: {s} \n", .{@errorName(e)});
+            k_utils.panic();
+        };
+    }
 
     // kernel thread scheduler init
     inline for (kernelThreads.threads) |generic_thread| {

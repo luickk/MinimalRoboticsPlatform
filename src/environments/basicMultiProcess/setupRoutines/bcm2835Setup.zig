@@ -6,17 +6,30 @@ const cpuContext = arm.cpuContext;
 const periph = @import("periph");
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 
+const ProccessorRegMap = arm.processor.ProccessorRegMap;
 
 const sharedKernelServices = @import("sharedKernelServices");
 const Scheduler = sharedKernelServices.Scheduler;
 
-pub fn bcm2835IrqHandlerSetup(scheduler: *Scheduler) void {
+pub fn bcm2835Setup(scheduler: *Scheduler) void {
     _ = scheduler;
+
+    // enabling arm generic timer irq
+    @intToPtr(*volatile u32, board.PeriphConfig(.ttbr1).ArmGenericTimer.base_address).* = 1 << 1 | 1 << 3;
+
+    
+    ProccessorRegMap.DaifReg.setDaifClr(.{
+        .debug = true,
+        .serr = true,
+        .irqs = true,
+        .fiqs = true,
+    });
+
     board.driver.secondaryInterruptConrtollerDriver.addIcHandler(&irqHandler) catch |e| {
         kprint("[error] addIcHandler error: {s} \n", .{@errorName(e)});
         while(true) {}
     };
-    kprint("inited raspberry secondary Ic \n", .{});
+    kprint("inited raspberry secondary Ic and arm timer \n", .{});
 }
 
 pub const RegValues = struct {
@@ -132,11 +145,13 @@ pub fn irqHandler(context: *cpuContext.CpuContext) void {
         Bank0.pending1 => {
             switch (irq_bank_1) {
                 Bank1.timer1 => {
+                    if (std.mem.eql(u8, board.driver.timerDriver.timer_name, "bcm2835_timer")) {
                         board.driver.timerDriver.timerTick(context) catch |e| {
                             kprint("[panic] timerDriver timerTick error: {s} \n", .{@errorName(e)});
                             while(true){}
                         };
-                    },
+                    }
+                },
                 else => {
                     // kprint("Not supported 1 irq num: {s} \n", .{@tagName(irq_bank_1)});
                 },
@@ -151,18 +166,17 @@ pub fn irqHandler(context: *cpuContext.CpuContext) void {
             }
         },
         Bank0.armTimer => {
-            board.driver.timerDriver.timerTick(context) catch |e| {
-                kprint("[panic] timerDriver timerTick error: {s} \n", .{@errorName(e)});
-                while(true){}
-            };
+            if (std.mem.eql(u8, board.driver.timerDriver.timer_name, "arm_gt")) {
+                board.driver.timerDriver.timerTick(context) catch |e| {
+                    kprint("[panic] timerDriver timerTick error: {s} \n", .{@errorName(e)});
+                    while(true){}
+                };
+            }
         },
         else => {
             // kprint("Not supported bank(neither 1/2) irq num: {d} \n", .{intController.RegMap.pendingBasic.*});
             // raspberries timers are a mess and I'm currently unsure if the Arm Generic timer
             // has an enum defined in the banks or if it's not defined through the bcm28835 system.
-            board.driver.timerDriver.timerTick(context) catch |e| {
-                kprint("[panic] timerDriver timerTick error: {s} \n", .{@errorName(e)});
-                while(true){}            };
         },
     }
 }

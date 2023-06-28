@@ -1,9 +1,24 @@
+const board = @import("board");
 const sharedKernelServices = @import("sharedKernelServices");
 const Scheduler = sharedKernelServices.Scheduler;
 
+const bcm2835Setup = @import("bcm2835Setup.zig").bcm2835Setup;
+const qemuVirtSetup = @import("qemuVirtSetup.zig").qemuVirtSetup;
 
-pub const bcm2835IrqHandler = @import("bcm2835IrqHandler.zig");
-pub const bcm2835Timer = @import("bcm2835Timer.zig");
 
 
-pub const setupRoutines = [_]fn (scheduler: *Scheduler) void{ bcm2835IrqHandler.bcm2835IrqHandlerSetup, bcm2835Timer.bcm2835TimerSetup };
+const boardSpecificSetup = blk: {
+
+    switch (board.config.board) {
+    	.raspi3b => {
+			break :blk [_]fn (scheduler: *Scheduler) void{ bcm2835Setup };
+    	},
+    	.qemuVirt => {
+			break :blk [_]fn (scheduler: *Scheduler) void{ qemuVirtSetup };	
+    	}
+	}
+
+};
+
+// setupRoutines array is loaded and inited by the kernel 
+pub const setupRoutines = [_]fn (scheduler: *Scheduler) void{  } ++ boardSpecificSetup;
