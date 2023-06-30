@@ -1,4 +1,4 @@
-pub const boardConfig = @import("boardConfig.zig");
+pub const boardConfig = @import("configTemplates").boardConfigTemplate;
 const kpi = @import("kpi");
 
 const timerDriver = @import("timerDriver");
@@ -43,9 +43,6 @@ pub const config = boardConfig.BoardConfig {
 };
 
 // --- driver ---
-
-// todo => fix bootloader addresspace missmatch!!
-
 pub const GenericTimerType = genericTimer.GenericTimer(null, config.scheduler_freq_in_hertz);
 var genericTimerInst = GenericTimerType.init();
 

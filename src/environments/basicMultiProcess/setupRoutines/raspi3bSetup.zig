@@ -25,10 +25,12 @@ pub fn bcm2835Setup(scheduler: *Scheduler) void {
         .fiqs = true,
     });
 
-    board.driver.secondaryInterruptConrtollerDriver.addIcHandler(&irqHandler) catch |e| {
-        kprint("[error] addIcHandler error: {s} \n", .{@errorName(e)});
-        while(true) {}
-    };
+    if (board.driver.secondaryInterruptConrtollerDriver) |secondary_ic| {
+        secondary_ic.addIcHandler(&irqHandler) catch |e| {
+            kprint("[error] addIcHandler error: {s} \n", .{@errorName(e)});
+            while(true) {}
+        };
+    }
     kprint("inited raspberry secondary Ic and arm timer \n", .{});
 }
 

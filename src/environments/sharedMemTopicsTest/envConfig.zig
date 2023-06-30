@@ -1,4 +1,4 @@
-pub const envConfTemplate = @import("envConfigTemplate.zig");
+pub const envConfTemplate = @import("configTemplates").envConfigTemplate;
 const TopicConf = envConfTemplate.EnvConfig.TopicConf;
 
 pub const env_config = envConfTemplate.EnvConfig{

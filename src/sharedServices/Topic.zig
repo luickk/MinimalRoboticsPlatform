@@ -2,11 +2,12 @@ const std = @import("std");
 const utils = @import("utils");
 const board = @import("board");
 const env = @import("environment");
+
 const TopicBufferTypes = env.envConfTemplate.EnvConfig.TopicBufferTypes;
 
-// const appLib = @import("appLib");
-// const sysCalls = appLib.sysCalls;
-// const kprint = appLib.sysCalls.SysCallPrint.kprint;
+const appLib = @import("appLib");
+const sysCalls = appLib.sysCalls;
+const kprint = appLib.sysCalls.SysCallPrint.kprint;
 
 // todo => make configurable and implement err if exceeded
 const maxWaitingTasks = 10;
@@ -21,10 +22,10 @@ pub const UsersapceMultiBuff = struct {
     behaviour_type: TopicBufferTypes,
 
     // this is the only state which is restored, all other variables will reset upon each call when used by SharedMemTopicsInterface
-    curr_read_write_ptr: usize,
+    curr_read_write_ptr: *volatile usize,
 
-    pub fn init(topic_mem: []u8, buff_type: TopicBufferTypes) UsersapceMultiBuff {
-        return .{ .buff = topic_mem, .behaviour_type = buff_type, .curr_read_write_ptr = 0};
+    pub fn init(topic_mem: []u8, buff_curr_read_write_ptr_state: *volatile usize, buff_type: TopicBufferTypes) UsersapceMultiBuff {
+        return .{ .buff = topic_mem, .behaviour_type = buff_type, .curr_read_write_ptr = buff_curr_read_write_ptr_state};
     }
 
     pub fn write(self: *UsersapceMultiBuff, data: []u8) !void {
@@ -50,32 +51,31 @@ pub const UsersapceMultiBuff = struct {
     }
 
     pub fn write_ring_buff(self: *UsersapceMultiBuff, data: []u8) !void {
-        if (self.curr_read_write_ptr + data.len > self.buff.len) return Error.BuffOutOfSpace;
-        // kprint("copying {any} to {*} \n", .{data, self.buff.ptr});
-        std.mem.copy(u8, self.buff[self.curr_read_write_ptr..], data);
-        self.curr_read_write_ptr += data.len;
+        if (self.curr_read_write_ptr.* + data.len > self.buff.len) return Error.BuffOutOfSpace;
+        std.mem.copy(u8, self.buff[self.curr_read_write_ptr.*..], data);
+        self.curr_read_write_ptr.* += data.len;
     }
 
     pub fn read_ring_buff(self: *UsersapceMultiBuff, ret_buff: []u8) !void {
-        if (self.curr_read_write_ptr < ret_buff.len) return Error.BuffOutOfSpace;
-        var data = self.buff[self.curr_read_write_ptr - ret_buff.len .. self.curr_read_write_ptr];
-        self.curr_read_write_ptr -= ret_buff.len;
+        if (self.curr_read_write_ptr.* < ret_buff.len) return Error.BuffOutOfSpace;
+        var data = self.buff[self.curr_read_write_ptr.* - ret_buff.len .. self.curr_read_write_ptr.*];
+        self.curr_read_write_ptr.* -= ret_buff.len;
 
         std.mem.copy(u8, ret_buff, data);
     }
 
     pub fn write_continous_buff(self: *UsersapceMultiBuff, data: []u8) !void {
-        var buff_pointer = try std.math.mod(usize, self.curr_read_write_ptr, self.buff.len);
+        var buff_pointer = try std.math.mod(usize, self.curr_read_write_ptr.*, self.buff.len);
 
         std.mem.copy(u8, self.buff[buff_pointer..], data);
         if (buff_pointer + data.len > self.buff.len) {
             std.mem.copy(u8, self.buff[0..], data[self.buff.len..]);
         }
-        self.curr_read_write_ptr += data.len;
+        self.curr_read_write_ptr.* += data.len;
     }
 
     pub fn read_continous_buff(self: *UsersapceMultiBuff, ret_buff: []u8) !void {
-        var buff_pointer = try std.math.mod(usize, self.curr_read_write_ptr, self.buff.len);
+        var buff_pointer = try std.math.mod(usize, self.curr_read_write_ptr.*, self.buff.len);
 
         var lower_read_bound: usize = 0;
         if (buff_pointer > ret_buff.len) lower_read_bound = buff_pointer - ret_buff.len;
@@ -104,9 +104,9 @@ pub fn Topic(comptime Semaphore: type) type {
         waiting_tasks: [maxWaitingTasks]?Semaphore,
         n_waiting_taks: usize,
 
-        pub fn init(topics_mem: []u8, id: usize, buff_type: TopicBufferTypes) Self {
+        pub fn init(topics_mem: []u8, buff_curr_read_write_ptr_state: *volatile usize, id: usize, buff_type: TopicBufferTypes) Self {
             return .{
-                .buff = UsersapceMultiBuff.init(topics_mem, buff_type),
+                .buff = UsersapceMultiBuff.init(topics_mem, buff_curr_read_write_ptr_state, buff_type),
                 .id = id,
                 .opened = false,
                 .waiting_tasks = [_]?Semaphore{null} ** maxWaitingTasks,

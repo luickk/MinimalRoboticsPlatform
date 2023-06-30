@@ -240,8 +240,8 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
     };
     kprint("[kernel] timer inited \n", .{});    
 
-    if (board.driver.secondaryInterruptConrtollerDriver != null) |SecondaryIc| {
-        SecondaryIc.initIcDriver() catch |e| {
+    if (board.driver.secondaryInterruptConrtollerDriver) |secondary_ic| {
+        secondary_ic.initIcDriver() catch |e| {
             kprint("[panic] initIcDriver error: {s} \n", .{@errorName(e)});
             k_utils.panic();
         };

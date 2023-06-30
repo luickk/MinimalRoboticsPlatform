@@ -45,15 +45,16 @@ const qemuVirt = BoardBuildConf {
 };
 
 
-// const currBoard = raspi3b;
-const currBoard = qemuVirt;
+const currBoard = raspi3b;
+// const currBoard = qemuVirt;
 
-const env_path = "src/environments/basicMultiProcess";
+// const env_path = "src/environments/basicMultiProcess";
 // const env_path = "src/environments/basicMultithreading";
 // const env_path = "src/environments/multiProcAndThreading";
 // const env_path = "src/environments/sysCallTopicsTest";
-// const env_path = "src/environments/sharedMemTopicsTest";
+const env_path = "src/environments/sharedMemTopicsTest";
 // const env_path = "src/environments/waitTest";
+
 
 // packages...
 // SOC builtin features
@@ -71,6 +72,8 @@ var periph = std.build.Pkg{ .name = "periph", .source = .{ .path = "src/periph/p
 var sharedKernelServices = std.build.Pkg{ .name = "sharedKernelServices", .source = .{ .path = "src/kernel/sharedKernelServices/sharedKernelServices.zig" } };
 // package for all applications to call syscall
 var appLib = std.build.Pkg{ .name = "appLib", .source = .{ .path = "src/appLib/appLib.zig" } };
+
+var configTemplates = std.build.Pkg{ .name = "configTemplates", .source = .{ .path = "src/configTemplates/configTemplates.zig" } };
 
 //kernel threads
 var kernelThreads = std.build.Pkg{ .name = "kernelThreads", .source = .{ .path = env_path ++ "/kernelThreads/threads.zig" } };
@@ -94,8 +97,9 @@ pub fn build(b: *std.build.Builder) !void {
     kpi.dependencies = &.{ sharedKernelServices, arm };
     interruptControllerDriver.dependencies = &.{ board, arm };
     timerDriver.dependencies = &.{ board, utils, periph };
-    board.dependencies = &.{ kpi, utils, arm, interruptControllerDriver, timerDriver };
-    sharedServices.dependencies = &.{ board, environment };
+    board.dependencies = &.{ kpi, utils, arm, interruptControllerDriver, timerDriver, configTemplates };
+    environment.dependencies = &.{ configTemplates };
+    sharedServices.dependencies = &.{ board, appLib, environment };
     sharedKernelServices.dependencies = &.{ board, environment, appLib, arm, utils, sharedServices, periph };
     periph.dependencies = &.{board};
     utils.dependencies = &.{ board, arm };
@@ -117,7 +121,7 @@ pub fn build(b: *std.build.Builder) !void {
     const temp_bl_ld = "zig-cache/tmp/tempBlLinker.ld";
     bl_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_bl_ld });
     bl_exe.addObjectFile("src/bootloader/bootloader.zig");
-    bl_exe.addCSourceFile("src/bootloader/board/" ++ currBoard.boardName ++ "/boot.S", &.{});
+    bl_exe.addCSourceFile("src/boards/drivers/bootInit/" ++ currBoard.boardName ++ "_boot.S", &.{});
     bl_exe.addCSourceFile("src/bootloader/exc_vec.S", &.{});
     bl_exe.install();
 
@@ -218,6 +222,7 @@ fn addApp(b: *std.build.Builder, build_mode: std.builtin.Mode, path: []const u8)
     app.addObjectFile(try std.fmt.allocPrint(b.allocator, "{s}/main.zig", .{path}));
     app.addPackage(periph);
     app.addPackage(board);
+    app.addPackage(configTemplates);
     app.addPackage(appLib);
     app.install();
     return app;

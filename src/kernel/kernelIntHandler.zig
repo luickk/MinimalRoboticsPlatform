@@ -59,8 +59,8 @@ pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(
         },
         // timer interrupts with custom timers per board
         .el1Irq, .el0Irq => {
-            if (board.driver.secondaryInterruptConrtollerDriver != null) |SecondaryIc| {
-                if (SecondaryIc.context.handler_fn) |handler| handler(&context);
+            if (board.driver.secondaryInterruptConrtollerDriver) |secondary_ic| {
+                if (secondary_ic.context.handler_fn) |handler| handler(&context);
             }
             
             if (std.mem.eql(u8, board.driver.timerDriver.timer_name, "arm_gt")) {

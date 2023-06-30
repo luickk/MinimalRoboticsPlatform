@@ -12,6 +12,7 @@ const arm = @import("arm");
 const KSemaphore = @import("KSemaphore.zig").Semaphore;
 const CpuContext = arm.cpuContext.CpuContext;
 const Topic = @import("sharedServices").Topic(KSemaphore);
+const alignForward = std.mem.alignForward;
 
 pub const SysCallsTopicsInterface = struct {
     topics: [env.env_config.conf_topics.len]Topic,
@@ -21,15 +22,19 @@ pub const SysCallsTopicsInterface = struct {
     // the scheduler is a double pointer because the Topics are inited before the scheduler, so the scheduler pointer changes
     pub fn init(user_page_alloc: *UserPageAllocator, scheduler: *Scheduler) !SysCallsTopicsInterface {
         var accumulatedTopicsBuffSize: usize = 0;
+
         for (env.env_config.conf_topics) |topic_conf| {
-            accumulatedTopicsBuffSize += topic_conf.buffer_size;
+            accumulatedTopicsBuffSize += topic_conf.buffer_size + @sizeOf(usize);
         }
         const pages_req = (try std.math.mod(usize, accumulatedTopicsBuffSize, board.config.mem.va_user_space_gran.page_size)) + 1;
+
         const topics_mem = try user_page_alloc.allocNPage(pages_req);
         var topics = [_]Topic{undefined} ** env.env_config.conf_topics.len;
         var used_topics_mem: usize = 0;
+        const topic_read_write_buff_ptr = @intToPtr(*volatile usize, used_topics_mem);
         for (env.env_config.conf_topics) |topic_conf, i| {
-            topics[i] = Topic.init(topics_mem[used_topics_mem .. used_topics_mem + topic_conf.buffer_size], topic_conf.id, topic_conf.buffer_type);
+            topic_read_write_buff_ptr.* = 0;
+            topics[i] = Topic.init(topics_mem[used_topics_mem + @sizeOf(usize) .. used_topics_mem + topic_conf.buffer_size], topic_read_write_buff_ptr, topic_conf.id, topic_conf.buffer_type);
             used_topics_mem += topic_conf.buffer_size;
         }
         return .{
@@ -85,6 +90,10 @@ pub const SysCallsTopicsInterface = struct {
 
     pub fn makeTaskWait(self: *SysCallsTopicsInterface, topic_id: usize, pid: usize, irq_context: *CpuContext) void {
         if (self.findTopicById(topic_id)) |index| {
+            if (self.topics[index].n_waiting_taks > self.topics[index].waiting_tasks.len) {
+                kprint("[panic] Topic maxWaitingTasks exceeded \n", .{});
+                while (true) {}
+            }
             // is increased before Semaphore wait call because that may invoke the scheduler which would thus not increase the counter
             self.topics[index].n_waiting_taks += 1;
             // todo => add error if n_waiting_tasks is full

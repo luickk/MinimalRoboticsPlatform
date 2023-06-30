@@ -20,14 +20,17 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     var ret_buff = [_]u8{0} ** 1;
 
     var topics_interf = SharedMemTopicsInterface.init() catch |e| {
-        kprint("app3 SharedMemTopicsInterface init err: {s} \n", .{ @errorName(e) });
+        kprint("app1 SharedMemTopicsInterface init err: {s} \n", .{ @errorName(e) });
         while (true) {}
     };
+    // var topics_interfaces_read = @intToPtr(*volatile [1000]usize, 0x20000000);
     while (true) {
+        // kprint("topics interface read: {any} \n", .{topics_interfaces_read.*});
         topics_interf.read(1, &ret_buff) catch |e| {
-            kprint("app3 read err: {s} \n", .{ @errorName(e) });
+            kprint("app1 read err: {s} \n", .{ @errorName(e) });
             while (true) {}      
         };
         kprint("read: {any} \n", .{ret_buff});
     }
 }
+

@@ -45,8 +45,10 @@ There are two ways to communicate over a Topic, one is through SysCalls and the 
 
 Topics can be used for all kinds of statically sized data. Depending on the amount of data per time unit, there a re different methods of retrievals. 
 - `userSysCallInterface.waitForTopicUpdate(..)` (which leverages a semaphore) can be used to wait for data in a separate thread
-- `userSysCallInterface.popFromTopic(..)` reads n unit of the latest(depending on the buffer type) data
-- `userSysCallInterface.pushToTopic(..)` pushes n units of data to the topic
+
+Uses sys-calls as interface. Pushes/reads n units of the latest(depending on the buffer type) data
+- `userSysCallInterface.popFromTopic(..)` 
+- `userSysCallInterface.pushToTopic(..)`
 
 Uses direct mapped memory to read/write to a Topic. Is also bound to all preconfigured parameters including the buffer type.
 - `ShareMemTopicsInterface.read(..)` 

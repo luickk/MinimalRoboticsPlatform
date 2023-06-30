@@ -1,4 +1,4 @@
-pub const boardConfig = @import("boardConfig.zig");
+pub const boardConfig = @import("configTemplates").boardConfigTemplate;
 const kpi = @import("kpi");
 
 const timerDriver = @import("timerDriver");const genericTimer = timerDriver.genericTimer;
