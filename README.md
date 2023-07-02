@@ -11,6 +11,85 @@ Thanks to Zigs lazy compilation, driver handlers can be implemented and not be u
 
 This project is aiming to build an experience that gives the end user (developer) as much guidance and form as necessary, to build a safe and secure platform, with as much freedom as possible. This is achieved by reducing complex runtime defined communications and allocations to an absolute minimum, whilst also being flexible enough to be used across a number of boards.
 
+## Project Structure
+
+The project aims to give as much guidance to the developer as possible, that also applies to where to put which component of the kernel. In general the projects layout looks like that:
+   
+├── build.zig
+├── src
+│    ├── appLib
+│    │    └── > everything that is linked with userspace apps
+│    ├── arm
+│    │    └── > all the "drivers" required for the arm soc. linked with the kernel
+│    ├── boards 
+│    │    ├── * contains drivers and board configuration files (qemuVirt.zig, raspi3b.zig..). Which board is compiled can be selected in build.zig, the respective configuration file is then selected and linked. *
+│    │    ├── drivers
+│    │    │    ├── > everything that is board specific, timer, irq, io code
+│    │    │    ├── bootInit
+│    │    │    │    ├── > board specific startup code that sets up the correct el, exc. vec. table,.. and and calls the bootloader entry fn. linked witht the bootloader
+│    │    │    │    ├── qemuVirt_boot.S
+│    │    │    │    └── ..
+│    │    │    ├── interruptController
+│    │    │    │    ├── > board specific drivers for additional(to the arm gic) interrupt controllers, linked with the kernel
+│    │    │    │    ├── bcm2835InterruptController.zig
+│    │    │    │    └── ..
+│    │    │    └── timer
+│    │    │        ├── > board specific drivers for additional(to the arm gt) timer, linked with the kernel
+│    │    │        ├── bcm2835Timer.zig
+│    │    │        └── ..
+│    │    ├── qemuVirt.zig
+│    │    └── ..
+│    ├── bootloader
+│    │    └── > contains everything required to make the bootloader boot
+│    ├── configTemplates
+│    │    └── > contains all the templates for different configurations. E.g. the board or env. configuration
+│    ├── environments
+│    │    ├── > actual development space. Every environment is a set of userspace apps and kernel threads. Only one environment at a time can be compiled. Which environment is compiled can be selected in the build.zig.
+│    │    ├── basicKernelFunctionalityTest
+│    │    │    ├── > environment for basic kernel integration tests. In the envConfig.zig everthing environment can be configured. E.g. how many topics, with which buffer type they operate and so on..
+│    │    │    ├── envConfig.zig
+│    │    │    ├── kernelThreads
+│    │    │    │    ├── > all kernel threads required by the board. E.g. a handler for the additional(or secondary) interrupt controller. linked with the kernel! 
+│    │    │    │    ├── threads.zig
+│    │    │    │    └── ..
+│    │    │    ├── setupRoutines
+│    │    │    │    ├── > setup routines called on kernel entry. E.g. the init of additional interrupt controller handler. linked with the kernel!
+│    │    │    │    ├── routines.zig
+│    │    │    │    └── ..
+│    │    │    └── userApps
+│    │    │        ├── > actual userspace with all the userspace apps. every app is build seperately
+│    │    │        ├── _semaphoreTest > (apps starting with underscore and not compiled..)
+│    │    │        │    ├── linker.ld
+│    │    │        │    └── main.zig
+│    │    │        └── mutexTest
+│    │    │            ├── linker.ld
+│    │    │            └── main.zig
+│    │    ├── ..
+│    ├── kernel
+│    │    ├── > actual kernel space
+│    │    ├── bins
+│    │    │    └── > build binaries, is only tmp
+│    │    ├── exc_vec.S
+│    │    ├── kernel.zig
+│    │    ├── ..
+│    │    ├── sharedKernelServices
+│    │    │    ├── SysCallsTopicsInterface.zig
+│    │    │    ├── UserPageAllocator.zig
+│    │    │    └── > all services that have to be accessed over from the drivers for exampled., linked with the kernel
+│    ├── kpi
+│    │    ├── kpi.zig
+│    │    ├── secondaryInterruptControllerKpi.zig
+│    │    └── > kernel programming interface for drivers. e.g. the timer or secondary irq handler driver. inited in the board configuration file
+│    ├── periph
+│    │    ├── periph.zig
+│    │    ├── pl011.zig
+│    │    └── > all the peripheral devices code
+│    ├── sharedServices
+│    │    ├── Topic.zig
+│    │    └── > code thats so basic that it's linked with both the kernel and the userspace
+│    └── utils
+│        └── utils.zig
+
 ## Why not Rust?
 
 I began this project in Rust but decided to switch to Zig (equally modern). Here is why.

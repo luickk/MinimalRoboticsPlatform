@@ -49,29 +49,11 @@ pub const SharedMemTopicsInterface = struct {
         }
     }
 
-    // todo => imeplement topic push notifications
     pub fn write(self: *SharedMemTopicsInterface, id: usize, data: []u8) !void {
         if (self.findTopicById(id)) |index| {
             try self.topics[index].write(data);
-            // for (self.topics[index].waiting_tasks) |*semaphore| {
-            //     if (semaphore.* != null) {
-            //         semaphore.*.?.signal(self.scheduler);
-            //         semaphore.* = null;
-            //         self.topics[index].n_waiting_taks -= 1;
-            //     }
-            // }
         }
     }
-
-    // pub fn makeTaskWait(self: *SharedMemTopicsInterface, topic_id: usize, pid: usize, irq_context: *CpuContext) void {
-    //     if (self.findTopicById(topic_id)) |index| {
-    //         // // is increased before Semaphore wait call because that may invoke the scheduler which would thus not increase the counter
-    //         // self.topics[index].n_waiting_taks += 1;
-    //         // // todo => implement error if n_waiting_tasks is full
-    //         // self.topics[index].waiting_tasks[self.topics[index].n_waiting_taks - 1] = Semaphore.init(0);
-    //         // self.topics[index].waiting_tasks[self.topics[index].n_waiting_taks - 1].?.wait(pid, self.scheduler, irq_context);
-    //     }
-    // }
 
     // returns index
     fn findTopicById(self: *SharedMemTopicsInterface, id: usize) ?usize {

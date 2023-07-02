@@ -1,5 +1,7 @@
 const sharedKernelServices = @import("sharedKernelServices");
 const Scheduler = sharedKernelServices.Scheduler;
 
+const Thread = fn (scheduler: *Scheduler) noreturn;
+
 // threads array is loaded and inited by the kernel 
-pub const threads = [_]fn (scheduler: *Scheduler) noreturn{ };
+pub const threads = [_]Thread{ };

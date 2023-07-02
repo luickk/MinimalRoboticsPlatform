@@ -20,7 +20,7 @@ pub const Semaphore = struct {
     }
     pub fn wait(self: *Semaphore, pid: usize, scheduler: *Scheduler, irq_context: *CpuContext) void {
         self.i -= 1;
-        if (self.i < 0) {
+        if (self.i < 1) {
             self.locked_tasks_index += 1;
             self.waiting_processes[self.locked_tasks_index] = pid;
         scheduler.setProcessState(pid, .halted, irq_context);
@@ -28,7 +28,7 @@ pub const Semaphore = struct {
     }
 
     pub fn signal(self: *Semaphore, scheduler: *Scheduler) void {
-        if (self.i < 0) {
+        if (self.i < 1) {
             if (self.waiting_processes[self.locked_tasks_index]) |locked_pid| {
                 self.i += 1;
                 self.locked_tasks_index -= 1;

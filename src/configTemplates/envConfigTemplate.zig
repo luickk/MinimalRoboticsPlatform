@@ -10,6 +10,7 @@ pub const EnvConfig = struct {
         debug_desc: []const u8,
         // permission_level:
     };
+    topic_max_waiting_tasks: usize,
     // comms model..
     conf_topics: [1]TopicConf,
 };

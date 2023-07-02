@@ -12,6 +12,7 @@ pub const AppAllocator = struct {
         AddrNotInMem,
         AddrNotValid,
         MemBaseNotAligned,
+        NoHeapStartLabel
     };
     const maxChunks = @divExact(board.config.mem.app_vm_mem_size, appAllocatorChunkSize);
 
@@ -19,13 +20,18 @@ pub const AppAllocator = struct {
     kernel_mem: [maxChunks]bool,
     used_chunks: usize,
 
-    pub fn init(mem_base: usize) !AppAllocator {
-        if (mem_base % 8 != 0) return Error.MemBaseNotAligned;
+    pub fn init(mem_base: ?usize) !AppAllocator {
+        var heap_start: usize = undefined;
+        if (mem_base == null) {
+            const _heap_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "_heap_start" }) orelse return Error.NoHeapStartLabel);
+            heap_start = _heap_start;
+        } else heap_start = mem_base.?;
+        if (heap_start % 8 != 0) return Error.MemBaseNotAligned;
         var ka = AppAllocator{
             .kernel_mem = [_]bool{false} ** maxChunks,
             // can currently only increase and indicates at which point findFree() is required
             .used_chunks = 0,
-            .mem_base = mem_base,
+            .mem_base = heap_start,
         };
         return ka;
     }

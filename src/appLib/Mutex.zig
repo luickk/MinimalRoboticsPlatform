@@ -28,7 +28,6 @@ pub const Mutex = struct {
         }
         self.curr_lock_owner_pid = my_pid;
         self.locked.store(true, .Unordered);
-        kprint("lock: {any} \n", .{self.locked.load(.Unordered)});
     }
 
     pub fn unlock(self: *Mutex) void {
@@ -38,6 +37,5 @@ pub const Mutex = struct {
             self.last_waiting_proc_index -= 1;
         }
         self.locked.store(false, .Unordered);
-        kprint("unlock: {any}", .{self.locked.load(.Unordered)});
     }
 };

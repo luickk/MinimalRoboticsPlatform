@@ -24,8 +24,11 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
         while (true) {}
     };
     while (true) {
-        // kprint("SharedMemTopicsInterface read: {any} \n", .{topics_interf.read(1, &ret_buff)});
-        _ = topics_interf;
-        _ = ret_buff;
+        topics_interf.read(1, &ret_buff) catch |e| {
+            kprint("app3 SharedMemTopicsInterface read: {s} \n", .{ @errorName(e) });
+        };
+        kprint("SharedMemTopicsInterface read: {any} \n", .{ ret_buff });
+        // _ = topics_interf;
+        // _ = ret_buff;
     }
 }

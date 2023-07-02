@@ -96,8 +96,7 @@ pub const SysCallsTopicsInterface = struct {
             }
             // is increased before Semaphore wait call because that may invoke the scheduler which would thus not increase the counter
             self.topics[index].n_waiting_taks += 1;
-            // todo => add error if n_waiting_tasks is full
-            self.topics[index].waiting_tasks[self.topics[index].n_waiting_taks - 1] = KSemaphore.init(0);
+            self.topics[index].waiting_tasks[self.topics[index].n_waiting_taks - 1] = KSemaphore.init(1);
             self.topics[index].waiting_tasks[self.topics[index].n_waiting_taks - 1].?.wait(pid, self.scheduler, irq_context);
         }
     }

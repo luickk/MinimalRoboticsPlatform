@@ -17,12 +17,7 @@ var shared_mutex: *Mutex = &mutex;
 export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     kprint("initial pid: {d} \n", .{pid});
 
-    const _heap_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "_heap_start" }) orelse {
-        kprint("[panic] error reading _heap_start label\n", .{});
-        while (true) {}
-    });
-
-    var alloc = AppAlloc.init(_heap_start) catch |e| {
+    var alloc = AppAlloc.init(null) catch |e| {
         kprint("[panic] AppAlloc init error: {s}\n", .{@errorName(e)});
         while (true) {}
     };

@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const warn = @import("std").debug.warn;
-const os = @import("std").os;
+const warn = std.debug.warn;
+const os = std.os;
 
 const Error = error{BlExceedsRomSize};
 
@@ -52,8 +52,8 @@ const currBoard = raspi3b;
 // const env_path = "src/environments/basicMultithreading";
 // const env_path = "src/environments/multiProcAndThreading";
 // const env_path = "src/environments/sysCallTopicsTest";
-const env_path = "src/environments/sharedMemTopicsTest";
-// const env_path = "src/environments/waitTest";
+// const env_path = "src/environments/sharedMemTopicsTest";
+const env_path = "src/environments/basicKernelFunctionalityTest";
 
 
 // packages...
@@ -205,7 +205,7 @@ fn setEnvironment(b: *std.build.Builder, step: *std.build.Step, build_mode: std.
     var dir = try std.fs.cwd().openIterableDir(user_apps_path, .{});
     var it = dir.iterate();
     while (try it.next()) |folder| {
-        if (folder.kind != .Directory) continue;
+        if (folder.kind != .Directory or folder.name[0] == '_') continue;
         const app = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ user_apps_path, folder.name }));
         step.dependOn(&app.install_step.?.step);
         step.dependOn(&app.installRaw(try b.allocator.dupe(u8, folder.name), .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/apps/" } }).step);

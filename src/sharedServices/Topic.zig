@@ -9,9 +9,6 @@ const appLib = @import("appLib");
 const sysCalls = appLib.sysCalls;
 const kprint = appLib.sysCalls.SysCallPrint.kprint;
 
-// todo => make configurable and implement err if exceeded
-const maxWaitingTasks = 10;
-
 // changes behaviour based on runtime information
 pub const UsersapceMultiBuff = struct {
     const Error = error{
@@ -101,7 +98,7 @@ pub fn Topic(comptime Semaphore: type) type {
         buff: UsersapceMultiBuff,
         id: usize,
         opened: bool,
-        waiting_tasks: [maxWaitingTasks]?Semaphore,
+        waiting_tasks: [env.env_config.topic_max_waiting_tasks]?Semaphore,
         n_waiting_taks: usize,
 
         pub fn init(topics_mem: []u8, buff_curr_read_write_ptr_state: *volatile usize, id: usize, buff_type: TopicBufferTypes) Self {
@@ -109,7 +106,7 @@ pub fn Topic(comptime Semaphore: type) type {
                 .buff = UsersapceMultiBuff.init(topics_mem, buff_curr_read_write_ptr_state, buff_type),
                 .id = id,
                 .opened = false,
-                .waiting_tasks = [_]?Semaphore{null} ** maxWaitingTasks,
+                .waiting_tasks = [_]?Semaphore{null} ** env.env_config.topic_max_waiting_tasks,
                 .n_waiting_taks = 0,
             };
         }
