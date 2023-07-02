@@ -260,3 +260,30 @@ pub fn waitForTopicUpdate(topic_id: usize) void {
         : "x0", "x1", "x8"
     );
 }
+
+
+pub fn increaseCurrTaskPreemptCounter() void {
+    asm volatile (
+    // args
+        // sys call id
+        \\mov x8, #15
+        \\svc #0
+        :
+        :
+        : "x8"
+    );
+}
+
+
+
+pub fn decreaseCurrTaskPreemptCounter() void {
+    asm volatile (
+    // args
+        // sys call id
+        \\mov x8, #16
+        \\svc #0
+        :
+        :
+        : "x8"
+    );
+}

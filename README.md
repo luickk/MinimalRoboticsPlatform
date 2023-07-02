@@ -14,12 +14,15 @@ This project is aiming to build an experience that gives the end user (developer
 ## Project Structure
 
 The project aims to give as much guidance to the developer as possible, that also applies to where to put which component of the kernel. In general the projects layout looks like that:
-   
+
+```bash
 ├── build.zig
 ├── src
 │    ├── appLib
+│    │    ├── ..
 │    │    └── > everything that is linked with userspace apps
 │    ├── arm
+│    │    ├── ..
 │    │    └── > all the "drivers" required for the arm soc. linked with the kernel
 │    ├── boards 
 │    │    ├── * contains drivers and board configuration files (qemuVirt.zig, raspi3b.zig..). Which board is compiled can be selected in build.zig, the respective configuration file is then selected and linked. *
@@ -40,8 +43,10 @@ The project aims to give as much guidance to the developer as possible, that als
 │    │    ├── qemuVirt.zig
 │    │    └── ..
 │    ├── bootloader
+│    │    ├── ..
 │    │    └── > contains everything required to make the bootloader boot
 │    ├── configTemplates
+│    │    ├── ..
 │    │    └── > contains all the templates for different configurations. E.g. the board or env. configuration
 │    ├── environments
 │    │    ├── > actual development space. Every environment is a set of userspace apps and kernel threads. Only one environment at a time can be compiled. Which environment is compiled can be selected in the build.zig.
@@ -68,28 +73,30 @@ The project aims to give as much guidance to the developer as possible, that als
 │    ├── kernel
 │    │    ├── > actual kernel space
 │    │    ├── bins
+│    │    │    ├── ..
 │    │    │    └── > build binaries, is only tmp
 │    │    ├── exc_vec.S
 │    │    ├── kernel.zig
 │    │    ├── ..
 │    │    ├── sharedKernelServices
 │    │    │    ├── SysCallsTopicsInterface.zig
-│    │    │    ├── UserPageAllocator.zig
+│    │    │    ├── ..
 │    │    │    └── > all services that have to be accessed over from the drivers for exampled., linked with the kernel
 │    ├── kpi
-│    │    ├── kpi.zig
 │    │    ├── secondaryInterruptControllerKpi.zig
+│    │    ├── ..
 │    │    └── > kernel programming interface for drivers. e.g. the timer or secondary irq handler driver. inited in the board configuration file
 │    ├── periph
-│    │    ├── periph.zig
 │    │    ├── pl011.zig
+│    │    ├── ..
 │    │    └── > all the peripheral devices code
 │    ├── sharedServices
 │    │    ├── Topic.zig
+│    │    ├── ..
 │    │    └── > code thats so basic that it's linked with both the kernel and the userspace
 │    └── utils
 │        └── utils.zig
-
+```
 ## Why not Rust?
 
 I began this project in Rust but decided to switch to Zig (equally modern). Here is why.

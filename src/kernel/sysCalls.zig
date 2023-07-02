@@ -44,6 +44,8 @@ pub const sysCallTable = [_]Syscall{
     .{ .id = 12, .fn_call = &pushToTopic },
     .{ .id = 13, .fn_call = &popFromTopic },
     .{ .id = 14, .fn_call = &waitForTopicUpdate },
+    .{ .id = 15, .fn_call = &increaseCurrTaskPreemptCounter },
+    .{ .id = 16, .fn_call = &decreaseCurrTaskPreemptCounter },
 };
 
 fn sysCallPrint(params_args: *CpuContext) void {
@@ -119,6 +121,18 @@ fn closeTopic(params_args: *CpuContext) void {
 fn openTopic(params_args: *CpuContext) void {
     const id = params_args.x0;
     topics.openTopic(id);
+}
+
+
+fn increaseCurrTaskPreemptCounter(params_args: *CpuContext) void {
+    _ = params_args;
+    scheduler.current_process.setPreempt(true);
+}
+
+
+fn decreaseCurrTaskPreemptCounter(params_args: *CpuContext) void {
+    _ = params_args;
+    scheduler.current_process.setPreempt(false);
 }
 
 fn pushToTopic(params_args: *CpuContext) void {

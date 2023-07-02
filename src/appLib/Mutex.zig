@@ -20,6 +20,7 @@ pub const Mutex = struct {
     }
 
     pub fn lock(self: *Mutex) void {
+        sysCalls.increaseCurrTaskPreemptCounter();
         const my_pid = sysCalls.getPid();
         if (self.locked.load(.Unordered)) {
             sysCalls.haltProcess(my_pid);
@@ -37,5 +38,6 @@ pub const Mutex = struct {
             self.last_waiting_proc_index -= 1;
         }
         self.locked.store(false, .Unordered);
+        sysCalls.decreaseCurrTaskPreemptCounter();
     }
 };

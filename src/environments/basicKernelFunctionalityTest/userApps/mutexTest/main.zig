@@ -39,6 +39,7 @@ pub fn testThread2(mutex: *Mutex) void {
         shared_thread_counter -= 1;
         kprint("thread2 accessing shared mutex protected shared resource {d} \n", .{shared_thread_counter});
         mutex.unlock();
+        kprint("thread2 unlocked.. \n", .{});
     }
 }
 
@@ -49,5 +50,6 @@ pub fn testThread(mutex: *Mutex) void {
         shared_thread_counter += 1;
         kprint("thread1 accessing shared mutex protected shared resource {d} \n", .{shared_thread_counter});
         mutex.unlock();
+        kprint("thread1 unlocked.. \n", .{});
     }
 }
