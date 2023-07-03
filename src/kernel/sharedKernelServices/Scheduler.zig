@@ -67,16 +67,12 @@ pub const Process = struct {
             .parent_pid = null,
             .child_pid = null,
             .priority = 1,
-            .preempt_count = 1,
+            .preempt_count = 0,
             .page_table = [_]usize{0} ** app_page_table.totaPageTableSize,
             .app_mem = null,
             .ttbr1 = null,
             .ttbr0 = null,
         };
-    }
-    pub fn setPreempt(self: *Process, state: bool) void {
-        if (state) self.preempt_count -= 1;
-        if (!state) self.preempt_count += 1;
     }
 };
 
@@ -133,7 +129,8 @@ pub const Scheduler = struct {
         }
     }
     pub fn schedule(self: *Scheduler, irq_context: ?*CpuContext) void {
-        self.current_process.setPreempt(false);
+        self.current_process.preempt_count += 1;
+        errdefer self.current_process.preempt_count -= 1;
         self.current_process.counter = 0;
         // round robin for processes
         var next_proc_pid: usize = 0;
@@ -153,7 +150,7 @@ pub const Scheduler = struct {
                 process.counter = (process.counter >> 1) + process.priority;
             }
         }
-        self.current_process.setPreempt(true);
+        self.current_process.preempt_count -= 1;
         self.switchContextToProcess(&self.processses[next_proc_pid], irq_context);
     }
 
@@ -169,7 +166,8 @@ pub const Scheduler = struct {
                 }
             }
         }
-        if (self.current_process.counter > 0 and self.current_process.preempt_count > 0) {
+        if (self.current_process.counter > 0 or self.current_process.preempt_count > 0) {
+            if (self.current_process.counter <= 0) kprint("self.current_process.preempt_count: {d} \n", .{self.current_process.preempt_count});
             if (log) kprint("--------- PROC WAIT counter: {d} \n", .{self.current_process.counter});
             // return all the way back to the exc vector table where cpu state is restored from the stack
             // if the task is dead already, we don't return back to the process but schedule the next task
@@ -178,7 +176,8 @@ pub const Scheduler = struct {
         self.schedule(irq_context);
     }
     pub fn initAppsInScheduler(self: *Scheduler, apps: []const []const u8, topics: *Topics) !void {
-        self.current_process.setPreempt(false);
+        self.current_process.preempt_count += 1;
+        defer self.current_process.preempt_count -= 1;
         for (apps) |app| {
             const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, board.config.mem.va_user_space_gran.page_size);
             const app_mem = try self.page_allocator.allocNPage(req_pages);
@@ -194,7 +193,7 @@ pub const Scheduler = struct {
             self.processses[pid].state = .running;
             self.processses[pid].priv_level = .user;
             self.processses[pid].counter = self.processses[pid].priority;
-            self.processses[pid].preempt_count = 1;
+            self.processses[pid].preempt_count = 0;
             self.processses[pid].pid = pid;
 
             // initing the apps page-table
@@ -231,11 +230,11 @@ pub const Scheduler = struct {
             self.processses[pid].ttbr0 = self.kernel_lma_offset + utils.toTtbr0(usize, @ptrToInt(&self.processses[pid].page_table));
             self.pid_counter += 1;
         }
-        self.current_process.setPreempt(true);
     }
 
     pub fn killTask(self: *Scheduler, pid: usize) !void {
-        self.current_process.setPreempt(false);
+        self.current_process.preempt_count += 1;
+        errdefer self.current_process.preempt_count -= 1;
         try self.checkForPid(pid);
         self.processses[pid].state = .dead;
         for (self.processses) |*proc| {
@@ -243,7 +242,7 @@ pub const Scheduler = struct {
                 proc.state = .dead;
             }
         }
-        self.current_process.setPreempt(true);
+        self.current_process.preempt_count -= 1;
         self.schedule(null);
     }
 
@@ -253,14 +252,14 @@ pub const Scheduler = struct {
     }
 
     pub fn deepForkProcess(self: *Scheduler, to_clone_pid: usize) !void {
-        self.current_process.setPreempt(false);
-        // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
-        self.switchMemContext(self.processses[0].ttbr0.?, null);
-
+        self.current_process.preempt_count += 1;
         defer {
-            self.current_process.setPreempt(true);
+            self.current_process.preempt_count -= 1;
             self.switchMemContext(self.current_process.ttbr0.?, null);
         }
+
+        // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
+        self.switchMemContext(self.processses[0].ttbr0.?, null);
 
         try self.checkForPid(to_clone_pid);
         if (self.processses[to_clone_pid].priv_level == .boot) return Error.ForkPermissionFault;
@@ -287,8 +286,9 @@ pub const Scheduler = struct {
     }
 
     pub fn cloneThread(self: *Scheduler, to_clone_thread_pid: usize, new_proc_pid: usize) !void {
+        self.current_process.preempt_count += 1;
+        defer self.current_process.preempt_count -= 1;
         try self.checkForPid(to_clone_thread_pid);
-        self.current_process.setPreempt(false);
         if (!self.processses[to_clone_thread_pid].is_thread) return;
 
         var new_pid = self.pid_counter;
@@ -299,10 +299,10 @@ pub const Scheduler = struct {
         self.processses[new_pid].ttbr1 = self.processses[new_proc_pid].ttbr1;
 
         self.pid_counter += 1;
-        self.current_process.setPreempt(true);
     }
     pub fn createThreadFromCurrentProcess(self: *Scheduler, entry_fn_ptr: *const anyopaque, thread_fn_ptr: *const anyopaque, thread_stack_addr: usize, args: *anyopaque) void {
-        self.current_process.setPreempt(false);
+        self.current_process.preempt_count += 1;
+        defer self.current_process.preempt_count -= 1;
         var new_pid = self.pid_counter;
         self.processses[new_pid].pid = new_pid;
         self.processses[new_pid].is_thread = true;
@@ -318,7 +318,6 @@ pub const Scheduler = struct {
         self.processses[new_pid].ttbr0 = self.processses[self.current_process.pid.?].ttbr0;
         self.processses[new_pid].ttbr1 = self.processses[self.current_process.pid.?].ttbr1;
         self.pid_counter += 1;
-        self.current_process.setPreempt(true);
     }
 
     // provides a generic entry function (generic in regard to the thread and argument function since @call builtin needs them to properly invoke the thread start)
@@ -352,7 +351,8 @@ pub const Scheduler = struct {
     }
 
     pub fn killTaskAndChildrend(self: *Scheduler, starting_pid: usize) !void {
-        self.current_process.setPreempt(false);
+        self.current_process.preempt_count += 1;
+        errdefer self.current_process.preempt_count -= 1;
         try self.checkForPid(starting_pid);
         self.processses[starting_pid].state = .dead;
         var child_proc_pid: ?usize = starting_pid;
@@ -365,7 +365,7 @@ pub const Scheduler = struct {
             }
             child_proc_pid = self.processses[child_proc_pid.?].child_pid;
         }
-        self.current_process.setPreempt(true);
+        self.current_process.preempt_count -= 1;
         self.schedule(null);
     }
 
@@ -420,7 +420,7 @@ pub const Scheduler = struct {
 
     // irq_context is optional in case the previous scheduled task is not needed anymore
     fn switchCpuContext(self: *Scheduler, from: *Process, to: *Process, irq_context: ?*CpuContext) void {
-        kprint("curr pc: {d} \n", .{ ProccessorRegMap.getCurrentPc() });
+        kprint("current_procc: {*}, self.current_process.preempt_count: {d} \n", .{ self.current_process, self.current_process.preempt_count });
         if (log) {
             kprint("from: ({s}, {s}, {*}) to ({s}, {s}, {*}) \n", .{ @tagName(from.priv_level), @tagName(from.state), from, @tagName(to.priv_level), @tagName(to.state), to });
             kprint("current processses(n={d}): \n", .{self.pid_counter + 1});

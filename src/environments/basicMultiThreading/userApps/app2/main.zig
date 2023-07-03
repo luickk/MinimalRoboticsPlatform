@@ -26,8 +26,7 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
         while (true) {}
     };
     while (true) {
-        test_counter += 1;
-        kprint("multithreading test counter: {d} \n", .{test_counter});
+        kprint("multithreading test counter \n", .{});
     }
 }
 

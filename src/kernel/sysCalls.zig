@@ -126,13 +126,13 @@ fn openTopic(params_args: *CpuContext) void {
 
 fn increaseCurrTaskPreemptCounter(params_args: *CpuContext) void {
     _ = params_args;
-    scheduler.current_process.setPreempt(true);
+    scheduler.current_process.preempt_count += 1;
 }
 
 
 fn decreaseCurrTaskPreemptCounter(params_args: *CpuContext) void {
     _ = params_args;
-    scheduler.current_process.setPreempt(false);
+    scheduler.current_process.preempt_count -= 1;
 }
 
 fn pushToTopic(params_args: *CpuContext) void {

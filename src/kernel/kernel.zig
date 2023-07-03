@@ -101,7 +101,7 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
 
             {
                 // creating virtual address space for kernel
-                const kernel_space_mapping = mmu.Mapping{
+                const kernel_space_mapping = mmu.Mapping {
                     .mem_size = board.config.mem.kernel_space_size,
                     .pointing_addr_start = kernel_lma_offset,
                     .virt_addr_start = 0,
