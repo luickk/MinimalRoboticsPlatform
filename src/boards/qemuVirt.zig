@@ -6,7 +6,7 @@ const timerDriver = @import("timerDriver");const genericTimer = timerDriver.gene
 // mmu starts at lvl1 for which 0xFFFFFF8000000000 is the lowest possible va
 const vaStart: usize = 0xFFFFFF8000000000;
 pub const config = boardConfig.BoardConfig{
-    .board = .qemuVirt,
+    .board_name = "qemuVirt",
     .mem = boardConfig.BoardConfig.BoardMemLayout{
         .va_start = vaStart,
 
@@ -22,10 +22,11 @@ pub const config = boardConfig.BoardConfig{
 
         // according to qemu docs ram starts at 1gib
         .ram_start_addr = 0x40000000,
-        // 0x100000000
-        .ram_size = 0x40000000,
+        // the ram_size needs to be greater or equal to: kernel_space_size + user_space_size
+        .ram_size = 0x80000000,
 
-        .kernel_space_size = 0x20000000,
+        // the kernel space starts at ram_start or bl_load_addr
+        .kernel_space_size = 0x60000000,
         .user_space_size = 0x20000000,
 
         .va_kernel_space_gran = boardConfig.Granule.Fourk,

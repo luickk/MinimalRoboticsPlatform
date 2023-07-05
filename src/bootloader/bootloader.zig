@@ -147,7 +147,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
     }
 
     // GIC Init
-    if (board.config.board == .qemuVirt) {
+    if (std.mem.eql(u8, board.config.board_name, "qemuVirt")) { 
         gic.init() catch |e| {
             kprint("[panic] GIC init error: {s} \n", .{@errorName(e)});
             bl_utils.panic();

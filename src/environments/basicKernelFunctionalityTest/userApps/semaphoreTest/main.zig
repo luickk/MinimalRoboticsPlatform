@@ -16,12 +16,15 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
 
     var test_sem = Semaphore.init(1);
 
-    sysCalls.createThread(&alloc, testThread1, .{&test_sem}) catch |e| {
+    // todo => remove allcoations
+    const thread_stack_mem = try app_alloc.alloc(u8, board.config.mem.app_stack_size, 16);
+    sysCalls.createThread(thread_stack_mem, testThread1, .{&test_sem}) catch |e| {
         kprint("[panic] AppAlloc init error: {s}\n", .{@errorName(e)});
         while (true) {}
     };
 
-    sysCalls.createThread(&alloc, testThread2, .{&test_sem}) catch |e| {
+    const thread_stack_mem_2 = try app_alloc.alloc(u8, board.config.mem.app_stack_size, 16);
+    sysCalls.createThread(thread_stack_mem_2, testThread2, .{&test_sem}) catch |e| {
         kprint("[panic] AppAlloc init error: {s}\n", .{@errorName(e)});
         while (true) {}
     };

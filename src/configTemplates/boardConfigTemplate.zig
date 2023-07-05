@@ -26,11 +26,6 @@ pub const Granule = struct {
 pub const TransLvl = enum(usize) { first_lvl = 0, second_lvl = 1, third_lvl = 2 };
 
 pub const BoardConfig = struct {
-    pub const SupportedBoards = enum {
-        raspi3b,
-        qemuVirt,
-    };
-
     pub const BoardMemLayout = struct {
         va_start: usize,
 
@@ -55,7 +50,7 @@ pub const BoardConfig = struct {
         storage_size: usize,
     };
 
-    board: SupportedBoards,
+    board_name: []const u8,
     mem: BoardMemLayout,
     // if it's null, the frequency mus be read from the board at runtime
     timer_freq_in_hertz: ?usize,

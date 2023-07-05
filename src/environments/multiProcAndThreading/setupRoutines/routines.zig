@@ -1,21 +1,18 @@
 const board = @import("board");
+const std = @import("std");
 const sharedKernelServices = @import("sharedKernelServices");
 const Scheduler = sharedKernelServices.Scheduler;
 
-const bcm2835Setup = @import("raspi3bSetup.zig").bcm2835Setup;
+const raspi3bSetup = @import("raspi3bSetup.zig").raspi3bSetup;
 const qemuVirtSetup = @import("qemuVirtSetup.zig").qemuVirtSetup;
 
 const SetupRoutine = fn (scheduler: *Scheduler) void;
 
 const boardSpecificSetup = blk: {
-
-    switch (board.config.board) {
-    	.raspi3b => {
-			break :blk [_]SetupRoutine { bcm2835Setup };
-    	},
-    	.qemuVirt => {
-			break :blk [_]SetupRoutine { qemuVirtSetup };	
-    	}
+    if(std.mem.eql(u8, board.config.board_name, "raspi3b")) {
+		break :blk [_]SetupRoutine { raspi3bSetup };
+    } else if(std.mem.eql(u8, board.config.board_name, "qemuVirt")) {
+		break :blk [_]SetupRoutine { qemuVirtSetup };	
 	}
 
 };

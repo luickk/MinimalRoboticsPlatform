@@ -251,6 +251,8 @@ pub const Scheduler = struct {
         while(true){}
     }
 
+    // function is deprecated since new tasks cannot be created without allocating new memory which is not legal in system runtime
+    // todo => find way around policy
     pub fn deepForkProcess(self: *Scheduler, to_clone_pid: usize) !void {
         self.current_process.preempt_count += 1;
         defer {
@@ -265,6 +267,7 @@ pub const Scheduler = struct {
         if (self.processses[to_clone_pid].priv_level == .boot) return Error.ForkPermissionFault;
 
         const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, board.config.mem.va_user_space_gran.page_size);
+        // todo => remove allcoation
         var new_app_mem = try self.page_allocator.allocNPage(req_pages);
 
         var new_pid = self.pid_counter;
@@ -330,6 +333,7 @@ pub const Scheduler = struct {
         };
     }
     // creates thread for current process
+    // info: use only permitted at kernel boot/init
     pub fn createKernelThread(self: *Scheduler, app_alloc: *KernelAlloc, thread_fn: anytype, args: anytype) !void {
         const thread_stack_mem = try app_alloc.alloc(u8, board.config.mem.k_stack_size, 16);
         var thread_stack_start: []u8 = undefined;

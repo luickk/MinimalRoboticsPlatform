@@ -17,80 +17,82 @@ The project aims to give as much guidance to the developer as possible, that als
 
 ```bash
 ├── build.zig
-├── src
-│    ├── appLib
+├── src/
+│    ├── appLib/
 │    │    ├── ..
 │    │    └── > everything that is linked with userspace apps
-│    ├── arm
+│    ├── arm/
 │    │    ├── ..
 │    │    └── > all the "drivers" required for the arm soc. linked with the kernel
-│    ├── boards 
+│    ├── boards/
 │    │    ├── * contains drivers and board configuration files (qemuVirt.zig, raspi3b.zig..). Which board is compiled can be selected in build.zig, the respective configuration file is then selected and linked. *
-│    │    ├── drivers
+│    │    ├── drivers/
 │    │    │    ├── > everything that is board specific, timer, irq, io code
-│    │    │    ├── bootInit
+│    │    │    ├── bootInit/
 │    │    │    │    ├── > board specific startup code that sets up the correct el, exc. vec. table,.. and and calls the bootloader entry fn. linked witht the bootloader
 │    │    │    │    ├── qemuVirt_boot.S
 │    │    │    │    └── ..
-│    │    │    ├── interruptController
+│    │    │    ├── interruptController/
 │    │    │    │    ├── > board specific drivers for additional(to the arm gic) interrupt controllers, linked with the kernel
 │    │    │    │    ├── bcm2835InterruptController.zig
 │    │    │    │    └── ..
-│    │    │    └── timer
+│    │    │    └── timer/
 │    │    │        ├── > board specific drivers for additional(to the arm gt) timer, linked with the kernel
 │    │    │        ├── bcm2835Timer.zig
 │    │    │        └── ..
 │    │    ├── qemuVirt.zig
 │    │    └── ..
-│    ├── bootloader
+│    ├── bootloader/
+│    │    ├── bins/ 
+│    │    │    └── > the kernels binary (non elf format) is saved here because it is embedded by the bootloader (usings Zigs `@embedFile`) and cannot be placed outside the package path
 │    │    ├── ..
-│    │    └── > contains everything required to make the bootloader boot
-│    ├── configTemplates
+│    │    └── > contains everything required to make the bootloader boot the kernel
+│    ├── configTemplates/
 │    │    ├── ..
 │    │    └── > contains all the templates for different configurations. E.g. the board or env. configuration
-│    ├── environments
+│    ├── environments/
 │    │    ├── > actual development space. Every environment is a set of userspace apps and kernel threads. Only one environment at a time can be compiled. Which environment is compiled can be selected in the build.zig.
-│    │    ├── basicKernelFunctionalityTest
+│    │    ├── basicKernelFunctionalityTest/
 │    │    │    ├── > environment for basic kernel integration tests. In the envConfig.zig everthing environment can be configured. E.g. how many topics, with which buffer type they operate and so on..
 │    │    │    ├── envConfig.zig
-│    │    │    ├── kernelThreads
+│    │    │    ├── kernelThreads/
 │    │    │    │    ├── > all kernel threads required by the board. E.g. a handler for the additional(or secondary) interrupt controller. linked with the kernel! 
 │    │    │    │    ├── threads.zig
 │    │    │    │    └── ..
-│    │    │    ├── setupRoutines
+│    │    │    ├── setupRoutines/
 │    │    │    │    ├── > setup routines called on kernel entry. E.g. the init of additional interrupt controller handler. linked with the kernel!
 │    │    │    │    ├── routines.zig
 │    │    │    │    └── ..
-│    │    │    └── userApps
+│    │    │    └── userApps/
 │    │    │        ├── > actual userspace with all the userspace apps. every app is build seperately
-│    │    │        ├── _semaphoreTest > (apps starting with underscore and not compiled..)
+│    │    │        ├── _semaphoreTest/ > (apps starting with underscore and not compiled..)
 │    │    │        │    ├── linker.ld
 │    │    │        │    └── main.zig
-│    │    │        └── mutexTest
+│    │    │        └── mutexTest/
 │    │    │            ├── linker.ld
 │    │    │            └── main.zig
 │    │    ├── ..
-│    ├── kernel
+│    ├── kernel/
 │    │    ├── > actual kernel space
-│    │    ├── bins
+│    │    ├── bins/
 │    │    │    ├── ..
-│    │    │    └── > build binaries, is only tmp
+│    │    │    └── > app binaries are saved here because they are embedded by the kernel (user Zigs `@embedFile`) and cannot be placed outside the package path/
 │    │    ├── exc_vec.S
 │    │    ├── kernel.zig
 │    │    ├── ..
-│    │    ├── sharedKernelServices
+│    │    ├── sharedKernelServices/
 │    │    │    ├── SysCallsTopicsInterface.zig
 │    │    │    ├── ..
 │    │    │    └── > all services that have to be accessed over from the drivers for exampled., linked with the kernel
-│    ├── kpi
+│    ├── kpi/
 │    │    ├── secondaryInterruptControllerKpi.zig
 │    │    ├── ..
 │    │    └── > kernel programming interface for drivers. e.g. the timer or secondary irq handler driver. inited in the board configuration file
-│    ├── periph
+│    ├── periph/
 │    │    ├── pl011.zig
 │    │    ├── ..
 │    │    └── > all the peripheral devices code
-│    ├── sharedServices
+│    ├── sharedServices/
 │    │    ├── Topic.zig
 │    │    ├── ..
 │    │    └── > code thats so basic that it's linked with both the kernel and the userspace
@@ -104,6 +106,13 @@ The prime argument for Rust is safety, which is also important for embedded deve
 
 The Rust code can still be found in the separate [rust branch](https://github.com/luickk/rust-rtos/tree/rust_code) and includes a proper Cargo build process(without making use of an external build tools) for the Raspberry, as well as basic serial(with print! macro implementation) and interrupt controller utils.
 
+## Finding the perfect Board 
+
+In order to first boot the kernel on a physical board, I'm searching for the best board. Number one priority is simplicity. The raspberry has a relatively complex multi bootstage process. That is not ideal, includes a file system on an SD Card in is pretty ugly in general.
+The Jetson Nano has a similarly complex boot process. 
+
+The Banana Pi and Rock Pi on the other hand offer an eMMC that can be flashed with the Maskrom(maskrom is not available on the Banana Pi sadly). The Banana/ Rock Pi eMMC is quite elegant because it does a) not require a file system and b) is loaded directly by the arm cores(and not from the GPU as with the raspberry).
+
 ## Compatibility
 
 ### Boards and their requirements
@@ -116,12 +125,18 @@ The Rust code can still be found in the separate [rust branch](https://github.co
 
 The Generic interrupt controler, generic timer, booting with/out rom, bcm2835 interrupt controller are all supported, thus all of the three boards are bootable. 
 
+## Allocation Policy
 
-## Features
+Memory allocation is an extremely powerful and basic functionality that can be very dangerous depending on when and how it's used.
+For that reason the kernels allocations are only permitted at kernel boot/init time. There is no realloc, neither for userspace apps nor for the kernel. Alternatively, there are reserved memory buffers for every feature. I don't yet have a perfect solution for dealing with an out off memory event though.
+
+There is an app allocation available in user space so that a considered decision can be made and an allocator still be used if the app is not important.
+
+## Kernel wise features
 
 ### Topics
 
-A way to share data streams with other processes, similar to pipes but optimized for sensor data and data distribution and access over many processes.
+A way to share data streams with other processes, similar to pipes but optimized for sensor data and data distribution/ access over many processes.
 
 How many topics and in which configuration must be setup at compiletime in the `envConfig.zig` of the project. Each Topic can be configured in its buffer type, size, identifier and so on. In the runtime phase of the platform, every topic then behaves according to its configuration and can be addressed through its fixed id.
 
@@ -140,13 +155,18 @@ Uses direct mapped memory to read/write to a Topic. Is also bound to all preconf
 - `ShareMemTopicsInterface.read(..)` 
 - `ShareMemTopicsInterface.write(..)`
 
-### Services
+### Status Control
+
+A way to centrally communicate state and adapt the system appropriatly. 
+Since the status of a sensor, service, io device, or more abstract concepts  is not just a tool but one of the most important control aspects in a robotic system, this funcitonality is deeply integrated and not just meant for state sharing but also as a state machine at the heart of the system.
 
 // todo
 
 ### Actions
 
 // todo
+
+# Kernel details
 
 ## Bootloader and kernel separation
 

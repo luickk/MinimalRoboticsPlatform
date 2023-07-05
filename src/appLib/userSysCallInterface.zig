@@ -63,18 +63,18 @@ pub fn killTask(pid: usize) noreturn {
     while (true) {}
 }
 
-pub fn forkProcess(pid: usize) void {
-    asm volatile (
-    // args
-        \\mov x0, %[pid]
-        // sys call id
-        \\mov x8, #2
-        \\svc #0
-        :
-        : [pid] "r" (pid),
-        : "x0", "x8"
-    );
-}
+// pub fn forkProcess(pid: usize) void {
+//     asm volatile (
+//     // args
+//         \\mov x0, %[pid]
+//         // sys call id
+//         \\mov x8, #2
+//         \\svc #0
+//         :
+//         : [pid] "r" (pid),
+//         : "x0", "x8"
+//     );
+// }
 
 pub fn getPid() usize {
     return asm (
@@ -101,12 +101,10 @@ pub fn killTaskRecursively(starting_pid: usize) void {
 }
 
 // creates thread for current process
-pub fn createThread(app_alloc: *AppAllocator, thread_fn: anytype, args: anytype) !void {
-    const thread_stack_mem = try app_alloc.alloc(u8, board.config.mem.app_stack_size, 16);
+pub fn createThread(thread_stack_mem: []u8, thread_fn: anytype, args: anytype) !void {
     var thread_stack_start: []u8 = undefined;
     thread_stack_start.ptr = @intToPtr([*]u8, @ptrToInt(thread_stack_mem.ptr) + thread_stack_mem.len);
     thread_stack_start.len = thread_stack_mem.len;
-
     var arg_mem: []const u8 = undefined;
     arg_mem.ptr = @ptrCast([*]const u8, @alignCast(1, &args));
     arg_mem.len = @sizeOf(@TypeOf(args));

@@ -25,8 +25,6 @@ const Error = error{
     PageTableConfigErr,
 };
 
-// todo => fix bug that corrupts the page table is mapped virt address is larger than 1 gig
-
 // In addition to an output address, a translation table descriptor that refers to a page or region of memory
 // includes fields that define properties of the target memory region. These fields can be classified as
 // address map control, access control, and region attribute fields.

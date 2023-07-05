@@ -11,7 +11,7 @@ const vaStart: usize = 0xFFFFFF8000000000;
 
 
 pub const config = boardConfig.BoardConfig {
-    .board = .raspi3b,
+    .board_name = "raspi3b",
     .mem = .{
         .va_start = vaStart,
         .bl_stack_size = 0x10000,
@@ -24,7 +24,9 @@ pub const config = boardConfig.BoardConfig {
 
         // the raspberries addressable memory is all ram
         .ram_start_addr = 0,
+        // the ram_size needs to be greater or equal to: kernel_space_size + user_space_size + (bl_load_addr or rom_size)
         .ram_size = 0x40000000,
+        
         .kernel_space_size = 0x20000000,
         .user_space_size = 0x20000000,
 

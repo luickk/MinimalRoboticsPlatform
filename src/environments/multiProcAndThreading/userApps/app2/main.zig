@@ -22,12 +22,14 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
         while (true) {}
     };
 
-    sysCalls.createThread(&alloc, testThread, .{sysCalls.getPid()}) catch |e| {
+    const thread_stack_mem = try app_alloc.alloc(u8, board.config.mem.app_stack_size, 16);
+    sysCalls.createThread(thread_stack_mem, testThread, .{sysCalls.getPid()}) catch |e| {
         kprint("[panic] AppAlloc init error: {s}\n", .{@errorName(e)});
         while (true) {}
     };
 
-    sysCalls.createThread(&alloc, testThread2, .{sysCalls.getPid()}) catch |e| {
+    const thread_stack_mem_2 = try app_alloc.alloc(u8, board.config.mem.app_stack_size, 16);
+    sysCalls.createThread(thread_stack_mem_2, testThread2, .{sysCalls.getPid()}) catch |e| {
         kprint("[panic] AppAlloc init error: {s}\n", .{@errorName(e)});
         while (true) {}
     };

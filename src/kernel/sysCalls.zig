@@ -3,7 +3,6 @@ const periph = @import("periph");
 const pl011 = periph.Pl011(.ttbr1);
 
 const kprint = periph.uart.UartWriter(.ttbr1).kprint;
-const kernelTimer = @import("kernelTimer.zig");
 const utils = @import("utils");
 const board = @import("board");
 const arm = @import("arm");
@@ -31,7 +30,7 @@ pub const Syscall = struct {
 pub const sysCallTable = [_]Syscall{
     .{ .id = 0, .fn_call = &sysCallPrint },
     .{ .id = 1, .fn_call = &killTask },
-    .{ .id = 2, .fn_call = &forkProcess },
+    // .{ .id = 2, .fn_call = &forkProcess },
     .{ .id = 3, .fn_call = &getPid },
     .{ .id = 4, .fn_call = &killTaskRecursively },
     // sys call id 5 is not used
@@ -75,13 +74,13 @@ fn killTaskRecursively(params_args: *CpuContext) void {
     };
 }
 
-fn forkProcess(params_args: *CpuContext) void {
-    kprint("[kernel] forking task with pid: {d} \n", .{params_args.x0});
-    scheduler.deepForkProcess(params_args.x0) catch |e| {
-        kprint("[panic] deepForkProcess error: {s}\n", .{@errorName(e)});
-        k_utils.panic();
-    };
-}
+// fn forkProcess(params_args: *CpuContext) void {
+//     kprint("[kernel] forking task with pid: {d} \n", .{params_args.x0});
+//     scheduler.deepForkProcess(params_args.x0) catch |e| {
+//         kprint("[panic] deepForkProcess error: {s}\n", .{@errorName(e)});
+//         k_utils.panic();
+//     };
+// }
 
 fn getPid(params_args: *CpuContext) void {
     params_args.x0 = scheduler.getCurrentProcessPid();
