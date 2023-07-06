@@ -118,8 +118,8 @@ pub fn PageTable(comptime total_mem_size: usize, comptime gran: GranuleParams) !
 
             while (i_lvl <= @enumToInt(mapping.granule.lvls_required)) : (i_lvl += 1) {
                 const curr_lvl_desc_size = calcTransLvlDescriptorSize(mapping, @intToEnum(TransLvl, i_lvl));
-                var next_lvl_desc_size = @as(usize, 0);
-                var vas_next_offset_in_tables = @as(usize, 0);
+                var next_lvl_desc_size: usize = 0;
+                var vas_next_offset_in_tables: usize = 0;
                 if (i_lvl != @enumToInt(mapping.granule.lvls_required)) {
                     next_lvl_desc_size = calcTransLvlDescriptorSize(mapping, @intToEnum(TransLvl, i_lvl + 1));
                     vas_next_offset_in_tables = try std.math.divFloor(usize, try std.math.divExact(usize, mapping.virt_addr_start, next_lvl_desc_size), mapping.granule.table_size);

@@ -98,7 +98,8 @@ pub fn Topic(comptime Semaphore: type) type {
         buff: UsersapceMultiBuff,
         id: usize,
         opened: bool,
-        waiting_tasks: [env.env_config.topic_max_waiting_tasks]?Semaphore,
+        // todo => not scaling.
+        waiting_tasks: [board.config.static_memory_reserves.topics_max_process_in_queue]?Semaphore,
         n_waiting_taks: usize,
 
         pub fn init(topics_mem: []u8, buff_curr_read_write_ptr_state: *volatile usize, id: usize, buff_type: TopicBufferTypes) Self {
@@ -106,7 +107,7 @@ pub fn Topic(comptime Semaphore: type) type {
                 .buff = UsersapceMultiBuff.init(topics_mem, buff_curr_read_write_ptr_state, buff_type),
                 .id = id,
                 .opened = false,
-                .waiting_tasks = [_]?Semaphore{null} ** env.env_config.topic_max_waiting_tasks,
+                .waiting_tasks = [_]?Semaphore{null} ** board.config.static_memory_reserves.topics_max_process_in_queue,
                 .n_waiting_taks = 0,
             };
         }

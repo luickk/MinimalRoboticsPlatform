@@ -47,9 +47,9 @@ pub const Process = struct {
     state: ProcessState,
     counter: isize,
     priority: isize,
-    pid: ?usize,
-    parent_pid: ?usize,
-    child_pid: ?usize,
+    pid: ?u16,
+    parent_pid: ?u16,
+    child_pid: ?u16,
     preempt_count: isize,
     page_table: [app_page_table.totaPageTableSize]usize align(4096),
     app_mem: ?[]u8,
@@ -92,7 +92,7 @@ pub const Scheduler = struct {
     processses: *[maxProcesss]Process,
     processses_sleeping: [maxProcesss]?*Process,
     current_process: *Process,
-    pid_counter: usize,
+    pid_counter: u16,
 
     pub fn init(page_allocator: *UserPageAllocator, kernel_lma_offset: usize) Scheduler {
         return .{
@@ -133,14 +133,14 @@ pub const Scheduler = struct {
         errdefer self.current_process.preempt_count -= 1;
         self.current_process.counter = 0;
         // round robin for processes
-        var next_proc_pid: usize = 0;
+        var next_proc_pid: u16 = 0;
         var c: isize = -1;
         while (true) {
             for (self.processses) |*process, i| {
                 if (i >= self.pid_counter) break;
                 if (process.state == .running and process.counter > c) {
                     c = process.counter;
-                    next_proc_pid = i;
+                    next_proc_pid = @truncate(u16, i);
                 }
             }
 
@@ -182,7 +182,7 @@ pub const Scheduler = struct {
             const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, board.config.mem.va_user_space_gran.page_size);
             const app_mem = try self.page_allocator.allocNPage(req_pages);
 
-            var pid = self.pid_counter;
+            var pid: u16 = self.pid_counter;
 
             std.mem.copy(u8, app_mem, app);
             self.processses[pid].cpu_context.elr_el1 = 0;
@@ -232,7 +232,7 @@ pub const Scheduler = struct {
         }
     }
 
-    pub fn killTask(self: *Scheduler, pid: usize) !void {
+    pub fn killTask(self: *Scheduler, pid: u16) !void {
         self.current_process.preempt_count += 1;
         errdefer self.current_process.preempt_count -= 1;
         try self.checkForPid(pid);
@@ -253,7 +253,7 @@ pub const Scheduler = struct {
 
     // function is deprecated since new tasks cannot be created without allocating new memory which is not legal in system runtime
     // todo => find way around policy
-    pub fn deepForkProcess(self: *Scheduler, to_clone_pid: usize) !void {
+    pub fn deepForkProcess(self: *Scheduler, to_clone_pid: u16) !void {
         self.current_process.preempt_count += 1;
         defer {
             self.current_process.preempt_count -= 1;
@@ -267,10 +267,9 @@ pub const Scheduler = struct {
         if (self.processses[to_clone_pid].priv_level == .boot) return Error.ForkPermissionFault;
 
         const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, board.config.mem.va_user_space_gran.page_size);
-        // todo => remove allcoation
         var new_app_mem = try self.page_allocator.allocNPage(req_pages);
 
-        var new_pid = self.pid_counter;
+        var new_pid: u16 = self.pid_counter;
 
         std.mem.copy(u8, new_app_mem, self.processses[to_clone_pid].app_mem.?);
         self.processses[new_pid] = self.processses[to_clone_pid];
@@ -306,7 +305,7 @@ pub const Scheduler = struct {
     pub fn createThreadFromCurrentProcess(self: *Scheduler, entry_fn_ptr: *const anyopaque, thread_fn_ptr: *const anyopaque, thread_stack_addr: usize, args: *anyopaque) void {
         self.current_process.preempt_count += 1;
         defer self.current_process.preempt_count -= 1;
-        var new_pid = self.pid_counter;
+        var new_pid: u16 = self.pid_counter;
         self.processses[new_pid].pid = new_pid;
         self.processses[new_pid].is_thread = true;
         self.processses[new_pid].counter = self.processses[self.current_process.pid.?].priority;
@@ -354,12 +353,12 @@ pub const Scheduler = struct {
         self.createThreadFromCurrentProcess(@ptrCast(*const anyopaque, entry_fn), @ptrCast(*const anyopaque, thread_fn_ptr), thread_stack_addr, @ptrCast(*anyopaque, args_ptr));
     }
 
-    pub fn killTaskAndChildrend(self: *Scheduler, starting_pid: usize) !void {
+    pub fn killTaskAndChildrend(self: *Scheduler, starting_pid: u16) !void {
         self.current_process.preempt_count += 1;
         errdefer self.current_process.preempt_count -= 1;
         try self.checkForPid(starting_pid);
         self.processses[starting_pid].state = .dead;
-        var child_proc_pid: ?usize = starting_pid;
+        var child_proc_pid: ?u16 = starting_pid;
         while (child_proc_pid != null) {
             self.processses[child_proc_pid.?].state = .dead;
             for (self.processses) |*proc| {
@@ -373,16 +372,16 @@ pub const Scheduler = struct {
         self.schedule(null);
     }
 
-    pub fn getCurrentProcessPid(self: *Scheduler) usize {
+    pub fn getCurrentProcessPid(self: *Scheduler) u16 {
         return self.current_process.pid.?;
     }
 
-    pub fn setProcessState(self: *Scheduler, pid: usize, state: Process.ProcessState, irq_context: ?*CpuContext) void {
+    pub fn setProcessState(self: *Scheduler, pid: u16, state: Process.ProcessState, irq_context: ?*CpuContext) void {
         self.processses[pid].state = state;
         if (pid == self.current_process.pid and irq_context != null) self.schedule(irq_context.?);
     }
 
-    pub fn setProcessAsleep(self: *Scheduler, pid: usize, sleep_time: usize, irq_context: *CpuContext) !void {
+    pub fn setProcessAsleep(self: *Scheduler, pid: u16, sleep_time: usize, irq_context: *CpuContext) !void {
         try self.checkForPid(pid);
         for (self.processses_sleeping) |proc, i| {
             if (proc == null) {
@@ -394,7 +393,7 @@ pub const Scheduler = struct {
         self.schedule(irq_context);
     }
 
-    fn checkForPid(self: *Scheduler, pid: usize) !void {
+    fn checkForPid(self: *Scheduler, pid: u16) !void {
         if (pid > maxProcesss) return Error.PidNotFound;
         if (self.processses[pid].state == .dead) return Error.TaskIsDead;
     }

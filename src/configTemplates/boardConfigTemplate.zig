@@ -49,9 +49,23 @@ pub const BoardConfig = struct {
         storage_start_addr: usize,
         storage_size: usize,
     };
+    
+    pub const StaticMemoryReserves = struct {
+        // *_max_process_in_queue describes the array which contains the list of tasks currently waiting. 
+        // The array can be portioned quite big since it's only the pids being stored
+        ksemaphore_max_process_in_queue: usize,
+        // [n]usize
+        semaphore_max_process_in_queue: usize,
+        // [n]usize
+        mutex_max_process_in_queue: usize,
+        // [n]Semaphore !
+        topics_max_process_in_queue: usize,
+    };
 
     board_name: []const u8,
     mem: BoardMemLayout,
+    static_memory_reserves: StaticMemoryReserves,
+
     // if it's null, the frequency mus be read from the board at runtime
     timer_freq_in_hertz: ?usize,
     scheduler_freq_in_hertz: usize,

@@ -3,7 +3,7 @@ const std = @import("std");
 const sharedKernelServices = @import("sharedKernelServices");
 const Scheduler = sharedKernelServices.Scheduler;
 
-const raspi3bSetup = @import("raspi3bSetup.zig").raspi3bSetup;
+const raspi3bSetup = @import("raspi3bSetup.zig").bcm2835Setup;
 const qemuVirtSetup = @import("qemuVirtSetup.zig").qemuVirtSetup;
 
 const SetupRoutine = fn (scheduler: *Scheduler) void;

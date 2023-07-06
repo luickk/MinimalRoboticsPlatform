@@ -27,6 +27,9 @@ pub const Syscall = struct {
     fn_call: *const fn (params_args: *CpuContext) void,
 };
 
+
+// todo => implement sys call error return
+
 pub const sysCallTable = [_]Syscall{
     .{ .id = 0, .fn_call = &sysCallPrint },
     .{ .id = 1, .fn_call = &killTask },
@@ -59,7 +62,7 @@ fn sysCallPrint(params_args: *CpuContext) void {
 
 fn killTask(params_args: *CpuContext) void {
     kprint("[kernel] killing task with pid: {d} \n", .{params_args.x0});
-    scheduler.killTask(params_args.x0) catch |e| {
+    scheduler.killTask(@truncate(u16, params_args.x0)) catch |e| {
         kprint("[panic] killTask error: {s}\n", .{@errorName(e)});
         k_utils.panic();
     };
@@ -68,7 +71,7 @@ fn killTask(params_args: *CpuContext) void {
 // kill a process and all its children processes
 fn killTaskRecursively(params_args: *CpuContext) void {
     kprint("[kernel] killing task and children starting with pid: {d} \n", .{params_args.x0});
-    scheduler.killTaskAndChildrend(params_args.x0) catch |e| {
+    scheduler.killTaskAndChildrend(@truncate(u16, params_args.x0)) catch |e| {
         kprint("[panic] killTaskRecursively error: {s}\n", .{@errorName(e)});
         k_utils.panic();
     };
@@ -103,12 +106,12 @@ fn sleep(params_args: *CpuContext) void {
 }
 
 fn haltProcess(params_args: *CpuContext) void {
-    const pid: usize = params_args.x0;
+    const pid: u16 = @truncate(u16, params_args.x0);
     scheduler.setProcessState(pid, .halted, params_args);
 }
 
 fn continueProcess(params_args: *CpuContext) void {
-    const pid: usize = params_args.x0;
+    const pid: u16 = @truncate(u16, params_args.x0);
     scheduler.setProcessState(pid, .running, params_args);
 }
 
@@ -151,6 +154,6 @@ fn popFromTopic(params_args: *CpuContext) void {
 
 fn waitForTopicUpdate(params_args: *CpuContext) void {
     const topic_id = params_args.x0;
-    const pid = params_args.x1;
-    topics.makeTaskWait(topic_id, pid, params_args);
+    const pid: u16 = @truncate(u16, params_args.x1);
+    topics.makeTaskWait(topic_id, pid, params_args) catch return;
 }

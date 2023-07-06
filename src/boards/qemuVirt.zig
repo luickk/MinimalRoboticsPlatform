@@ -37,6 +37,12 @@ pub const config = boardConfig.BoardConfig{
         .storage_start_addr = 0,
         .storage_size = 0,
     },
+    .static_memory_reserves = boardConfig.BoardConfig.StaticMemoryReserves{
+        .ksemaphore_max_process_in_queue = 1000,
+        .semaphore_max_process_in_queue = 1000,
+        .mutex_max_process_in_queue = 1000,
+        .topics_max_process_in_queue = 1000,    
+    },
     // null means that the value is not known at compile time but has to be read from a reg or periph
     .timer_freq_in_hertz = null,
     .scheduler_freq_in_hertz = 250,

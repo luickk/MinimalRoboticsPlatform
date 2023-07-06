@@ -40,6 +40,12 @@ pub const config = boardConfig.BoardConfig {
         .storage_start_addr = 0,
         .storage_size = 0,
     },
+    .static_memory_reserves = boardConfig.BoardConfig.StaticMemoryReserves{
+        .ksemaphore_max_process_in_queue = 1000,
+        .semaphore_max_process_in_queue = 1000,
+        .mutex_max_process_in_queue = 1000,
+        .topics_max_process_in_queue = 1000,    
+    },
     .timer_freq_in_hertz = 1000000,
     .scheduler_freq_in_hertz = 250,
 };
@@ -103,6 +109,10 @@ pub fn PeriphConfig(comptime addr_space: boardConfig.AddrSpace) type {
 
         pub const InterruptController = struct {
             pub const base_address: usize = device_base + 0x0000b200;
+        };
+        
+        pub const GicV2 = struct {
+            pub const base_address: u64 = device_base + 0;
         };
     };
 }

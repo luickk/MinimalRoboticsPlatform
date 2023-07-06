@@ -76,12 +76,12 @@ pub fn killTask(pid: usize) noreturn {
 //     );
 // }
 
-pub fn getPid() usize {
+pub fn getPid() u16 {
     return asm (
         \\mov x8, #3
         \\svc #0
         \\mov %[curr], x0
-        : [curr] "=r" (-> usize),
+        : [curr] "=r" (-> u16),
         :
         : "x0", "x8"
     );

@@ -11,7 +11,7 @@ const Scheduler = @import("Scheduler.zig").Scheduler;
 const arm = @import("arm");
 const KSemaphore = @import("KSemaphore.zig").Semaphore;
 const CpuContext = arm.cpuContext.CpuContext;
-const Topic = @import("sharedServices").Topic(KSemaphore);
+const Topic = @import("sharedServices").Topic(KSemaphore(1));
 const alignForward = std.mem.alignForward;
 
 pub const SysCallsTopicsInterface = struct {
@@ -88,7 +88,7 @@ pub const SysCallsTopicsInterface = struct {
         }
     }
 
-    pub fn makeTaskWait(self: *SysCallsTopicsInterface, topic_id: usize, pid: usize, irq_context: *CpuContext) void {
+    pub fn makeTaskWait(self: *SysCallsTopicsInterface, topic_id: usize, pid: u16, irq_context: *CpuContext) !void {
         if (self.findTopicById(topic_id)) |index| {
             if (self.topics[index].n_waiting_taks > self.topics[index].waiting_tasks.len) {
                 kprint("[panic] Topic maxWaitingTasks exceeded \n", .{});
@@ -96,8 +96,8 @@ pub const SysCallsTopicsInterface = struct {
             }
             // is increased before Semaphore wait call because that may invoke the scheduler which would thus not increase the counter
             self.topics[index].n_waiting_taks += 1;
-            self.topics[index].waiting_tasks[self.topics[index].n_waiting_taks - 1] = KSemaphore.init(1);
-            self.topics[index].waiting_tasks[self.topics[index].n_waiting_taks - 1].?.wait(pid, self.scheduler, irq_context);
+            self.topics[index].waiting_tasks[self.topics[index].n_waiting_taks - 1] = KSemaphore(1).init(1);
+            try self.topics[index].waiting_tasks[self.topics[index].n_waiting_taks - 1].?.wait(pid, self.scheduler, irq_context);
         }
     }
 
