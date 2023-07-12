@@ -14,15 +14,17 @@ const Topic = @import("sharedServices").Topic(Semaphore);
 // const Topic = @import("sharedServices").Topic(sharedKernelServices.KSemaphore);
 
 pub const SharedMemTopicsInterface = struct {
-    topics: [env.env_config.conf_topics.len]Topic,
+    topics: [env.env_config.countTopics()]Topic,
     mem_pool: []u8,
 
     pub fn init() !SharedMemTopicsInterface {
-        var topics = [_]Topic{undefined} ** env.env_config.conf_topics.len;
+        var topics = [_]Topic{undefined} ** env.env_config.countTopics();
         
         var accumulatedTopicsBuffSize: usize = 0;
-        for (env.env_config.conf_topics) |topic_conf| {
-            accumulatedTopicsBuffSize += topic_conf.buffer_size + @sizeOf(usize);
+        for (env.env_config.status_control) |*status_control_conf| {
+            if (status_control_conf.*.status_type == .topic) {
+                accumulatedTopicsBuffSize += status_control_conf.topic_conf.?.buffer_size + @sizeOf(usize);
+            }
         }
         const pages_req = (try std.math.mod(usize, alignForward(accumulatedTopicsBuffSize, 8), board.config.mem.va_user_space_gran.page_size)) + 1;
         var fixedTopicMemPoolInterface: []u8 = undefined;
@@ -30,10 +32,12 @@ pub const SharedMemTopicsInterface = struct {
         fixedTopicMemPoolInterface.len = pages_req * board.config.mem.va_user_space_gran.page_size;
 
         var used_topics_mem: usize = 0;
-        for (env.env_config.conf_topics) |topic_conf, i| {
-            // + @sizeOf(usize) bytes for the buff_state
-            topics[i] = Topic.init(fixedTopicMemPoolInterface[used_topics_mem + @sizeOf(usize) .. used_topics_mem + topic_conf.buffer_size], @intToPtr(*volatile usize, @ptrToInt(fixedTopicMemPoolInterface.ptr) + used_topics_mem), topic_conf.id, topic_conf.buffer_type);        
-            used_topics_mem += topic_conf.buffer_size;
+        for (env.env_config.status_control) |*status_control_conf, i| {
+            if (status_control_conf.*.status_type == .topic) {
+                // + @sizeOf(usize) bytes for the buff_state
+                topics[i] = Topic.init(fixedTopicMemPoolInterface[used_topics_mem + @sizeOf(usize) .. used_topics_mem + status_control_conf.topic_conf.?.buffer_size], @intToPtr(*volatile usize, @ptrToInt(fixedTopicMemPoolInterface.ptr) + used_topics_mem), status_control_conf.topic_conf.?.id, status_control_conf.topic_conf.?.buffer_type);        
+                used_topics_mem += status_control_conf.topic_conf.?.buffer_size;
+            }
         }
 
         return .{

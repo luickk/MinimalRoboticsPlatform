@@ -381,14 +381,14 @@ pub const Scheduler = struct {
         if (pid == self.current_process.pid and irq_context != null) self.schedule(irq_context.?);
     }
 
-    pub fn setProcessAsleep(self: *Scheduler, pid: u16, sleep_time: usize, irq_context: *CpuContext) !void {
+    pub fn setProcessAsleep(self: *Scheduler, pid: u16, cycles_sleeping: usize, irq_context: *CpuContext) !void {
         try self.checkForPid(pid);
         for (self.processses_sleeping) |proc, i| {
             if (proc == null) {
                 self.processses_sleeping[i] = &self.processses[pid];
             }
         }
-        self.processses[pid].sleep_counter = sleep_time;
+        self.processses[pid].sleep_counter = cycles_sleeping;
         self.processses[pid].state = .sleeping;
         self.schedule(irq_context);
     }

@@ -3,6 +3,7 @@ const board = @import("board");
 const sysCalls = @import("userSysCallInterface.zig");
 const kprint = sysCalls.SysCallPrint.kprint;
 
+// max_process_waiting defines how many processes can be put into the waiting queue
 pub fn Semaphore(comptime max_process_waiting: ?usize) type {
     const max_process_waiting_queue = max_process_waiting orelse board.config.static_memory_reserves.semaphore_max_process_in_queue;
     return struct {
@@ -23,21 +24,21 @@ pub fn Semaphore(comptime max_process_waiting: ?usize) type {
         }
         pub fn wait(self: *Self, pid: ?u16) !void {
             var to_halt_proc: u16 = undefined;
-            if (pid == null) to_halt_proc = sysCalls.getPid() else to_halt_proc = pid.?;
+            if (pid == null) to_halt_proc = (try sysCalls.getPid()) else to_halt_proc = pid.?;
             if (self.i < 1) {
                 self.locked_tasks_index += 1;
                 if (self.locked_tasks_index > self.waiting_processes.len) return Error.OutOfStaticMem;
                 self.waiting_processes[self.locked_tasks_index] = to_halt_proc;
-                sysCalls.haltProcess(to_halt_proc);
+                try sysCalls.haltProcess(to_halt_proc);
             }
             self.i -= 1;
         }
 
-        pub fn signal(self: *Self) void {
+        pub fn signal(self: *Self) !void {
             if (self.i < 1) {
                 if (self.waiting_processes[self.locked_tasks_index]) |locked_pid| {
                     self.locked_tasks_index -= 1;
-                    sysCalls.continueProcess(locked_pid);
+                    try sysCalls.continueProcess(locked_pid);
                 }   
                 self.i += 1;
             }   

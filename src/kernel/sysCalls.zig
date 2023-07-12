@@ -22,13 +22,11 @@ extern var topics: *Topics;
 
 pub const Syscall = struct {
     id: u32,
-    //x0..x7 = parameters and arguments
+    //x0..x7 = parameters and arguments (if x0 is negative it's an errno)
     //x8 = SysCall id
     fn_call: *const fn (params_args: *CpuContext) void,
 };
 
-
-// todo => implement sys call error return
 
 pub const sysCallTable = [_]Syscall{
     .{ .id = 0, .fn_call = &sysCallPrint },
@@ -64,7 +62,8 @@ fn killTask(params_args: *CpuContext) void {
     kprint("[kernel] killing task with pid: {d} \n", .{params_args.x0});
     scheduler.killTask(@truncate(u16, params_args.x0)) catch |e| {
         kprint("[panic] killTask error: {s}\n", .{@errorName(e)});
-        k_utils.panic();
+        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        return;
     };
 }
 
@@ -73,7 +72,8 @@ fn killTaskRecursively(params_args: *CpuContext) void {
     kprint("[kernel] killing task and children starting with pid: {d} \n", .{params_args.x0});
     scheduler.killTaskAndChildrend(@truncate(u16, params_args.x0)) catch |e| {
         kprint("[panic] killTaskRecursively error: {s}\n", .{@errorName(e)});
-        k_utils.panic();
+        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        return;
     };
 }
 
@@ -101,7 +101,8 @@ fn sleep(params_args: *CpuContext) void {
     const delay_in_sched_inter = params_args.x0;
     scheduler.setProcessAsleep(scheduler.getCurrentProcessPid(), delay_in_sched_inter, params_args) catch |e| {
         kprint("[panic] setProcessAsleep error: {s}\n", .{@errorName(e)});
-        k_utils.panic();
+        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        return;
     };
 }
 
@@ -141,7 +142,11 @@ fn pushToTopic(params_args: *CpuContext) void {
     const id = params_args.x0;
     const data_ptr = params_args.x1;
     const data_len = params_args.x2;
-    topics.write(id, @intToPtr(*u8, data_ptr), data_len) catch return;
+    topics.write(id, @intToPtr(*u8, data_ptr), data_len) catch |e| {
+        kprint("Topics write error: {s}\n", .{@errorName(e)});
+        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        return;
+    };
 }
 
 fn popFromTopic(params_args: *CpuContext) void {
@@ -149,11 +154,19 @@ fn popFromTopic(params_args: *CpuContext) void {
     const data_len = params_args.x1;
     var ret_buff = @intToPtr([]u8, params_args.x2);
     ret_buff.len = data_len;
-    topics.read(id, ret_buff) catch return;
+    topics.read(id, ret_buff) catch |e| {
+        kprint("Topics popFromTopic error: {s}\n", .{@errorName(e)});
+        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        return;
+    };
 }
 
 fn waitForTopicUpdate(params_args: *CpuContext) void {
     const topic_id = params_args.x0;
     const pid: u16 = @truncate(u16, params_args.x1);
-    topics.makeTaskWait(topic_id, pid, params_args) catch return;
+    topics.makeTaskWait(topic_id, pid, params_args) catch |e| {
+        kprint("Topics waitForTopicUpdate error: {s}\n", .{@errorName(e)});
+        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        return;
+    };
 }

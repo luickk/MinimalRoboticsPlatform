@@ -43,8 +43,6 @@ pub const config = boardConfig.BoardConfig{
         .mutex_max_process_in_queue = 1000,
         .topics_max_process_in_queue = 1000,    
     },
-    // null means that the value is not known at compile time but has to be read from a reg or periph
-    .timer_freq_in_hertz = null,
     .scheduler_freq_in_hertz = 250,
 };
 

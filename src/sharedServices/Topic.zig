@@ -9,6 +9,8 @@ const appLib = @import("appLib");
 const sysCalls = appLib.sysCalls;
 const kprint = appLib.sysCalls.SysCallPrint.kprint;
 
+// todo => permission restrictions
+
 // changes behaviour based on runtime information
 pub const UsersapceMultiBuff = struct {
     const Error = error{
@@ -98,7 +100,6 @@ pub fn Topic(comptime Semaphore: type) type {
         buff: UsersapceMultiBuff,
         id: usize,
         opened: bool,
-        // todo => not scaling.
         waiting_tasks: [board.config.static_memory_reserves.topics_max_process_in_queue]?Semaphore,
         n_waiting_taks: usize,
 

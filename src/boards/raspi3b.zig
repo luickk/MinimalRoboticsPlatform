@@ -46,7 +46,6 @@ pub const config = boardConfig.BoardConfig {
         .mutex_max_process_in_queue = 1000,
         .topics_max_process_in_queue = 1000,    
     },
-    .timer_freq_in_hertz = 1000000,
     .scheduler_freq_in_hertz = 250,
 };
 

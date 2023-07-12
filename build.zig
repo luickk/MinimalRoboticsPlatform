@@ -1,19 +1,11 @@
 const std = @import("std");
-const builtin = @import("builtin");
 const warn = std.debug.warn;
 const os = std.os;
 
-const Error = error{BlExceedsRomSize};
+const BoardBuildConf = @import("src/configTemplates/boardBuildConfigTemplate.zig").BoardBuildConf;
+const builtin = @import("builtin");
 
-const BoardBuildConf = struct {
-    boardName: []const u8,
-    has_rom: bool,
-    // the kernel is loaded by into 0x8000 ram by the gpu, so no relocation (or rom) required
-    rom_start_addr: ?usize,
-    bl_load_addr: ?usize,
-    va_start: usize,
-    qemu_launch_command: []const []const u8,
-};
+const Error = error{BlExceedsRomSize};
 
 const raspi3b = BoardBuildConf {
     .boardName = "raspi3b",
@@ -45,15 +37,16 @@ const qemuVirt = BoardBuildConf {
 };
 
 
-const currBoard = raspi3b;
-// const currBoard = qemuVirt;
+// const currBoard = raspi3b;
+const currBoard = qemuVirt;
 
-const env_path = "src/environments/basicMultiProcess";
+// const env_path = "src/environments/statusControlTest";
+// const env_path = "src/environments/basicMultiProcess";
 // const env_path = "src/environments/basicMultithreading";
 // const env_path = "src/environments/multiProcAndThreading";
 // const env_path = "src/environments/sysCallTopicsTest";
 // const env_path = "src/environments/sharedMemTopicsTest";
-// const env_path = "src/environments/basicKernelFunctionalityTest";
+const env_path = "src/environments/basicKernelFunctionalityTest";
 
 
 // packages...

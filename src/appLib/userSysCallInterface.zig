@@ -7,6 +7,7 @@ const utils = @import("utils");
 
 const Error = error{
     SleepDelayTooShortForScheduler,
+    SysCallError,
 };
 
 pub const SysCallPrint = struct {
@@ -76,28 +77,38 @@ pub fn killTask(pid: usize) noreturn {
 //     );
 // }
 
-pub fn getPid() u16 {
-    return asm (
+fn checkForError(x0: usize) !usize {
+    if (@intCast(isize, x0) < 0) {
+        return Error.SysCallError;
+    }
+    return x0;
+}
+
+pub fn getPid() !u16 {
+    const ret = asm (
         \\mov x8, #3
         \\svc #0
         \\mov %[curr], x0
-        : [curr] "=r" (-> u16),
+        : [curr] "=r" (-> usize),
         :
         : "x0", "x8"
     );
+    return @truncate(u16, try checkForError(ret));
 }
 
-pub fn killTaskRecursively(starting_pid: usize) void {
-    asm volatile (
+pub fn killTaskRecursively(starting_pid: usize) !void {
+    const ret = asm volatile (
     // args
         \\mov x0, %[pid]
         // sys call id
         \\mov x8, #4
         \\svc #0
-        :
+        \\mov %[ret], x0
+        : [ret] "=r" (-> usize),
         : [pid] "r" (starting_pid),
         : "x0", "x8"
     );
+    _ = try checkForError(ret);
 }
 
 // creates thread for current process
@@ -111,7 +122,7 @@ pub fn createThread(thread_stack_mem: []u8, thread_fn: anytype, args: anytype) !
 
     std.mem.copy(u8, thread_stack_start, arg_mem);
 
-    asm volatile (
+    const ret = asm volatile (
     // args
         \\mov x0, %[entry_fn_ptr]
         \\mov x1, %[thread_stack]
@@ -120,13 +131,15 @@ pub fn createThread(thread_stack_mem: []u8, thread_fn: anytype, args: anytype) !
         // sys call id
         \\mov x8, #6
         \\svc #0
-        :
+        \\mov %[ret], x0
+        : [ret] "=r" (-> usize),
         : [entry_fn_ptr] "r" (@ptrToInt(&(ThreadInstance(thread_fn, @TypeOf(args)).threadEntry))),
           [thread_stack] "r" (@ptrToInt(thread_stack_start.ptr) - alignForward(@sizeOf(@TypeOf(args)), 16)),
           [args_addr] "r" (@ptrToInt(thread_stack_start.ptr)),
           [thread_fn_ptr] "r" (@ptrToInt(&thread_fn)),
         : "x0", "x1", "x2", "x3", "x8"
     );
+    _ = try checkForError(ret);
 }
 
 // provides a generic entry function (generic in regard to the thread and argument function since @call builtin needs them to properly invoke the thread start)
@@ -140,77 +153,87 @@ fn ThreadInstance(comptime thread_fn: anytype, comptime Args: type) type {
 }
 
 pub fn sleep(delay_in_nano_secs: usize) !void {
-    const delay_in_hertz = delay_in_nano_secs * 1000000000;
+    const delay_in_hertz = try std.math.divTrunc(usize, delay_in_nano_secs, std.time.ns_per_s);
     const delay_sched_intervals = board.config.scheduler_freq_in_hertz / delay_in_hertz;
     if (board.config.scheduler_freq_in_hertz < delay_in_hertz) return Error.SleepDelayTooShortForScheduler;
-    asm volatile (
+    const ret = asm volatile (
     // args
         \\mov x0, %[delay]
         // sys call id
         \\mov x8, #7
         \\svc #0
-        :
+        \\mov %[ret], x0
+        : [ret] "=r" (-> usize),
         : [delay] "r" (delay_sched_intervals),
         : "x0", "x8"
     );
+    _ = try checkForError(ret);
 }
 
-pub fn haltProcess(pid: usize) void {
-    asm volatile (
+pub fn haltProcess(pid: usize) !void {
+    const ret = asm volatile (
     // args
         \\mov x0, %[pid]
         // sys call id
         \\mov x8, #8
         \\svc #0
-        :
+        \\mov %[ret], x0
+        : [ret] "=r" (-> usize),
         : [pid] "r" (pid),
         : "x0", "x8"
     );
+    _ = try checkForError(ret);
 }
 
-pub fn continueProcess(pid: usize) void {
-    asm volatile (
+pub fn continueProcess(pid: usize) !void {
+    const ret = asm volatile (
     // args
         \\mov x0, %[pid]
         // sys call id
         \\mov x8, #9
         \\svc #0
-        :
+        \\mov %[ret], x0
+        : [ret] "=r" (-> usize),
         : [pid] "r" (pid),
         : "x0", "x8"
     );
+    _ = try checkForError(ret);
 }
 
-pub fn closeTopic(id: usize) void {
-    asm volatile (
+pub fn closeTopic(id: usize) !void {
+    const ret = asm volatile (
     // args
         \\mov x0, %[id]
         // sys call id
         \\mov x8, #10
         \\svc #0
-        :
+        \\mov %[ret], x0
+        : [ret] "=r" (-> usize),
         : [id] "r" (id),
         : "x0", "x8"
     );
+    _ = try checkForError(ret);
 }
 
-pub fn openTopic(id: usize) void {
-    asm volatile (
+pub fn openTopic(id: usize) !void {
+    const ret = asm volatile (
     // args
         \\mov x0, %[id]
         // sys call id
         \\mov x8, #11
         \\svc #0
-        :
+        \\mov %[ret], x0
+        : [ret] "=r" (-> usize),
         : [id] "r" (id),
         : "x0", "x8"
     );
+    _ = try checkForError(ret);
 }
 
-pub fn pushToTopic(id: usize, data: []u8) void {
+pub fn pushToTopic(id: usize, data: []u8) !void {
     const data_ptr: usize = @ptrToInt(data.ptr);
     const data_len = data.len;
-    asm volatile (
+    const ret = asm volatile (
     // args
         \\mov x0, %[id]
         \\mov x1, %[data_ptr]
@@ -218,16 +241,18 @@ pub fn pushToTopic(id: usize, data: []u8) void {
         // sys call id
         \\mov x8, #12
         \\svc #0
-        :
+        \\mov %[ret], x0
+        : [ret] "=r" (-> usize),
         : [id] "r" (id),
           [data_ptr] "r" (data_ptr),
           [data_len] "r" (data_len),
         : "x0", "x1", "x2", "x8"
     );
+    _ = try checkForError(ret);
 }
 
-pub fn popFromTopic(id: usize, ret_buff: []u8) void {
-    asm volatile (
+pub fn popFromTopic(id: usize, ret_buff: []u8) !void {
+    const ret = asm volatile (
     // args
         \\mov x0, %[id]
         \\mov x1, %[data_len]
@@ -235,53 +260,61 @@ pub fn popFromTopic(id: usize, ret_buff: []u8) void {
         // sys call id
         \\mov x8, #13
         \\svc #0
-        :
+        \\mov %[ret], x0
+        : [ret] "=r" (-> usize),
         : [id] "r" (id),
           [data_len] "r" (ret_buff.len),
           [ret_buff] "r" (@ptrToInt(ret_buff.ptr)),
         : "x0", "x1", "x2", "x8"
     );
+    _ = try checkForError(ret);
 }
 
-pub fn waitForTopicUpdate(topic_id: usize) void {
+pub fn waitForTopicUpdate(topic_id: usize) !void {
     const pid = getPid();
-    asm volatile (
+    const ret = asm volatile (
     // args
         \\mov x0, %[topic_id]
         \\mov x1, %[pid]
         // sys call id
         \\mov x8, #14
         \\svc #0
-        :
+        \\mov %[ret], x0
+        : [ret] "=r" (-> usize),
         : [topic_id] "r" (topic_id),
           [pid] "r" (pid),
         : "x0", "x1", "x8"
     );
+    _ = try checkForError(ret);
 }
 
 
-pub fn increaseCurrTaskPreemptCounter() void {
-    asm volatile (
+pub fn increaseCurrTaskPreemptCounter() !void {
+    const ret = asm volatile (
     // args
         // sys call id
         \\mov x8, #15
         \\svc #0
-        :
+        \\mov %[ret], x0
+        : [ret] "=r" (-> usize),
         :
         : "x8"
     );
+    _ = try checkForError(ret);
 }
 
 
 
-pub fn decreaseCurrTaskPreemptCounter() void {
-    asm volatile (
+pub fn decreaseCurrTaskPreemptCounter() !void {
+    const ret = asm volatile (
     // args
         // sys call id
         \\mov x8, #16
         \\svc #0
-        :
+        \\mov %[ret], x0
+        : [ret] "=r" (-> usize),
         :
         : "x8"
     );
+    _ = try checkForError(ret);
 }

@@ -15,7 +15,7 @@ const Topic = @import("sharedServices").Topic(KSemaphore(1));
 const alignForward = std.mem.alignForward;
 
 pub const SysCallsTopicsInterface = struct {
-    topics: [env.env_config.conf_topics.len]Topic,
+    topics: [env.env_config.countTopics()]Topic,
     mem_pool: []u8,
     scheduler: *Scheduler,
 
@@ -23,19 +23,23 @@ pub const SysCallsTopicsInterface = struct {
     pub fn init(user_page_alloc: *UserPageAllocator, scheduler: *Scheduler) !SysCallsTopicsInterface {
         var accumulatedTopicsBuffSize: usize = 0;
 
-        for (env.env_config.conf_topics) |topic_conf| {
-            accumulatedTopicsBuffSize += topic_conf.buffer_size + @sizeOf(usize);
+        for (env.env_config.status_control) |*status_control_conf| {
+            if (status_control_conf.*.status_type == .topic) {
+                accumulatedTopicsBuffSize += status_control_conf.topic_conf.?.buffer_size + @sizeOf(usize);
+            }
         }
         const pages_req = (try std.math.mod(usize, accumulatedTopicsBuffSize, board.config.mem.va_user_space_gran.page_size)) + 1;
 
         const topics_mem = try user_page_alloc.allocNPage(pages_req);
-        var topics = [_]Topic{undefined} ** env.env_config.conf_topics.len;
+        var topics = [_]Topic{undefined} ** env.env_config.countTopics();
         var used_topics_mem: usize = 0;
         const topic_read_write_buff_ptr = @intToPtr(*volatile usize, used_topics_mem);
-        for (env.env_config.conf_topics) |topic_conf, i| {
-            topic_read_write_buff_ptr.* = 0;
-            topics[i] = Topic.init(topics_mem[used_topics_mem + @sizeOf(usize) .. used_topics_mem + topic_conf.buffer_size], topic_read_write_buff_ptr, topic_conf.id, topic_conf.buffer_type);
-            used_topics_mem += topic_conf.buffer_size;
+        for (env.env_config.status_control) |*status_control_conf, i| {
+            if (status_control_conf.*.status_type == .topic) {
+                topic_read_write_buff_ptr.* = 0;
+                topics[i] = Topic.init(topics_mem[used_topics_mem + @sizeOf(usize) .. used_topics_mem + status_control_conf.topic_conf.?.buffer_size], topic_read_write_buff_ptr, status_control_conf.topic_conf.?.id, status_control_conf.topic_conf.?.buffer_type);
+                used_topics_mem += status_control_conf.topic_conf.?.buffer_size;   
+            }
         }
         return .{
             .topics = topics,

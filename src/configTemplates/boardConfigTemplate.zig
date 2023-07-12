@@ -66,8 +66,6 @@ pub const BoardConfig = struct {
     mem: BoardMemLayout,
     static_memory_reserves: StaticMemoryReserves,
 
-    // if it's null, the frequency mus be read from the board at runtime
-    timer_freq_in_hertz: ?usize,
     scheduler_freq_in_hertz: usize,
 
     pub fn checkConfig(self: BoardConfig) void {

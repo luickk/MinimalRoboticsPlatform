@@ -30,9 +30,9 @@ pub fn GenericTimer(comptime base_address: ?usize, comptime scheduler_freq_in_he
         pub fn setupGt(self: *Self) !void {
             const cnt_freq = getFreq();
 
-            const increasePerTick = try utils.calcTicksFromHertz(cnt_freq, scheduler_freq_in_hertz);
+            const expire_count = try utils.calcTicksFromHertz(cnt_freq, scheduler_freq_in_hertz);
+            self.timerVal = expire_count;
 
-            self.timerVal += increasePerTick;
             asm volatile (
                 \\msr CNTP_TVAL_EL0, %[cval]
                 \\mov x0, 1

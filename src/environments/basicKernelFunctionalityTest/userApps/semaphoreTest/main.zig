@@ -49,7 +49,10 @@ fn testThread1(test_sem: *Semaphore) void {
         kprint("i: {d} \n", .{test_sem.i});
         shared_resource += 1;
         kprint("thread1 signaling {d} \n", .{test_sem.i});
-        test_sem.signal();
+        test_sem.signal() catch |e| {
+            kprint("semaphore signal  error: {s}\n", .{@errorName(e)});
+            while (true) {}
+        };
         kprint("i: {d} \n", .{test_sem.i});
         // kprint("thread1 last {d} \n", .{test_sem.i});
     }
@@ -65,7 +68,10 @@ fn testThread2(test_sem: *Semaphore) void {
         kprint("i: {d} \n", .{test_sem.i});
         shared_resource -= 1;
         kprint("thread2 signaling {d} \n", .{test_sem.i});
-        test_sem.signal();
+        test_sem.signal() catch |e| {
+            kprint("semaphore signal  error: {s}\n", .{@errorName(e)});
+            while (true) {}
+        };
         kprint("i: {d} \n", .{test_sem.i});
         // kprint("thread2 last i: {d} \n", .{test_sem.i});
     }

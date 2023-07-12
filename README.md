@@ -111,19 +111,11 @@ The Rust code can still be found in the separate [rust branch](https://github.co
 In order to first boot the kernel on a physical board, I'm searching for the best board. Number one priority is simplicity. The raspberry has a relatively complex multi bootstage process. That is not ideal, includes a file system on an SD Card in is pretty ugly in general.
 The Jetson Nano has a similarly complex boot process. 
 
-The Banana Pi and Rock Pi on the other hand offer an eMMC that can be flashed with the Maskrom(maskrom is not available on the Banana Pi sadly). The Banana/ Rock Pi eMMC is quite elegant because it does a) not require a file system and b) is loaded directly by the arm cores(and not from the GPU as with the raspberry).
+The Rock Pi on the other hand offer eMMC storage that can be flashed with the Maskrom directly from another device. The Rock Pi eMMC is quite elegant because it does, a) not require a file system, and b) is loaded directly by the arm cores(and not from the GPU as with the raspberry).
 
 ## Compatibility
 
-### Boards and their requirements
-
-| generic int. cont. | generic timer | boot with rom | boot without rom | bcm2835 interrupt controller | bcm2835 system timer |             |
-|--------------------|---------------|---------------|------------------|------------------------------|---------------|-------------|
-| ✅                  | ✅             | ✅             | ❌                | ❌                            | ❌             | qemu virt   |
-| ❌                  | ❌             | ❌             | ✅                | ✅                            | ❌             | raspberry3b |
-| ✅                  | ✅             | ❌             | ✅                | ❌                            | ❌             | raspberry 4 |
-
-The Generic interrupt controler, generic timer, booting with/out rom, bcm2835 interrupt controller are all supported, thus all of the three boards are bootable. 
+Currently, there is support for the important Arm SOC elements such as the generic timer, interrupt controller as well as the Raspberries BCM2835 secondary interrupt controller and system timer. The project can be configured with ROM relocation and without, so most Arm SOC boards should be compatible at the moment.
 
 ## Allocation Policy
 
