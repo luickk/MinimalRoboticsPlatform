@@ -7,7 +7,7 @@ const builtin = @import("builtin");
 
 const Error = error{BlExceedsRomSize};
 
-const raspi3b = BoardBuildConf {
+const raspi3b = BoardBuildConf{
     .boardName = "raspi3b",
     .has_rom = false,
     .rom_start_addr = null,
@@ -20,8 +20,7 @@ const raspi3b = BoardBuildConf {
     .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "raspi3b", "-device", "loader,addr=0x80000,file=zig-out/bin/bootloader.bin,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
 };
 
-
-const qemuVirt = BoardBuildConf {
+const qemuVirt = BoardBuildConf{
     .boardName = "qemuVirt",
     .has_rom = true,
     // qemus virt machine has no rom
@@ -36,18 +35,16 @@ const qemuVirt = BoardBuildConf {
     .qemu_launch_command = &[_][]const u8{ "qemu-system-aarch64", "-machine", "virt", "-m", "10G", "-cpu", "cortex-a53", "-device", "loader,file=zig-out/bin/bootloader.bin,cpu-num=0,force-raw=on", "-serial", "stdio", "-display", "none" },
 };
 
-
 // const currBoard = raspi3b;
 const currBoard = qemuVirt;
 
-// const env_path = "src/environments/statusControlTest";
+const env_path = "src/environments/statusControlTest";
 // const env_path = "src/environments/basicMultiProcess";
 // const env_path = "src/environments/basicMultithreading";
 // const env_path = "src/environments/multiProcAndThreading";
 // const env_path = "src/environments/sysCallTopicsTest";
 // const env_path = "src/environments/sharedMemTopicsTest";
-const env_path = "src/environments/basicKernelFunctionalityTest";
-
+// const env_path = "src/environments/basicKernelFunctionalityTest";
 
 // packages...
 // SOC builtin features
@@ -76,11 +73,10 @@ var setupRoutines = std.build.Pkg{ .name = "setupRoutines", .source = .{ .path =
 var interruptControllerDriver = std.build.Pkg{ .name = "interruptControllerDriver", .source = .{ .path = "src/boards/drivers/interruptController/interruptController.zig" } };
 var timerDriver = std.build.Pkg{ .name = "timerDriver", .source = .{ .path = "src/boards/drivers/timer/timer.zig" } };
 
-
 var sharedServices = std.build.Pkg{ .name = "sharedServices", .source = .{ .path = "src/sharedServices/sharedServices.zig" } };
 
 pub fn build(b: *std.build.Builder) !void {
-    // currBoard.config.checkConfig();    
+    // currBoard.config.checkConfig();
     const build_mode = std.builtin.Mode.ReleaseFast;
     var build_options = b.addOptions();
 
@@ -91,7 +87,7 @@ pub fn build(b: *std.build.Builder) !void {
     interruptControllerDriver.dependencies = &.{ board, arm };
     timerDriver.dependencies = &.{ board, utils, periph };
     board.dependencies = &.{ kpi, utils, arm, interruptControllerDriver, timerDriver, configTemplates };
-    environment.dependencies = &.{ configTemplates };
+    environment.dependencies = &.{configTemplates};
     sharedServices.dependencies = &.{ board, appLib, environment };
     sharedKernelServices.dependencies = &.{ board, environment, appLib, arm, utils, sharedServices, periph };
     periph.dependencies = &.{board};

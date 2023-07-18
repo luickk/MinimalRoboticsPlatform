@@ -124,6 +124,11 @@ For that reason the kernels allocations are only permitted at kernel boot/init t
 
 There is an app allocation available in user space so that a considered decision can be made and an allocator still be used if the app is not important.
 
+### Allocation Projection
+
+// todo => alloc projection
+Since there are no allocations at actual runtime (after the kernel init), a projection of the required (allocated) memory can be made, including spare reserves. That would not only give indications for Ram compatibility, but would allow for predictions about the risk for running out of memory in case of black swan events.
+
 ## Kernel wise features
 
 ### Topics

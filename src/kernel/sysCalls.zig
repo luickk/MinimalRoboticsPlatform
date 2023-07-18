@@ -11,6 +11,7 @@ const ProccessorRegMap = arm.processor.ProccessorRegMap;
 const k_utils = @import("utils.zig");
 
 const sharedKernelServices = @import("sharedKernelServices");
+const StatusControl = sharedKernelServices.StatusControl;
 const Scheduler = sharedKernelServices.Scheduler;
 const Topics = sharedKernelServices.SysCallsTopicsInterface;
 
@@ -18,6 +19,7 @@ const Semaphore = sharedKernelServices.KSemaphore;
 
 // global user required since the scheduler calls are invoked via svc
 extern var scheduler: *Scheduler;
+extern var status_control: *StatusControl;
 extern var topics: *Topics;
 
 pub const Syscall = struct {
@@ -26,7 +28,6 @@ pub const Syscall = struct {
     //x8 = SysCall id
     fn_call: *const fn (params_args: *CpuContext) void,
 };
-
 
 pub const sysCallTable = [_]Syscall{
     .{ .id = 0, .fn_call = &sysCallPrint },
@@ -46,6 +47,8 @@ pub const sysCallTable = [_]Syscall{
     .{ .id = 14, .fn_call = &waitForTopicUpdate },
     .{ .id = 15, .fn_call = &increaseCurrTaskPreemptCounter },
     .{ .id = 16, .fn_call = &decreaseCurrTaskPreemptCounter },
+    .{ .id = 17, .fn_call = &updateStatus },
+    .{ .id = 18, .fn_call = &readStatus },
 };
 
 fn sysCallPrint(params_args: *CpuContext) void {
@@ -126,12 +129,10 @@ fn openTopic(params_args: *CpuContext) void {
     topics.openTopic(id);
 }
 
-
 fn increaseCurrTaskPreemptCounter(params_args: *CpuContext) void {
     _ = params_args;
     scheduler.current_process.preempt_count += 1;
 }
-
 
 fn decreaseCurrTaskPreemptCounter(params_args: *CpuContext) void {
     _ = params_args;
@@ -166,6 +167,26 @@ fn waitForTopicUpdate(params_args: *CpuContext) void {
     const pid: u16 = @truncate(u16, params_args.x1);
     topics.makeTaskWait(topic_id, pid, params_args) catch |e| {
         kprint("Topics waitForTopicUpdate error: {s}\n", .{@errorName(e)});
+        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        return;
+    };
+}
+
+fn updateStatus(params_args: *CpuContext) void {
+    const status_id = @truncate(u16, params_args.x0);
+    const val_addr = params_args.x1;
+    status_control.updateStatusRaw(status_id, val_addr) catch |e| {
+        kprint("StatusControl updateStatus error: {s}\n", .{@errorName(e)});
+        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        return;
+    };
+}
+
+fn readStatus(params_args: *CpuContext) void {
+    const status_id = @truncate(u16, params_args.x0);
+    var ret_buff = params_args.x1;
+    status_control.readStatusRaw(status_id, ret_buff) catch |e| {
+        kprint("StatusControl readRaw error: {s}\n", .{@errorName(e)});
         @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
         return;
     };

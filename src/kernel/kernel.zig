@@ -6,7 +6,8 @@ const setupRoutines = @import("setupRoutines");
 // kernel services
 const sharedKernelServices = @import("sharedKernelServices");
 const Scheduler = sharedKernelServices.Scheduler;
-const Topics = sharedKernelServices.SysCallsTopicsInterface;
+const SysCallsTopicsInterface = sharedKernelServices.SysCallsTopicsInterface;
+const StatusControl = sharedKernelServices.StatusControl;
 // KernelAllocator and UserPageAllocator types are inited in sharedKernelServices!.
 const KernelAllocator = sharedKernelServices.KernelAllocator;
 const UserPageAllocator = sharedKernelServices.UserPageAllocator;
@@ -43,7 +44,8 @@ var user_page_alloc = UserPageAllocator.init() catch |e| {
 
 // pointer is now global, ! kernel main lifetime needs to be equal to schedulers lt.. !
 export var scheduler: *Scheduler = undefined;
-export var topics: *Topics = undefined;
+export var status_control: *StatusControl = undefined;
+export var topics: *SysCallsTopicsInterface = undefined;
 
 const apps = blk: {
     var apps_addresses = [_][]const u8{undefined} ** b_options.apps.len;
@@ -208,11 +210,19 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
     scheduler = &scheduler_tmp;
 
     {
-        var topics_tmp = Topics.init(&user_page_alloc, scheduler) catch |e| {
-            kprint("[panic] Topics init error: {s} \n", .{@errorName(e)});
+        var topics_tmp = SysCallsTopicsInterface.init(&user_page_alloc, scheduler) catch |e| {
+            kprint("[panic] SysCallsTopicsInterface init error: {s} \n", .{@errorName(e)});
             k_utils.panic();
         };
         topics = &topics_tmp;
+    }
+
+    {
+        var status_control_tmp = StatusControl.init(&kspace_alloc) catch |e| {
+            kprint("[panic] StatusControl init error: {s} \n", .{@errorName(e)});
+            k_utils.panic();
+        };
+        status_control = &status_control_tmp;
     }
 
     {

@@ -19,10 +19,10 @@ pub const SysCallsTopicsInterface = struct {
     mem_pool: []u8,
     scheduler: *Scheduler,
 
-    // the scheduler is a double pointer because the Topics are inited before the scheduler, so the scheduler pointer changes
     pub fn init(user_page_alloc: *UserPageAllocator, scheduler: *Scheduler) !SysCallsTopicsInterface {
         var accumulatedTopicsBuffSize: usize = 0;
 
+        // todo => mapping index to index doesn't work anymore with other statuses that are not topics
         for (env.env_config.status_control) |*status_control_conf| {
             if (status_control_conf.*.status_type == .topic) {
                 accumulatedTopicsBuffSize += status_control_conf.topic_conf.?.buffer_size + @sizeOf(usize);
@@ -37,8 +37,8 @@ pub const SysCallsTopicsInterface = struct {
         for (env.env_config.status_control) |*status_control_conf, i| {
             if (status_control_conf.*.status_type == .topic) {
                 topic_read_write_buff_ptr.* = 0;
-                topics[i] = Topic.init(topics_mem[used_topics_mem + @sizeOf(usize) .. used_topics_mem + status_control_conf.topic_conf.?.buffer_size], topic_read_write_buff_ptr, status_control_conf.topic_conf.?.id, status_control_conf.topic_conf.?.buffer_type);
-                used_topics_mem += status_control_conf.topic_conf.?.buffer_size;   
+                topics[i] = Topic.init(topics_mem[used_topics_mem + @sizeOf(usize) .. used_topics_mem + status_control_conf.topic_conf.?.buffer_size], topic_read_write_buff_ptr, status_control_conf.id, status_control_conf.topic_conf.?.buffer_type);
+                used_topics_mem += status_control_conf.topic_conf.?.buffer_size;
             }
         }
         return .{

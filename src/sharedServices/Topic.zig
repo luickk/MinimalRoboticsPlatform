@@ -3,7 +3,7 @@ const utils = @import("utils");
 const board = @import("board");
 const env = @import("environment");
 
-const TopicBufferTypes = env.envConfTemplate.EnvConfig.TopicBufferTypes;
+const TopicBufferTypes = env.envConfTemplate.TopicBufferTypes;
 
 const appLib = @import("appLib");
 const sysCalls = appLib.sysCalls;
@@ -24,7 +24,7 @@ pub const UsersapceMultiBuff = struct {
     curr_read_write_ptr: *volatile usize,
 
     pub fn init(topic_mem: []u8, buff_curr_read_write_ptr_state: *volatile usize, buff_type: TopicBufferTypes) UsersapceMultiBuff {
-        return .{ .buff = topic_mem, .behaviour_type = buff_type, .curr_read_write_ptr = buff_curr_read_write_ptr_state};
+        return .{ .buff = topic_mem, .behaviour_type = buff_type, .curr_read_write_ptr = buff_curr_read_write_ptr_state };
     }
 
     pub fn write(self: *UsersapceMultiBuff, data: []u8) !void {
@@ -120,4 +120,5 @@ pub fn Topic(comptime Semaphore: type) type {
         pub fn read(self: *Self, ret_buff: []u8) !void {
             try self.buff.read(ret_buff);
         }
-    };}
+    };
+}

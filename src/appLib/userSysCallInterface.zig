@@ -1,14 +1,12 @@
 const std = @import("std");
 const board = @import("board");
+const env = @import("environment");
 const alignForward = std.mem.alignForward;
 const AppAllocator = @import("AppAllocator.zig").AppAllocator;
 const Mutex = @import("Mutex.zig").Mutex;
 const utils = @import("utils");
 
-const Error = error{
-    SleepDelayTooShortForScheduler,
-    SysCallError,
-};
+const Error = error{ SleepDelayTooShortForScheduler, SysCallError, TypesNotMatching, WrongInterface };
 
 pub const SysCallPrint = struct {
     const Self = @This();
@@ -288,11 +286,10 @@ pub fn waitForTopicUpdate(topic_id: usize) !void {
     _ = try checkForError(ret);
 }
 
-
 pub fn increaseCurrTaskPreemptCounter() !void {
     const ret = asm volatile (
     // args
-        // sys call id
+    // sys call id
         \\mov x8, #15
         \\svc #0
         \\mov %[ret], x0
@@ -303,12 +300,10 @@ pub fn increaseCurrTaskPreemptCounter() !void {
     _ = try checkForError(ret);
 }
 
-
-
 pub fn decreaseCurrTaskPreemptCounter() !void {
     const ret = asm volatile (
     // args
-        // sys call id
+    // sys call id
         \\mov x8, #16
         \\svc #0
         \\mov %[ret], x0
@@ -317,4 +312,42 @@ pub fn decreaseCurrTaskPreemptCounter() !void {
         : "x8"
     );
     _ = try checkForError(ret);
+}
+
+pub fn updateStatus(comptime name: []const u8, value: anytype) !void {
+    const status = try env.env_config.getStatusInfo(name);
+    const ret = asm volatile (
+    // args
+    // sys call id
+        \\mov x0, %[id]
+        \\mov x1, %[val_addr]
+        \\mov x8, #17
+        \\svc #0
+        \\mov %[ret], x0
+        : [ret] "=r" (-> usize),
+        : [id] "r" (status.id),
+          [val_addr] "r" (&value),
+        : "x8"
+    );
+    _ = try checkForError(ret);
+}
+pub fn readStatus(comptime T: type, comptime name: []const u8) !T {
+    const status = try env.env_config.getStatusInfo(name);
+
+    var ret_buff: status.type = undefined;
+    const ret = asm volatile (
+    // args
+        \\mov x0, %[id]
+        \\mov x1, %[ret_buff]
+        // sys call id
+        \\mov x8, #18
+        \\svc #0
+        \\mov %[ret], x0
+        : [ret] "=r" (-> usize),
+        : [id] "r" (status.id),
+          [ret_buff] "r" (@ptrToInt(&ret_buff)),
+        : "x0", "x1", "x8"
+    );
+    _ = try checkForError(ret);
+    return ret_buff;
 }

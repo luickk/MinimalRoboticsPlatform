@@ -14,15 +14,13 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     while (true) {
         test_counter += 1;
 
-        kprint("app{d} test print {d} \n", .{ pid, test_counter });
-        kprint("sleeping... \n", .{});
-        sysCalls.sleep(std.time.ns_per_s) catch |e| {
-            kprint("syscall err {s} \n", .{@errorName(e)});
+        sysCalls.updateStatus("height", @intCast(isize, test_counter)) catch |e| {
+            kprint("sysCalls updateStatus err: {s} \n", .{@errorName(e)});
         };
-        // if (test_counter == 40000) {
-        //     test_counter += 1;
-        //     // sysCalls.killTask(1);
-        //     sysCalls.killTaskRecursively(1);
-        // }
+        var read = sysCalls.readStatus(isize, "height") catch |e| {
+            kprint("sysCalls readStatus err: {s} \n", .{@errorName(e)});
+            while (true) {}
+        };
+        kprint("status read: {d} \n", .{read});
     }
 }

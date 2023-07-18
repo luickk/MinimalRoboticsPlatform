@@ -17,7 +17,7 @@ var shared_mutex: *Mutex = &mutex;
 export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     kprint("app2 initial pid: {d} \n", .{pid});
     while (true) {
-        test_counter += 1;
-        kprint("app{d} test print {d} \n", .{ pid, test_counter });
+        // test_counter += 1;
+        // kprint("app{d} test print {d} \n", .{ pid, test_counter });
     }
 }
