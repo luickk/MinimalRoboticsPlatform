@@ -16,22 +16,23 @@ var shared_mutex: *Mutex = &mutex;
 
 export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     kprint("app2 initial pid: {d} \n", .{pid});
-    sysCalls.openTopic(1) catch |e| {
-        kprint("syscall openTopic err: {s} \n", .{@errorName(e)});
-        while (true) {}
-    };
-    var ret_buff = [_]u8{0} ** 1;
+
+    var ret: usize = 0;
+    var ret_buff: []u8 = undefined;
+    ret_buff.ptr = @ptrCast([*]u8, &ret);
+    ret_buff.len = @sizeOf(@TypeOf(ret));
+
     while (true) {
         kprint("going to wait \n", .{});
         sysCalls.waitForTopicUpdate(1) catch |e| {
             kprint("syscall waitForTopicUpdate err: {s} \n", .{@errorName(e)});
-            while (true) {}
+            // while (true) {}
         };
-        kprint("done waiting \n", .{});
-        sysCalls.popFromTopic(1, &ret_buff) catch |e| {
+        var read_len = sysCalls.popFromTopic(1, ret_buff) catch |e| {
             kprint("syscall popFromTopic err: {s} \n", .{@errorName(e)});
             while (true) {}
         };
-        kprint("topic pop: {any} \n", .{ret_buff});
+        if (read_len < ret_buff.len) kprint("buffer partially filled {d}/ {d} bytes \n", .{ read_len, ret_buff.len });
+        kprint("topic pop: {any} \n", .{ret});
     }
 }

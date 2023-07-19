@@ -15,6 +15,10 @@ const Topic = @import("sharedServices").Topic(KSemaphore(1));
 const alignForward = std.mem.alignForward;
 
 pub const SysCallsTopicsInterface = struct {
+    const Error = error{
+        TopicIdNotFound,
+    };
+
     topics: [env.env_config.countTopics()]Topic,
     mem_pool: []u8,
     scheduler: *Scheduler,
@@ -22,7 +26,6 @@ pub const SysCallsTopicsInterface = struct {
     pub fn init(user_page_alloc: *UserPageAllocator, scheduler: *Scheduler) !SysCallsTopicsInterface {
         var accumulatedTopicsBuffSize: usize = 0;
 
-        // todo => mapping index to index doesn't work anymore with other statuses that are not topics
         for (env.env_config.status_control) |*status_control_conf| {
             if (status_control_conf.*.status_type == .topic) {
                 accumulatedTopicsBuffSize += status_control_conf.topic_conf.?.buffer_size + @sizeOf(usize);
@@ -48,19 +51,7 @@ pub const SysCallsTopicsInterface = struct {
         };
     }
 
-    pub fn closeTopic(self: *SysCallsTopicsInterface, id: usize) void {
-        if (self.findTopicById(id)) |index| {
-            self.topics[index].opened = true;
-        }
-    }
-
-    pub fn openTopic(self: *SysCallsTopicsInterface, id: usize) void {
-        if (self.findTopicById(id)) |index| {
-            self.topics[index].opened = false;
-        }
-    }
-
-    pub fn write(self: *SysCallsTopicsInterface, id: usize, data_ptr: *u8, len: usize) !void {
+    pub fn write(self: *SysCallsTopicsInterface, id: usize, data_ptr: *u8, len: usize) !usize {
         // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
         self.scheduler.switchMemContext(self.scheduler.processses[0].ttbr0.?, null);
         defer self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
@@ -70,7 +61,7 @@ pub const SysCallsTopicsInterface = struct {
             var data: []u8 = undefined;
             data.ptr = @intToPtr([*]u8, userspace_app_mapping_data_addr);
             data.len = len;
-            try self.topics[index].write(data);
+            const data_written: usize = try self.topics[index].write(data);
             for (self.topics[index].waiting_tasks) |*semaphore| {
                 if (semaphore.* != null) {
                     semaphore.*.?.signal(self.scheduler);
@@ -78,18 +69,19 @@ pub const SysCallsTopicsInterface = struct {
                     self.topics[index].n_waiting_taks -= 1;
                 }
             }
-        }
+            return data_written;
+        } else return Error.TopicIdNotFound;
     }
 
-    pub fn read(self: *SysCallsTopicsInterface, id: usize, ret_buff: []u8) !void {
+    pub fn read(self: *SysCallsTopicsInterface, id: usize, ret_buff: []u8) !usize {
         // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
         self.scheduler.switchMemContext(self.scheduler.processses[0].ttbr0.?, null);
         defer self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
         var userspace_app_mapping_ret_buff = @intToPtr([]u8, @ptrToInt(self.scheduler.current_process.app_mem.?.ptr) + @ptrToInt(ret_buff.ptr));
         userspace_app_mapping_ret_buff.len = ret_buff.len;
         if (self.findTopicById(id)) |index| {
-            try self.topics[index].read(userspace_app_mapping_ret_buff);
-        }
+            return self.topics[index].read(userspace_app_mapping_ret_buff);
+        } else return Error.TopicIdNotFound;
     }
 
     pub fn makeTaskWait(self: *SysCallsTopicsInterface, topic_id: usize, pid: u16, irq_context: *CpuContext) !void {

@@ -15,7 +15,7 @@ pub const env_config = envConfTemplate.EnvConfig(3){
             .id = 1,
             .topic_conf = .{
                 .buffer_type = envConfTemplate.TopicBufferTypes.RingBuffer,
-                .buffer_size = 1024,
+                .buffer_size = 0x100000,
             },
         },
         .{
@@ -23,7 +23,7 @@ pub const env_config = envConfTemplate.EnvConfig(3){
             .name = "radar-sensor",
             .id = 2,
             .topic_conf = .{
-                .buffer_type = envConfTemplate.TopicBufferTypes.RingBuffer,
+                .buffer_type = envConfTemplate.TopicBufferTypes.ContinousBuffer,
                 .buffer_size = 1024,
             },
         },

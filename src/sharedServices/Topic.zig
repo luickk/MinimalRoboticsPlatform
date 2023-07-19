@@ -14,7 +14,6 @@ const kprint = appLib.sysCalls.SysCallPrint.kprint;
 // changes behaviour based on runtime information
 pub const UsersapceMultiBuff = struct {
     const Error = error{
-        BuffOutOfSpace,
         MaxRollOvers,
     };
     buff: []u8,
@@ -27,7 +26,7 @@ pub const UsersapceMultiBuff = struct {
         return .{ .buff = topic_mem, .behaviour_type = buff_type, .curr_read_write_ptr = buff_curr_read_write_ptr_state };
     }
 
-    pub fn write(self: *UsersapceMultiBuff, data: []u8) !void {
+    pub fn write(self: *UsersapceMultiBuff, data: []u8) !usize {
         switch (self.behaviour_type) {
             .RingBuffer => {
                 return self.write_ring_buff(data);
@@ -38,7 +37,7 @@ pub const UsersapceMultiBuff = struct {
         }
     }
 
-    pub fn read(self: *UsersapceMultiBuff, ret_buff: []u8) !void {
+    pub fn read(self: *UsersapceMultiBuff, ret_buff: []u8) !usize {
         switch (self.behaviour_type) {
             .RingBuffer => {
                 return self.read_ring_buff(ret_buff);
@@ -49,21 +48,30 @@ pub const UsersapceMultiBuff = struct {
         }
     }
 
-    pub fn write_ring_buff(self: *UsersapceMultiBuff, data: []u8) !void {
-        if (self.curr_read_write_ptr.* + data.len > self.buff.len) return Error.BuffOutOfSpace;
-        std.mem.copy(u8, self.buff[self.curr_read_write_ptr.*..], data);
+    pub fn write_ring_buff(self: *UsersapceMultiBuff, data: []u8) !usize {
+        var space_left: usize = 0;
+        if (self.curr_read_write_ptr.* + data.len > self.buff.len) {
+            space_left = self.buff.len - self.curr_read_write_ptr.*;
+        } else space_left = data.len;
+        std.mem.copy(u8, self.buff[self.curr_read_write_ptr.* .. self.curr_read_write_ptr.* + space_left], data);
         self.curr_read_write_ptr.* += data.len;
+        return space_left;
     }
 
-    pub fn read_ring_buff(self: *UsersapceMultiBuff, ret_buff: []u8) !void {
-        if (self.curr_read_write_ptr.* < ret_buff.len) return Error.BuffOutOfSpace;
-        var data = self.buff[self.curr_read_write_ptr.* - ret_buff.len .. self.curr_read_write_ptr.*];
-        self.curr_read_write_ptr.* -= ret_buff.len;
-
-        std.mem.copy(u8, ret_buff, data);
+    pub fn read_ring_buff(self: *UsersapceMultiBuff, ret_buff: []u8) !usize {
+        var ret_data: []u8 = undefined;
+        if (self.curr_read_write_ptr.* < ret_buff.len) {
+            ret_data = self.buff[0..self.curr_read_write_ptr.*];
+            self.curr_read_write_ptr.* = 0;
+        } else {
+            ret_data = self.buff[self.curr_read_write_ptr.* - ret_buff.len .. self.curr_read_write_ptr.*];
+            self.curr_read_write_ptr.* -= ret_buff.len;
+        }
+        std.mem.copy(u8, ret_buff, ret_data);
+        return ret_data.len;
     }
 
-    pub fn write_continous_buff(self: *UsersapceMultiBuff, data: []u8) !void {
+    pub fn write_continous_buff(self: *UsersapceMultiBuff, data: []u8) !usize {
         var buff_pointer = try std.math.mod(usize, self.curr_read_write_ptr.*, self.buff.len);
 
         std.mem.copy(u8, self.buff[buff_pointer..], data);
@@ -71,9 +79,10 @@ pub const UsersapceMultiBuff = struct {
             std.mem.copy(u8, self.buff[0..], data[self.buff.len..]);
         }
         self.curr_read_write_ptr.* += data.len;
+        return data.len;
     }
 
-    pub fn read_continous_buff(self: *UsersapceMultiBuff, ret_buff: []u8) !void {
+    pub fn read_continous_buff(self: *UsersapceMultiBuff, ret_buff: []u8) !usize {
         var buff_pointer = try std.math.mod(usize, self.curr_read_write_ptr.*, self.buff.len);
 
         var lower_read_bound: usize = 0;
@@ -82,14 +91,16 @@ pub const UsersapceMultiBuff = struct {
 
         std.mem.copy(u8, ret_buff, data);
 
+        var rolled_over_data: []u8 = undefined;
         if (buff_pointer < ret_buff.len) {
             const rollover_size: usize = try std.math.sub(usize, buff_pointer, ret_buff.len);
             // only one rollver is supported
             if (rollover_size > self.buff.len) return Error.MaxRollOvers;
 
-            var rolled_over_data = self.buff[self.buff.len - rollover_size .. self.buff.len];
+            rolled_over_data = self.buff[self.buff.len - rollover_size .. self.buff.len];
             std.mem.copy(u8, @intToPtr([]u8, @ptrToInt(ret_buff.ptr) + data.len), rolled_over_data);
         }
+        return data.len + rolled_over_data.len;
     }
 };
 
@@ -113,12 +124,12 @@ pub fn Topic(comptime Semaphore: type) type {
             };
         }
 
-        pub fn write(self: *Self, data: []u8) !void {
+        pub fn write(self: *Self, data: []u8) !usize {
             return self.buff.write(data);
         }
 
-        pub fn read(self: *Self, ret_buff: []u8) !void {
-            try self.buff.read(ret_buff);
+        pub fn read(self: *Self, ret_buff: []u8) !usize {
+            return self.buff.read(ret_buff);
         }
     };
 }

@@ -32,16 +32,16 @@ pub const Syscall = struct {
 pub const sysCallTable = [_]Syscall{
     .{ .id = 0, .fn_call = &sysCallPrint },
     .{ .id = 1, .fn_call = &killTask },
-    // .{ .id = 2, .fn_call = &forkProcess },
+    // .{ .id = 2, .fn_call = &xxx },
     .{ .id = 3, .fn_call = &getPid },
     .{ .id = 4, .fn_call = &killTaskRecursively },
-    // sys call id 5 is not used
+    // .{ .id = 5, .fn_call = &xxx },
     .{ .id = 6, .fn_call = &createThread },
     .{ .id = 7, .fn_call = &sleep },
     .{ .id = 8, .fn_call = &haltProcess },
     .{ .id = 9, .fn_call = &continueProcess },
-    .{ .id = 10, .fn_call = &closeTopic },
-    .{ .id = 11, .fn_call = &openTopic },
+    // .{ .id = 10, .fn_call = &xxx },
+    // .{ .id = 11, .fn_call = &xxx },
     .{ .id = 12, .fn_call = &pushToTopic },
     .{ .id = 13, .fn_call = &popFromTopic },
     .{ .id = 14, .fn_call = &waitForTopicUpdate },
@@ -119,16 +119,6 @@ fn continueProcess(params_args: *CpuContext) void {
     scheduler.setProcessState(pid, .running, params_args);
 }
 
-fn closeTopic(params_args: *CpuContext) void {
-    const id = params_args.x0;
-    topics.closeTopic(id);
-}
-
-fn openTopic(params_args: *CpuContext) void {
-    const id = params_args.x0;
-    topics.openTopic(id);
-}
-
 fn increaseCurrTaskPreemptCounter(params_args: *CpuContext) void {
     _ = params_args;
     scheduler.current_process.preempt_count += 1;
@@ -143,7 +133,7 @@ fn pushToTopic(params_args: *CpuContext) void {
     const id = params_args.x0;
     const data_ptr = params_args.x1;
     const data_len = params_args.x2;
-    topics.write(id, @intToPtr(*u8, data_ptr), data_len) catch |e| {
+    params_args.x0 = topics.write(id, @intToPtr(*u8, data_ptr), data_len) catch |e| {
         kprint("Topics write error: {s}\n", .{@errorName(e)});
         @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
         return;
@@ -155,7 +145,7 @@ fn popFromTopic(params_args: *CpuContext) void {
     const data_len = params_args.x1;
     var ret_buff = @intToPtr([]u8, params_args.x2);
     ret_buff.len = data_len;
-    topics.read(id, ret_buff) catch |e| {
+    params_args.x0 = topics.read(id, ret_buff) catch |e| {
         kprint("Topics popFromTopic error: {s}\n", .{@errorName(e)});
         @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
         return;

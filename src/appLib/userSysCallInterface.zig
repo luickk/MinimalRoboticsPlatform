@@ -198,37 +198,7 @@ pub fn continueProcess(pid: usize) !void {
     _ = try checkForError(ret);
 }
 
-pub fn closeTopic(id: usize) !void {
-    const ret = asm volatile (
-    // args
-        \\mov x0, %[id]
-        // sys call id
-        \\mov x8, #10
-        \\svc #0
-        \\mov %[ret], x0
-        : [ret] "=r" (-> usize),
-        : [id] "r" (id),
-        : "x0", "x8"
-    );
-    _ = try checkForError(ret);
-}
-
-pub fn openTopic(id: usize) !void {
-    const ret = asm volatile (
-    // args
-        \\mov x0, %[id]
-        // sys call id
-        \\mov x8, #11
-        \\svc #0
-        \\mov %[ret], x0
-        : [ret] "=r" (-> usize),
-        : [id] "r" (id),
-        : "x0", "x8"
-    );
-    _ = try checkForError(ret);
-}
-
-pub fn pushToTopic(id: usize, data: []u8) !void {
+pub fn pushToTopic(id: usize, data: []u8) !usize {
     const data_ptr: usize = @ptrToInt(data.ptr);
     const data_len = data.len;
     const ret = asm volatile (
@@ -246,10 +216,10 @@ pub fn pushToTopic(id: usize, data: []u8) !void {
           [data_len] "r" (data_len),
         : "x0", "x1", "x2", "x8"
     );
-    _ = try checkForError(ret);
+    return checkForError(ret);
 }
 
-pub fn popFromTopic(id: usize, ret_buff: []u8) !void {
+pub fn popFromTopic(id: usize, ret_buff: []u8) !usize {
     const ret = asm volatile (
     // args
         \\mov x0, %[id]
@@ -265,7 +235,7 @@ pub fn popFromTopic(id: usize, ret_buff: []u8) !void {
           [ret_buff] "r" (@ptrToInt(ret_buff.ptr)),
         : "x0", "x1", "x2", "x8"
     );
-    _ = try checkForError(ret);
+    return checkForError(ret);
 }
 
 pub fn waitForTopicUpdate(topic_id: usize) !void {

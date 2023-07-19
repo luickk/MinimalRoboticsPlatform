@@ -14,6 +14,10 @@ const Topic = @import("sharedServices").Topic(Semaphore);
 // const Topic = @import("sharedServices").Topic(sharedKernelServices.KSemaphore);
 
 pub const SharedMemTopicsInterface = struct {
+    const Error = error{
+        TopicIdNotFound,
+    };
+
     topics: [env.env_config.countTopics()]Topic,
     mem_pool: []u8,
 
@@ -46,16 +50,17 @@ pub const SharedMemTopicsInterface = struct {
         };
     }
 
-    pub fn read(self: *SharedMemTopicsInterface, id: usize, ret_buff: []u8) !void {
+    pub fn read(self: *SharedMemTopicsInterface, id: usize, ret_buff: []u8) !usize {
         if (self.findTopicById(id)) |index| {
-            try self.topics[index].read(ret_buff);
+            return self.topics[index].read(ret_buff);
         }
+        return Error.TopicIdNotFound;
     }
 
-    pub fn write(self: *SharedMemTopicsInterface, id: usize, data: []u8) !void {
+    pub fn write(self: *SharedMemTopicsInterface, id: usize, data: []u8) !usize {
         if (self.findTopicById(id)) |index| {
-            try self.topics[index].write(data);
-        }
+            return self.topics[index].write(data);
+        } else return Error.TopicIdNotFound;
     }
 
     // returns index

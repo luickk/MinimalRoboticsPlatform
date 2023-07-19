@@ -17,20 +17,24 @@ var shared_mutex: *Mutex = &mutex;
 
 export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     kprint("app1 initial pid: {d} \n", .{pid});
-    var ret_buff = [_]u8{0} ** 1;
+
+    var ret: usize = 0;
+    var ret_buff: []u8 = undefined;
+    ret_buff.ptr = @ptrCast([*]u8, &ret);
+    ret_buff.len = @sizeOf(@TypeOf(ret));
 
     var topics_interf = SharedMemTopicsInterface.init() catch |e| {
-        kprint("app1 SharedMemTopicsInterface init err: {s} \n", .{ @errorName(e) });
+        kprint("app1 SharedMemTopicsInterface init err: {s} \n", .{@errorName(e)});
         while (true) {}
     };
     // var topics_interfaces_read = @intToPtr(*volatile [1000]usize, 0x20000000);
     while (true) {
         // kprint("topics interface read: {any} \n", .{topics_interfaces_read.*});
-        topics_interf.read(1, &ret_buff) catch |e| {
-            kprint("app1 read err: {s} \n", .{ @errorName(e) });
-            while (true) {}      
+        const read_len: usize = topics_interf.read(1, ret_buff) catch |e| {
+            kprint("app1 read err: {s} \n", .{@errorName(e)});
+            while (true) {}
         };
-        kprint("read: {any} \n", .{ret_buff});
+        if (read_len < ret_buff.len) kprint("buffer partially filled {d}/ {d} bytes \n", .{ read_len, ret_buff.len });
+        kprint("read: {any} \n", .{ret});
     }
 }
-

@@ -7,18 +7,17 @@ const kprint = appLib.sysCalls.SysCallPrint.kprint;
 export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     kprint("app1 initial pid: {d} \n", .{pid});
 
-    sysCalls.openTopic(1) catch |e| {
-        kprint("syscall openTopic err: {s} \n", .{@errorName(e)});
-        while (true) {}
-    };
-    var counter: u8 = 0;
+    var counter: usize = 0;
+
+    var payload: []u8 = undefined;
+    payload.ptr = @ptrCast([*]u8, &counter);
+    payload.len = @sizeOf(@TypeOf(counter));
     while (true) {
-        // kprint("app{d} test push \n", .{pid});
-        kprint("trying \n", .{});
-        sysCalls.pushToTopic(1, &[_]u8{counter}) catch |e| {
+        var data_written = sysCalls.pushToTopic(1, payload) catch |e| {
             kprint("syscall pushToTopic err: {s} \n", .{@errorName(e)});
             while (true) {}
         };
+        if (data_written < payload.len) kprint("partially written {d}/ {d} bytes \n", .{ data_written, payload.len });
         kprint("pushin: {d} \n", .{counter});
         counter += 1;
 

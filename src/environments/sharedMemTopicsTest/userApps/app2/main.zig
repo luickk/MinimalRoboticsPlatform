@@ -19,16 +19,21 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     kprint("app2 initial pid: {d} \n", .{pid});
 
     var topics_interf = SharedMemTopicsInterface.init() catch |e| {
-        kprint("app2 SharedMemTopicsInterface init err: {s} \n", .{ @errorName(e) });
+        kprint("app2 SharedMemTopicsInterface init err: {s} \n", .{@errorName(e)});
         while (true) {}
     };
-    var counter: u8 = 0;
+    var counter: usize = 0;
+
+    var payload: []u8 = undefined;
+    payload.ptr = @ptrCast([*]u8, &counter);
+    payload.len = @sizeOf(@TypeOf(counter));
     while (true) {
         counter += 1;
-        topics_interf.write(1, &[_]u8{counter}) catch |e| {
-            kprint("app2 write err: {s} \n", .{ @errorName(e) });
+        const written_data = topics_interf.write(1, payload) catch |e| {
+            kprint("app2 write err: {s} \n", .{@errorName(e)});
             while (true) {}
         };
+        if (written_data < payload.len) kprint("buffer partially filled {d}/ {d} bytes \n", .{ written_data, payload.len });
         kprint("pushed: {d} \n", .{counter});
     }
 }
