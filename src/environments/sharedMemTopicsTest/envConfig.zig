@@ -14,7 +14,7 @@ pub const env_config = envConfTemplate.EnvConfig(3){
             .name = "height-sensor",
             .id = 1,
             .topic_conf = .{
-                .buffer_type = envConfTemplate.TopicBufferTypes.RingBuffer,
+                .buffer_type = envConfTemplate.TopicBufferTypes.ContinousBuffer,
                 .buffer_size = 1024,
             },
         },

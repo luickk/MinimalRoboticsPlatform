@@ -36,12 +36,14 @@ pub const SysCallsTopicsInterface = struct {
         const topics_mem = try user_page_alloc.allocNPage(pages_req);
         var topics = [_]Topic{undefined} ** env.env_config.countTopics();
         var used_topics_mem: usize = 0;
-        const topic_read_write_buff_ptr = @intToPtr(*volatile usize, used_topics_mem);
-        for (env.env_config.status_control) |*status_control_conf, i| {
+        var i: usize = 0;
+        for (env.env_config.status_control) |*status_control_conf| {
             if (status_control_conf.*.status_type == .topic) {
+                const topic_read_write_buff_ptr = @intToPtr(*volatile usize, used_topics_mem);
                 topic_read_write_buff_ptr.* = 0;
                 topics[i] = Topic.init(topics_mem[used_topics_mem + @sizeOf(usize) .. used_topics_mem + status_control_conf.topic_conf.?.buffer_size], topic_read_write_buff_ptr, status_control_conf.id, status_control_conf.topic_conf.?.buffer_type);
                 used_topics_mem += status_control_conf.topic_conf.?.buffer_size;
+                i += 1;
             }
         }
         return .{

@@ -51,7 +51,7 @@ pub const UsersapceMultiBuff = struct {
     pub fn write_ring_buff(self: *UsersapceMultiBuff, data: []u8) !usize {
         var space_left: usize = 0;
         if (self.curr_read_write_ptr.* + data.len > self.buff.len) {
-            space_left = self.buff.len - self.curr_read_write_ptr.*;
+            space_left = self.buff.len - try std.math.mod(usize, self.curr_read_write_ptr.*, self.buff.len);
         } else space_left = data.len;
         std.mem.copy(u8, self.buff[self.curr_read_write_ptr.* .. self.curr_read_write_ptr.* + space_left], data);
         self.curr_read_write_ptr.* += data.len;
@@ -59,6 +59,9 @@ pub const UsersapceMultiBuff = struct {
     }
 
     pub fn read_ring_buff(self: *UsersapceMultiBuff, ret_buff: []u8) !usize {
+        // if (asm volatile ("adr %[pc], ."
+        //     : [pc] "=r" (-> usize),
+        // ) < 0xFFFFFF8000000000) kprint("curr read curr_read_write_ptr: {any} \n", .{self.curr_read_write_ptr});
         var ret_data: []u8 = undefined;
         if (self.curr_read_write_ptr.* < ret_buff.len) {
             ret_data = self.buff[0..self.curr_read_write_ptr.*];
@@ -83,6 +86,9 @@ pub const UsersapceMultiBuff = struct {
     }
 
     pub fn read_continous_buff(self: *UsersapceMultiBuff, ret_buff: []u8) !usize {
+        // if (asm volatile ("adr %[pc], ."
+        //     : [pc] "=r" (-> usize),
+        // ) < 0xFFFFFF8000000000) kprint("curr read curr_read_write_ptr: {any} \n", .{self.curr_read_write_ptr.*});
         var buff_pointer = try std.math.mod(usize, self.curr_read_write_ptr.*, self.buff.len);
 
         var lower_read_bound: usize = 0;
@@ -92,8 +98,8 @@ pub const UsersapceMultiBuff = struct {
         std.mem.copy(u8, ret_buff, data);
 
         var rolled_over_data: []u8 = undefined;
-        if (buff_pointer < ret_buff.len) {
-            const rollover_size: usize = try std.math.sub(usize, buff_pointer, ret_buff.len);
+        if (buff_pointer < ret_buff.len and buff_pointer != 0) {
+            const rollover_size: usize = std.math.absCast(try std.math.sub(isize, @intCast(isize, buff_pointer), @intCast(isize, ret_buff.len)));
             // only one rollver is supported
             if (rollover_size > self.buff.len) return Error.MaxRollOvers;
 

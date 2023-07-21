@@ -2,6 +2,8 @@ const std = @import("std");
 const env = @import("environment");
 const KernelAlloc = @import("KernelAllocator.zig").KernelAllocator;
 const StatusType = env.envConfTemplate.StatusType;
+const periph = @import("periph");
+const kprint = periph.uart.UartWriter(.ttbr1).kprint;
 
 pub const StatusControl = struct {
     const GenericStatus = struct {
@@ -26,7 +28,6 @@ pub const StatusControl = struct {
         var i: usize = 0;
         for (env.env_config.status_control) |*status_control_conf| {
             if (status_control_conf.status_type != .topic) {
-                i += 1;
                 switch (status_control_conf.status_type) {
                     .string => {
                         accumulatedBuffSize += @sizeOf([100]u8);
@@ -42,6 +43,7 @@ pub const StatusControl = struct {
                     },
                     else => {},
                 }
+                i += 1;
             }
         }
         const status_mem = try kernel_alloc.alloc(u8, accumulatedBuffSize, null);

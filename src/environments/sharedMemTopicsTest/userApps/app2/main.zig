@@ -29,7 +29,7 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     payload.len = @sizeOf(@TypeOf(counter));
     while (true) {
         counter += 1;
-        const written_data = topics_interf.write(1, payload) catch |e| {
+        const written_data = topics_interf.write("height-sensor", payload) catch |e| {
             kprint("app2 write err: {s} \n", .{@errorName(e)});
             while (true) {}
         };

@@ -28,7 +28,7 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
         while (true) {}
     };
     while (true) {
-        var read_len = topics_interf.read(1, ret_buff) catch |e| {
+        var read_len = topics_interf.read("front-ultrasonic-proximity", ret_buff) catch |e| {
             kprint("app3 SharedMemTopicsInterface read err: {s} \n", .{@errorName(e)});
             while (true) {}
         };

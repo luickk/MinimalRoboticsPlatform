@@ -30,7 +30,7 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     // var topics_interfaces_read = @intToPtr(*volatile [1000]usize, 0x20000000);
     while (true) {
         // kprint("topics interface read: {any} \n", .{topics_interfaces_read.*});
-        const read_len: usize = topics_interf.read(1, ret_buff) catch |e| {
+        const read_len: usize = topics_interf.read("height-sensor", ret_buff) catch |e| {
             kprint("app1 read err: {s} \n", .{@errorName(e)});
             while (true) {}
         };

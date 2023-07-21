@@ -11,14 +11,14 @@ pub const env_config = envConfTemplate.EnvConfig(3){
         },
         .{
             .status_type = .bool,
-            .name = "ground-contact",
-            .id = 2,
+            .name = "groundContact",
+            .id = 1,
             .topic_conf = null,
         },
         .{
             .status_type = .topic,
             .name = "height-sensor",
-            .id = 1,
+            .id = 2,
             .topic_conf = .{
                 .buffer_type = envConfTemplate.TopicBufferTypes.RingBuffer,
                 .buffer_size = 1024,

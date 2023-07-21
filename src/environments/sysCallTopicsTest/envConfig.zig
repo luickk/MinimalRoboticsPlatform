@@ -20,10 +20,10 @@ pub const env_config = envConfTemplate.EnvConfig(3){
         },
         .{
             .status_type = .topic,
-            .name = "radar-sensor",
+            .name = "front-ultrasonic-proximity",
             .id = 2,
             .topic_conf = .{
-                .buffer_type = envConfTemplate.TopicBufferTypes.ContinousBuffer,
+                .buffer_type = envConfTemplate.TopicBufferTypes.RingBuffer,
                 .buffer_size = 1024,
             },
         },

@@ -7,7 +7,7 @@ pub const StatusType = enum {
     bool,
     topic,
 
-    pub fn statusTypeToType(comptime self: StatusType) ?type {
+    pub fn statusTypeToNativeType(comptime self: StatusType) ?type {
         switch (self) {
             inline .usize => return usize,
             inline .isize => return isize,
@@ -61,7 +61,7 @@ pub fn EnvConfig(comptime n_statuses: usize) type {
         // comms model..
         status_control: [n_statuses]StatusControlConf,
 
-        pub fn getStatusInfo(comptime self: *const Self, comptime name: []const u8) Error!struct { id: u16, type: type } {
+        pub fn getStatusInfo(comptime self: *const Self, comptime name: []const u8) Error!struct { id: u16, type: ?type } {
             statuses: inline for (self.status_control) |status_control_conf| {
                 comptime var found: bool = true;
                 if (status_control_conf.name.len != name.len) {
@@ -74,9 +74,9 @@ pub fn EnvConfig(comptime n_statuses: usize) type {
                         continue :statuses;
                     }
                 }
-                if (found == true) {
+                if (found) {
                     // if (!status_control_conf.status_type.isTypeEqual(@TypeOf(value))) return Error.StatusTypesNotMatching;
-                    return .{ .id = status_control_conf.id, .type = status_control_conf.status_type.statusTypeToType() orelse Error.WrongStatusInterface };
+                    return .{ .id = status_control_conf.id, .type = status_control_conf.status_type.statusTypeToNativeType() };
                 }
             }
             return Error.StatusNameNotFound;

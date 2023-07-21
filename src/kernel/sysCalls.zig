@@ -133,6 +133,7 @@ fn pushToTopic(params_args: *CpuContext) void {
     const id = params_args.x0;
     const data_ptr = params_args.x1;
     const data_len = params_args.x2;
+    // kprint("...: {any}\n", .{params_args.x0});
     params_args.x0 = topics.write(id, @intToPtr(*u8, data_ptr), data_len) catch |e| {
         kprint("Topics write error: {s}\n", .{@errorName(e)});
         @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
@@ -163,7 +164,7 @@ fn waitForTopicUpdate(params_args: *CpuContext) void {
 }
 
 fn updateStatus(params_args: *CpuContext) void {
-    const status_id = @truncate(u16, params_args.x0);
+    const status_id = @intCast(u16, params_args.x0);
     const val_addr = params_args.x1;
     status_control.updateStatusRaw(status_id, val_addr) catch |e| {
         kprint("StatusControl updateStatus error: {s}\n", .{@errorName(e)});
@@ -173,7 +174,7 @@ fn updateStatus(params_args: *CpuContext) void {
 }
 
 fn readStatus(params_args: *CpuContext) void {
-    const status_id = @truncate(u16, params_args.x0);
+    const status_id = @intCast(u16, params_args.x0);
     var ret_buff = params_args.x1;
     status_control.readStatusRaw(status_id, ret_buff) catch |e| {
         kprint("StatusControl readRaw error: {s}\n", .{@errorName(e)});

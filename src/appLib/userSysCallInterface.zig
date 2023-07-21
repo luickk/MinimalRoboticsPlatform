@@ -6,6 +6,9 @@ const AppAllocator = @import("AppAllocator.zig").AppAllocator;
 const Mutex = @import("Mutex.zig").Mutex;
 const utils = @import("utils");
 
+const sysCalls = @import("userSysCallInterface.zig");
+const kprint = sysCalls.SysCallPrint.kprint;
+
 const Error = error{ SleepDelayTooShortForScheduler, SysCallError, TypesNotMatching, WrongInterface };
 
 pub const SysCallPrint = struct {
@@ -198,7 +201,8 @@ pub fn continueProcess(pid: usize) !void {
     _ = try checkForError(ret);
 }
 
-pub fn pushToTopic(id: usize, data: []u8) !usize {
+pub fn pushToTopic(comptime name: []const u8, data: []u8) !usize {
+    const status = try env.env_config.getStatusInfo(name);
     const data_ptr: usize = @ptrToInt(data.ptr);
     const data_len = data.len;
     const ret = asm volatile (
@@ -211,7 +215,7 @@ pub fn pushToTopic(id: usize, data: []u8) !usize {
         \\svc #0
         \\mov %[ret], x0
         : [ret] "=r" (-> usize),
-        : [id] "r" (id),
+        : [id] "r" (status.id),
           [data_ptr] "r" (data_ptr),
           [data_len] "r" (data_len),
         : "x0", "x1", "x2", "x8"
@@ -219,7 +223,8 @@ pub fn pushToTopic(id: usize, data: []u8) !usize {
     return checkForError(ret);
 }
 
-pub fn popFromTopic(id: usize, ret_buff: []u8) !usize {
+pub fn popFromTopic(comptime name: []const u8, ret_buff: []u8) !usize {
+    const status = try env.env_config.getStatusInfo(name);
     const ret = asm volatile (
     // args
         \\mov x0, %[id]
@@ -230,7 +235,7 @@ pub fn popFromTopic(id: usize, ret_buff: []u8) !usize {
         \\svc #0
         \\mov %[ret], x0
         : [ret] "=r" (-> usize),
-        : [id] "r" (id),
+        : [id] "r" (status.id),
           [data_len] "r" (ret_buff.len),
           [ret_buff] "r" (@ptrToInt(ret_buff.ptr)),
         : "x0", "x1", "x2", "x8"
@@ -238,7 +243,8 @@ pub fn popFromTopic(id: usize, ret_buff: []u8) !usize {
     return checkForError(ret);
 }
 
-pub fn waitForTopicUpdate(topic_id: usize) !void {
+pub fn waitForTopicUpdate(comptime name: []const u8) !void {
+    const status = try env.env_config.getStatusInfo(name);
     const pid = getPid();
     const ret = asm volatile (
     // args
@@ -249,7 +255,7 @@ pub fn waitForTopicUpdate(topic_id: usize) !void {
         \\svc #0
         \\mov %[ret], x0
         : [ret] "=r" (-> usize),
-        : [topic_id] "r" (topic_id),
+        : [topic_id] "r" (status.id),
           [pid] "r" (pid),
         : "x0", "x1", "x8"
     );
@@ -284,6 +290,8 @@ pub fn decreaseCurrTaskPreemptCounter() !void {
     _ = try checkForError(ret);
 }
 
+// todo => check wether status type and arg type match
+
 pub fn updateStatus(comptime name: []const u8, value: anytype) !void {
     const status = try env.env_config.getStatusInfo(name);
     const ret = asm volatile (
@@ -304,7 +312,7 @@ pub fn updateStatus(comptime name: []const u8, value: anytype) !void {
 pub fn readStatus(comptime T: type, comptime name: []const u8) !T {
     const status = try env.env_config.getStatusInfo(name);
 
-    var ret_buff: status.type = undefined;
+    var ret_buff: status.?.type = undefined;
     const ret = asm volatile (
     // args
         \\mov x0, %[id]

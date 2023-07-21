@@ -36,11 +36,15 @@ pub const SharedMemTopicsInterface = struct {
         fixedTopicMemPoolInterface.len = pages_req * board.config.mem.va_user_space_gran.page_size;
 
         var used_topics_mem: usize = 0;
-        for (env.env_config.status_control) |*status_control_conf, i| {
+        var i: usize = 0;
+        for (env.env_config.status_control) |*status_control_conf| {
             if (status_control_conf.*.status_type == .topic) {
+                const topic_read_write_buff_ptr = @intToPtr(*volatile usize, @ptrToInt(fixedTopicMemPoolInterface.ptr) + used_topics_mem);
+                topic_read_write_buff_ptr.* = 0;
                 // + @sizeOf(usize) bytes for the buff_state
-                topics[i] = Topic.init(fixedTopicMemPoolInterface[used_topics_mem + @sizeOf(usize) .. used_topics_mem + status_control_conf.topic_conf.?.buffer_size], @intToPtr(*volatile usize, @ptrToInt(fixedTopicMemPoolInterface.ptr) + used_topics_mem), status_control_conf.id, status_control_conf.topic_conf.?.buffer_type);
+                topics[i] = Topic.init(fixedTopicMemPoolInterface[used_topics_mem + @sizeOf(usize) .. used_topics_mem + status_control_conf.topic_conf.?.buffer_size], topic_read_write_buff_ptr, status_control_conf.id, status_control_conf.topic_conf.?.buffer_type);
                 used_topics_mem += status_control_conf.topic_conf.?.buffer_size;
+                i += 1;
             }
         }
 
@@ -50,15 +54,16 @@ pub const SharedMemTopicsInterface = struct {
         };
     }
 
-    pub fn read(self: *SharedMemTopicsInterface, id: usize, ret_buff: []u8) !usize {
-        if (self.findTopicById(id)) |index| {
+    pub fn read(self: *SharedMemTopicsInterface, comptime name: []const u8, ret_buff: []u8) !usize {
+        const status = try env.env_config.getStatusInfo(name);
+        if (self.findTopicById(status.id)) |index| {
             return self.topics[index].read(ret_buff);
-        }
-        return Error.TopicIdNotFound;
+        } else return Error.TopicIdNotFound;
     }
 
-    pub fn write(self: *SharedMemTopicsInterface, id: usize, data: []u8) !usize {
-        if (self.findTopicById(id)) |index| {
+    pub fn write(self: *SharedMemTopicsInterface, comptime name: []const u8, data: []u8) !usize {
+        const status = try env.env_config.getStatusInfo(name);
+        if (self.findTopicById(status.id)) |index| {
             return self.topics[index].write(data);
         } else return Error.TopicIdNotFound;
     }

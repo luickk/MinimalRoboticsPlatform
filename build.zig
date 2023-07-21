@@ -42,9 +42,9 @@ const currBoard = qemuVirt;
 // const env_path = "src/environments/basicMultiProcess";
 // const env_path = "src/environments/basicMultithreading";
 // const env_path = "src/environments/multiProcAndThreading";
-// const env_path = "src/environments/sysCallTopicsTest";
+const env_path = "src/environments/sysCallTopicsTest";
 // const env_path = "src/environments/sharedMemTopicsTest";
-const env_path = "src/environments/basicKernelFunctionalityTest";
+// const env_path = "src/environments/basicKernelFunctionalityTest";
 
 // packages...
 // SOC builtin features

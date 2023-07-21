@@ -13,7 +13,7 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     payload.ptr = @ptrCast([*]u8, &counter);
     payload.len = @sizeOf(@TypeOf(counter));
     while (true) {
-        var data_written = sysCalls.pushToTopic(1, payload) catch |e| {
+        var data_written = sysCalls.pushToTopic("front-ultrasonic-proximity", payload) catch |e| {
             kprint("syscall pushToTopic err: {s} \n", .{@errorName(e)});
             while (true) {}
         };

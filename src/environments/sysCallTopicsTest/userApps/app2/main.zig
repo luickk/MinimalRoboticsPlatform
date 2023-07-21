@@ -24,11 +24,11 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
 
     while (true) {
         kprint("going to wait \n", .{});
-        sysCalls.waitForTopicUpdate(1) catch |e| {
+        sysCalls.waitForTopicUpdate("front-ultrasonic-proximity") catch |e| {
             kprint("syscall waitForTopicUpdate err: {s} \n", .{@errorName(e)});
             // while (true) {}
         };
-        var read_len = sysCalls.popFromTopic(1, ret_buff) catch |e| {
+        var read_len = sysCalls.popFromTopic("front-ultrasonic-proximity", ret_buff) catch |e| {
             kprint("syscall popFromTopic err: {s} \n", .{@errorName(e)});
             while (true) {}
         };
