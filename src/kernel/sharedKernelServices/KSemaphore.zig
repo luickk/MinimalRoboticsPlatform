@@ -10,7 +10,7 @@ pub fn Semaphore(comptime max_process_waiting: ?usize) type {
     const max_process_waiting_queue = max_process_waiting orelse board.config.static_memory_reserves.ksemaphore_max_process_in_queue;
     return struct {
         const Self = @This();
-        const Error = error {
+        const Error = error{
             OutOfStaticMem,
         };
 
@@ -26,23 +26,24 @@ pub fn Semaphore(comptime max_process_waiting: ?usize) type {
         }
         pub fn wait(self: *Self, pid: u16, scheduler: *Scheduler, irq_context: *CpuContext) !void {
             self.i -= 1;
-            if (self.i < 1) {
+            if (self.i < max_process_waiting_queue) {
+                scheduler.current_task.preempt_count += 1;
                 self.locked_tasks_index += 1;
                 if (self.locked_tasks_index > self.waiting_processes.len) return Error.OutOfStaticMem;
                 self.waiting_processes[self.locked_tasks_index] = pid;
-                scheduler.setProcessState(pid, .halted, irq_context);
+                try scheduler.setProcessState(pid, .halted, irq_context);
             }
         }
 
-        pub fn signal(self: *Self, scheduler: *Scheduler) void {
-            if (self.i < 1) {
+        pub fn signal(self: *Self, scheduler: *Scheduler) !void {
+            if (self.i < max_process_waiting_queue) {
                 if (self.waiting_processes[self.locked_tasks_index]) |locked_pid| {
                     self.i += 1;
                     self.locked_tasks_index -= 1;
-                    scheduler.setProcessState(locked_pid, .running, null);
-                }   
+                    try scheduler.setProcessState(locked_pid, .running, null);
+                    scheduler.current_task.preempt_count -= 1;
+                }
             }
-            
         }
     };
 }

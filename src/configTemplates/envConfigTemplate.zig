@@ -13,7 +13,7 @@ pub const StatusType = enum {
             inline .isize => return isize,
             inline .bool => return bool,
             inline .string => return []const u8,
-            else => return null,
+            inline .topic => return null,
         }
     }
 
@@ -23,7 +23,7 @@ pub const StatusType = enum {
             inline .isize => if (inp_type == isize) return true,
             inline .bool => if (inp_type == bool) return true,
             inline .string => if (inp_type == [100]u8) return true,
-            else => return false,
+            inline .topic => return false,
         }
         return false;
     }
@@ -34,7 +34,7 @@ pub const StatusType = enum {
             .isize => return @sizeOf(isize),
             .bool => return @sizeOf(bool),
             .string => return @sizeOf([]const u8),
-            else => return null,
+            .topic => return null,
         }
     }
 };
@@ -74,10 +74,7 @@ pub fn EnvConfig(comptime n_statuses: usize) type {
                         continue :statuses;
                     }
                 }
-                if (found) {
-                    // if (!status_control_conf.status_type.isTypeEqual(@TypeOf(value))) return Error.StatusTypesNotMatching;
-                    return .{ .id = status_control_conf.id, .type = status_control_conf.status_type.statusTypeToNativeType() };
-                }
+                if (found) return .{ .id = status_control_conf.id, .type = status_control_conf.status_type.statusTypeToNativeType() };
             }
             return Error.StatusNameNotFound;
         }

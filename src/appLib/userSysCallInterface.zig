@@ -9,7 +9,7 @@ const utils = @import("utils");
 const sysCalls = @import("userSysCallInterface.zig");
 const kprint = sysCalls.SysCallPrint.kprint;
 
-const Error = error{ SleepDelayTooShortForScheduler, SysCallError, TypesNotMatching, WrongInterface };
+const Error = error{ SleepDelayTooShortForScheduler, SysCallError, StatusInterfaceMissmatch, StatusTypeMissmatch };
 
 pub const SysCallPrint = struct {
     const Self = @This();
@@ -203,6 +203,8 @@ pub fn continueProcess(pid: usize) !void {
 
 pub fn pushToTopic(comptime name: []const u8, data: []u8) !usize {
     const status = try env.env_config.getStatusInfo(name);
+    if (status.type != null) return Error.StatusInterfaceMissmatch;
+
     const data_ptr: usize = @ptrToInt(data.ptr);
     const data_len = data.len;
     const ret = asm volatile (
@@ -225,6 +227,8 @@ pub fn pushToTopic(comptime name: []const u8, data: []u8) !usize {
 
 pub fn popFromTopic(comptime name: []const u8, ret_buff: []u8) !usize {
     const status = try env.env_config.getStatusInfo(name);
+    if (status.type != null) return Error.StatusInterfaceMissmatch;
+
     const ret = asm volatile (
     // args
         \\mov x0, %[id]
@@ -290,10 +294,10 @@ pub fn decreaseCurrTaskPreemptCounter() !void {
     _ = try checkForError(ret);
 }
 
-// todo => check wether status type and arg type match
-
 pub fn updateStatus(comptime name: []const u8, value: anytype) !void {
     const status = try env.env_config.getStatusInfo(name);
+    if (status.type == null) return Error.StatusInterfaceMissmatch;
+    if (@TypeOf(value) != status.type.?) return Error.StatusTypeMissmatch;
     const ret = asm volatile (
     // args
     // sys call id
@@ -311,8 +315,10 @@ pub fn updateStatus(comptime name: []const u8, value: anytype) !void {
 }
 pub fn readStatus(comptime T: type, comptime name: []const u8) !T {
     const status = try env.env_config.getStatusInfo(name);
+    if (status.type == null) return Error.StatusInterfaceMissmatch;
+    if (T != status.type.?) return Error.StatusTypeMissmatch;
 
-    var ret_buff: status.?.type = undefined;
+    var ret_buff: status.type.? = undefined;
     const ret = asm volatile (
     // args
         \\mov x0, %[id]

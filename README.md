@@ -6,10 +6,94 @@ The goal is to build a minimalistic robotic platform for embedded projects. The 
 The whole project is designed to support multiple boards, as for example a Raspberry Pi or a NVIDIA Jetson Nano. To begin with, basic kernel features are implemented on a virtual machine (qemu virt armv7).
 The end product is meant to be a compromise between a Real Time Operating system and a Microcontroller, to offer the best of both worlds on a modern Soc.
 
-The idea is that the kernel and its drivers are fixed and generically usable across Arm Socs. The actual user implementation of the projects is meant to happen in `src/environment/*yourCustomEnvironmentName*` where every new dir is a new env. and every environment is built from separately compiled user/ kernel privileged apps. The apps can talk to each other with a variety of kernel provided interfaces, such as topics, services, actions and so on. Since every app is compiled on its own and completely isolated by the kernel, regarding their communications, which is compile time defined, maximum static runtime safety and security should be given.
+The idea is that the kernel and its drivers are fixed and generically usable across Arm Socs. The actual user implementation of the projects is meant to happen in `src/environment/*yourCustomEnvironmentName*` where every new dir is a new env. Every environment is built from separately compiled user/ kernel privileged apps. The apps can talk to each other with a variety of kernel provided interfaces, such as topics, services, actions and so on. Since every app is compiled on its own and completely isolated by the kernel, regarding their communications, which is compile time defined, maximum static runtime safety and security should be given.
 Thanks to Zigs lazy compilation, driver handlers can be implemented and not be used or replaced, depending on the choice of board.
 
 This project is aiming to build an experience that gives the end user (developer) as much guidance and form as necessary, to build a safe and secure platform, with as much freedom as possible. This is achieved by reducing complex runtime defined communications and allocations to an absolute minimum, whilst also being flexible enough to be used across a number of boards.
+
+## Why not Rust?
+
+I began this project in Rust but decided to switch to Zig (equally modern). Here is why.
+The prime argument for Rust is safety, which is also important for embedded development but has a different nature. The thing is that I very rarely (wrote) saw embedded code that really made use (at least to an extent to which it would be relevant) of Rusts safety. This is due to the fact that embedded code is mostly procedural and linear and not overly complex (opposing to higher level code). Zig on the other hand, is a real improvement compared to Rust because it does not try to solve the problem through abstraction but concepts and rules. I really tried rust at the start of this project. That lead me to this conclusion.
+
+The Rust code can still be found in the separate [rust branch](https://github.com/luickk/rust-rtos/tree/rust_code) and includes a proper Cargo build process(without making use of an external build tools) for the Raspberry, as well as basic serial(with print! macro implementation) and interrupt controller utils.
+
+## Finding the perfect Board 
+
+In order to first boot the kernel on a physical board, I'm searching for the best board. Number one priority is simplicity. The raspberry has a relatively complex multi bootstage process. That is not ideal, includes a file system on an SD Card in is pretty ugly in general.
+The Jetson Nano has a similarly complex boot process. 
+
+The Rock Pi on the other hand offer eMMC storage that can be flashed with the Maskrom directly from another device. The Rock Pi eMMC is quite elegant because it does, a) not require a file system, and b) is loaded directly by the arm cores(and not from the GPU as with the raspberry).
+
+## Compatibility
+
+Currently, there is support for the important Arm SOC elements such as the generic timer, interrupt controller as well as the Raspberries BCM2835 secondary interrupt controller and system timer. The project can be configured with ROM relocation and without, so most Arm SOC boards should be compatible at the moment.
+
+## Allocation Policy
+
+Memory allocation is an extremely powerful and basic functionality that can be very dangerous depending on when and how it's used.
+For that reason the kernels allocations are only permitted at kernel boot/init time. There is no realloc, neither for userspace apps nor for the kernel. Alternatively, there are reserved memory buffers for every feature. I don't yet have a perfect solution for dealing with an out off memory event though.
+
+There is an app allocation available in user space so that a considered decision can be made and an allocator still be used if the app is not important.
+
+### Allocation Projection
+
+// todo => alloc projection
+Since there are no allocations at actual runtime (after the kernel init), a projection of the required (allocated) memory can be made, including spare reserves. That would not only give indications for Ram compatibility, but would allow for predictions about the risk for running out of memory in case of black swan events.
+
+## Kernel wise features
+
+### Topics
+
+A way to share data streams with other processes, similar to pipes but optimized for sensor data and data distribution/ access over many processes.
+
+How many topics and in which configuration must be setup at compiletime in the `envConfig.zig` of the project. Note that Topics are just another type of state and are implemented in StatusControl. Each Topic can be configured in its buffer type, size, identifier and so on. In the runtime phase of the platform, every topic then behaves according to its configuration and can be addressed through its fixed id.
+
+There are two ways to communicate over a Topic, one is through SysCalls and the other is through direct mapped memory, which is very effective but less easy to use. Also, currently both ways of communicating on a Topic must not be mixed so only either one of both can be used.
+
+#### What kind of data is it for?
+
+Topics can be used for all kinds of statically sized data. Depending on the amount of data per time unit, there a re different methods of retrievals. 
+- `fn userSysCallInterface.waitForTopicUpdate(comptime name: []const u8)` (which leverages a semaphore) can be used to wait for data in a separate thread
+
+Uses sys-calls as interface. Pushes/reads n units of the latest(depending on the buffer type) data
+- `fn userSysCallInterface.popFromTopic(comptime name: []const u8, ret_buff: []u8)` 
+- `fn userSysCallInterface.pushToTopic(comptime name: []const u8, data: []u8)`
+
+Uses direct mapped memory to read/write to a Topic. Is also bound to all preconfigured parameters including the buffer type.
+- `fn ShareMemTopicsInterface.read(self: *SharedMemTopicsInterface, comptime name: []const u8, ret_buff: []u8)` 
+- `fn ShareMemTopicsInterface.write(self: *SharedMemTopicsInterface, comptime name: []const u8, data: []u8)`
+
+### Status Control
+
+A way to centrally communicate state and adapt the system appropriatly. 
+Since the status of a sensor, service, io device, or more abstract concepts is not just a tool but one of the most important control aspects in a robotic system, this funcitonality is deeply integrated and not just meant for state sharing but also as a state machine at the heart of the system. 
+The idea is that you can setup tasks which are only scheduled if a certain state is matching. // => todo
+
+- `fn userSysCallInterface.updateStatus(comptime name: []const u8, value: anytype) !void`
+- `fn userSysCallInterface.readStatus(comptime T: type, comptime name: []const u8) !T`
+
+Statuses (including topics) have to be predefined in envConfig.zig for each environment are id'ed by their name. Since all the parameters and names are compile-time that allows for safe compile time type/ name checking.
+The usage of names makes the code very readable and easy to understand.
+
+### Setup Routines
+
+Are routines that run at kernel start, but before scheduler init. Meant for for driver inititation and run in kernel space.
+
+### Kernel Threads
+
+Threads that run in kernel space, for example to handle IO that requires kernel level access or other drivers.
+
+## User Apps
+
+Thats where the actual development is meant to happen. The user apps run, as the name suggests, in userspace and are compiled separately.
+Communication between all tasks is meant to happen through StatusControl(Topics, Statuses...) and Actions.
+
+### Actions
+
+Actions are similar to apps separately compiled programs with the key difference that they are only executed(scheduled) if commanded to do so. Whilst they can run in parallel (be conventionally scheduled) their main purpose is to offer a way to start a task quickly (or roughly the time it takes to interrupt and return).
+
+If the action needs to be executed even faster, a direct (in current scheduler context) jump is inevitable (a conventional function call, for example).
 
 ## Project Structure
 
@@ -95,73 +179,10 @@ The project aims to give as much guidance to the developer as possible, that als
 │    ├── sharedServices/
 │    │    ├── Topic.zig
 │    │    ├── ..
-│    │    └── > code thats so basic that it's linked with both the kernel and the userspace
+│    │    └── > code thats so basic that it is linked with both the kernel and the userspace
 │    └── utils
 │        └── utils.zig
 ```
-## Why not Rust?
-
-I began this project in Rust but decided to switch to Zig (equally modern). Here is why.
-The prime argument for Rust is safety, which is also important for embedded development but has a different nature. The thing is that I very rarely (wrote) saw embedded code that really made use (at least to an extent to which it would be relevant) of Rusts safety. This is due to the fact that embedded code is mostly procedural and linear and not overly complex (opposing to higher level code). Zig on the other hand, is a real improvement compared to Rust because it does not try to solve the problem through abstraction but concepts and rules. I really tried rust at the start of this project. That lead me to this conclusion.
-
-The Rust code can still be found in the separate [rust branch](https://github.com/luickk/rust-rtos/tree/rust_code) and includes a proper Cargo build process(without making use of an external build tools) for the Raspberry, as well as basic serial(with print! macro implementation) and interrupt controller utils.
-
-## Finding the perfect Board 
-
-In order to first boot the kernel on a physical board, I'm searching for the best board. Number one priority is simplicity. The raspberry has a relatively complex multi bootstage process. That is not ideal, includes a file system on an SD Card in is pretty ugly in general.
-The Jetson Nano has a similarly complex boot process. 
-
-The Rock Pi on the other hand offer eMMC storage that can be flashed with the Maskrom directly from another device. The Rock Pi eMMC is quite elegant because it does, a) not require a file system, and b) is loaded directly by the arm cores(and not from the GPU as with the raspberry).
-
-## Compatibility
-
-Currently, there is support for the important Arm SOC elements such as the generic timer, interrupt controller as well as the Raspberries BCM2835 secondary interrupt controller and system timer. The project can be configured with ROM relocation and without, so most Arm SOC boards should be compatible at the moment.
-
-## Allocation Policy
-
-Memory allocation is an extremely powerful and basic functionality that can be very dangerous depending on when and how it's used.
-For that reason the kernels allocations are only permitted at kernel boot/init time. There is no realloc, neither for userspace apps nor for the kernel. Alternatively, there are reserved memory buffers for every feature. I don't yet have a perfect solution for dealing with an out off memory event though.
-
-There is an app allocation available in user space so that a considered decision can be made and an allocator still be used if the app is not important.
-
-### Allocation Projection
-
-// todo => alloc projection
-Since there are no allocations at actual runtime (after the kernel init), a projection of the required (allocated) memory can be made, including spare reserves. That would not only give indications for Ram compatibility, but would allow for predictions about the risk for running out of memory in case of black swan events.
-
-## Kernel wise features
-
-### Topics
-
-A way to share data streams with other processes, similar to pipes but optimized for sensor data and data distribution/ access over many processes.
-
-How many topics and in which configuration must be setup at compiletime in the `envConfig.zig` of the project. Each Topic can be configured in its buffer type, size, identifier and so on. In the runtime phase of the platform, every topic then behaves according to its configuration and can be addressed through its fixed id.
-
-There are two ways to communicate over a Topic, one is through SysCalls and the other is through direct mapped memory, which is very effective but less easy to use. Also, currently both ways of communicating on a Topic must not be mixed so only either one of both can be used.
-
-#### What kind of data is it for?
-
-Topics can be used for all kinds of statically sized data. Depending on the amount of data per time unit, there a re different methods of retrievals. 
-- `userSysCallInterface.waitForTopicUpdate(..)` (which leverages a semaphore) can be used to wait for data in a separate thread
-
-Uses sys-calls as interface. Pushes/reads n units of the latest(depending on the buffer type) data
-- `userSysCallInterface.popFromTopic(..)` 
-- `userSysCallInterface.pushToTopic(..)`
-
-Uses direct mapped memory to read/write to a Topic. Is also bound to all preconfigured parameters including the buffer type.
-- `ShareMemTopicsInterface.read(..)` 
-- `ShareMemTopicsInterface.write(..)`
-
-### Status Control
-
-A way to centrally communicate state and adapt the system appropriatly. 
-Since the status of a sensor, service, io device, or more abstract concepts  is not just a tool but one of the most important control aspects in a robotic system, this funcitonality is deeply integrated and not just meant for state sharing but also as a state machine at the heart of the system.
-
-// todo
-
-### Actions
-
-// todo
 
 # Kernel details
 

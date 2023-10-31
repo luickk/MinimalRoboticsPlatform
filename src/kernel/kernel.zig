@@ -3,6 +3,7 @@ const utils = @import("utils");
 const board = @import("board");
 const kernelThreads = @import("kernelThreads");
 const setupRoutines = @import("setupRoutines");
+
 // kernel services
 const sharedKernelServices = @import("sharedKernelServices");
 const Scheduler = sharedKernelServices.Scheduler;
@@ -41,7 +42,6 @@ var user_page_alloc = UserPageAllocator.init() catch |e| {
     @compileError(@errorName(e));
 };
 
-
 // pointer is now global, ! kernel main lifetime needs to be equal to schedulers lt.. !
 export var scheduler: *Scheduler = undefined;
 export var status_control: *StatusControl = undefined;
@@ -56,7 +56,17 @@ const apps = blk: {
 
     break :blk apps_addresses;
 };
+const actions = blk: {
+    var action_addresses = [_][]const u8{undefined} ** b_options.actions.len;
+    for (b_options.actions) |action, i| {
+        const app_file = @embedFile("bins/actions/" ++ action);
+        action_addresses[i] = app_file;
+    }
 
+    break :blk action_addresses;
+};
+
+// todo => add error handling such that try can be used in such "main" funcitons
 export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text.kernel_main") callconv(.C) noreturn {
     // !! kernel sp is set in the Bootloader!!
 
@@ -103,7 +113,7 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
 
             {
                 // creating virtual address space for kernel
-                const kernel_space_mapping = mmu.Mapping {
+                const kernel_space_mapping = mmu.Mapping{
                     .mem_size = board.config.mem.kernel_space_size,
                     .pointing_addr_start = kernel_lma_offset,
                     .virt_addr_start = 0,
@@ -229,26 +239,29 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
         kprint("[kernel] starting scheduler \n", .{});
         // boot process = this process
         scheduler.configRootBootProcess();
-
-        scheduler.initAppsInScheduler(&apps, topics) catch |e| {
+        scheduler.initAppsInScheduler(&apps, topics.mem_pool) catch |e| {
             kprint("[panic] Scheduler initAppsInScheduler error: {s} \n", .{@errorName(e)});
             k_utils.panic();
         };
 
+        // scheduler.initActionsInScheduler(&actions, topics.mem_pool) catch |e| {
+        //     kprint("[panic] actions init error: {s} \n", .{@errorName(e)});
+        //     k_utils.panic();
+        // };
+
         scheduler.initProcessCounter();
     }
-
 
     // kernel setup routines execution
     inline for (setupRoutines.setupRoutines) |routine| {
         routine(scheduler);
-    }   
-    
+    }
+
     board.driver.timerDriver.initTimerDriver() catch |e| {
         kprint("[panic] timer driver error: {s} \n", .{@errorName(e)});
         k_utils.panic();
     };
-    kprint("[kernel] timer inited \n", .{});    
+    kprint("[kernel] timer inited \n", .{});
 
     if (board.driver.secondaryInterruptConrtollerDriver) |secondary_ic| {
         secondary_ic.initIcDriver() catch |e| {
@@ -263,11 +276,11 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
             kprint("[panic] kernel thread createKernelThread error: {s} \n", .{@errorName(e)});
             k_utils.panic();
         };
-    }   
+    }
 
     var counter: usize = 0;
     while (true) {
-        // kprint("while counter: {d} \n", .{counter});
+        kprint("while counter: {d} \n", .{counter});
         // kprint("timer: {d} irq: {d} \n", .{ bcm2835Timer.RegMap.timerCs.*, bcm2835IntController.RegMap.enableIrq1.* });
         counter += 1;
     }

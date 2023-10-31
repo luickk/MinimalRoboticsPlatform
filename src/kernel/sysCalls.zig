@@ -97,7 +97,11 @@ fn createThread(params_args: *CpuContext) void {
     const thread_stack = params_args.x1;
     const args = @intToPtr(*anyopaque, params_args.x2);
     const thread_fn_ptr = @intToPtr(*anyopaque, params_args.x3);
-    scheduler.createThreadFromCurrentProcess(entry_fn_ptr, thread_fn_ptr, thread_stack, args);
+    scheduler.createThreadFromCurrentProcess(entry_fn_ptr, thread_fn_ptr, thread_stack, args) catch |e| {
+        kprint("[panic] createThreadFromCurrentProcess error: {s}\n", .{@errorName(e)});
+        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        return;
+    };
 }
 
 fn sleep(params_args: *CpuContext) void {
@@ -111,22 +115,30 @@ fn sleep(params_args: *CpuContext) void {
 
 fn haltProcess(params_args: *CpuContext) void {
     const pid: u16 = @truncate(u16, params_args.x0);
-    scheduler.setProcessState(pid, .halted, params_args);
+    scheduler.setProcessState(pid, .halted, params_args) catch |e| {
+        kprint("Scheduler setProcessState err: {s}\n", .{@errorName(e)});
+        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        return;
+    };
 }
 
 fn continueProcess(params_args: *CpuContext) void {
     const pid: u16 = @truncate(u16, params_args.x0);
-    scheduler.setProcessState(pid, .running, params_args);
+    scheduler.setProcessState(pid, .running, params_args) catch |e| {
+        kprint("Scheduler setProcessState err: {s}\n", .{@errorName(e)});
+        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        return;
+    };
 }
 
 fn increaseCurrTaskPreemptCounter(params_args: *CpuContext) void {
     _ = params_args;
-    scheduler.current_process.preempt_count += 1;
+    scheduler.current_task.preempt_count += 1;
 }
 
 fn decreaseCurrTaskPreemptCounter(params_args: *CpuContext) void {
     _ = params_args;
-    scheduler.current_process.preempt_count -= 1;
+    scheduler.current_task.preempt_count -= 1;
 }
 
 fn pushToTopic(params_args: *CpuContext) void {

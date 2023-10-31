@@ -10,7 +10,7 @@ var shared_resource: isize = 0;
 
 export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     _ = pid;
-     var app_alloc = AppAlloc.init(null) catch |e| {
+    var app_alloc = AppAlloc.init(null) catch |e| {
         kprint("[panic] AppAlloc init error: {s}\n", .{@errorName(e)});
         while (true) {}
     };
@@ -41,7 +41,7 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
 
 fn testThread1(test_sem: *Semaphore) void {
     while (true) {
-        kprint("thread1 wainting \n", .{});
+        kprint("thread1 waiting \n", .{});
         test_sem.wait(null) catch |e| {
             kprint("semaphore wait  error: {s}\n", .{@errorName(e)});
             while (true) {}
@@ -60,7 +60,7 @@ fn testThread1(test_sem: *Semaphore) void {
 
 fn testThread2(test_sem: *Semaphore) void {
     while (true) {
-        kprint("thread2 wainting {d} \n", .{test_sem.i});
+        kprint("thread2 waiting {d} \n", .{test_sem.i});
         test_sem.wait(null) catch |e| {
             kprint("semaphore wait  error: {s}\n", .{@errorName(e)});
             while (true) {}

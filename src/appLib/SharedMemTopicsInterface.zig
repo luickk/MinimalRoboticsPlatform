@@ -11,11 +11,11 @@ const kprint = sysCalls.SysCallPrint.kprint;
 
 const alignForward = std.mem.alignForward;
 const Topic = @import("sharedServices").Topic(Semaphore);
-// const Topic = @import("sharedServices").Topic(sharedKernelServices.KSemaphore);
 
 pub const SharedMemTopicsInterface = struct {
     const Error = error{
         TopicIdNotFound,
+        StatusInterfaceMissmatch,
     };
 
     topics: [env.env_config.countTopics()]Topic,
@@ -56,6 +56,7 @@ pub const SharedMemTopicsInterface = struct {
 
     pub fn read(self: *SharedMemTopicsInterface, comptime name: []const u8, ret_buff: []u8) !usize {
         const status = try env.env_config.getStatusInfo(name);
+        if (status.type != null) return Error.StatusInterfaceMissmatch;
         if (self.findTopicById(status.id)) |index| {
             return self.topics[index].read(ret_buff);
         } else return Error.TopicIdNotFound;
@@ -63,6 +64,7 @@ pub const SharedMemTopicsInterface = struct {
 
     pub fn write(self: *SharedMemTopicsInterface, comptime name: []const u8, data: []u8) !usize {
         const status = try env.env_config.getStatusInfo(name);
+        if (status.type != null) return Error.StatusInterfaceMissmatch;
         if (self.findTopicById(status.id)) |index| {
             return self.topics[index].write(data);
         } else return Error.TopicIdNotFound;

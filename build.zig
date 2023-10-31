@@ -42,9 +42,10 @@ const currBoard = qemuVirt;
 // const env_path = "src/environments/basicMultiProcess";
 // const env_path = "src/environments/basicMultithreading";
 // const env_path = "src/environments/multiProcAndThreading";
-const env_path = "src/environments/sysCallTopicsTest";
+// const env_path = "src/environments/sysCallTopicsTest";
 // const env_path = "src/environments/sharedMemTopicsTest";
-// const env_path = "src/environments/basicKernelFunctionalityTest";
+const env_path = "src/environments/basicKernelFunctionalityTest";
+// const env_path = "src/environments/actionTest";
 
 // packages...
 // SOC builtin features
@@ -128,11 +129,12 @@ pub fn build(b: *std.build.Builder) !void {
     kernel_exe.addPackage(kpi);
     kernel_exe.addPackage(board);
     kernel_exe.addPackage(environment);
-    kernel_exe.addPackage(kernelThreads);
-    kernel_exe.addPackage(setupRoutines);
     kernel_exe.addPackage(periph);
     kernel_exe.addPackage(interruptControllerDriver);
     kernel_exe.addPackage(timerDriver);
+
+    kernel_exe.addPackage(kernelThreads);
+    kernel_exe.addPackage(setupRoutines);
     // kernel_exe.addAnonymousPackage("env-config", .{ .source_file = .{ .path = "src/configTemplates/envConfigTemplate.zig" } });
     // kernel_exe.addAnonymousModule("board-config", .{ .source_file = .{ .path = "src/configTemplates/boardConfigTemplate.zig" } });
     kernel_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
@@ -194,10 +196,19 @@ fn setEnvironment(b: *std.build.Builder, step: *std.build.Step, build_mode: std.
     var dir = try std.fs.cwd().openIterableDir(user_apps_path, .{});
     var it = dir.iterate();
     while (try it.next()) |folder| {
-        if (folder.kind != .Directory or folder.name[0] == '_') continue;
+        if (folder.kind != .Directory or folder.name[0] == '_' or std.mem.eql(u8, folder.name, "actions")) continue;
         const app = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ user_apps_path, folder.name }));
         step.dependOn(&app.install_step.?.step);
         step.dependOn(&app.installRaw(try b.allocator.dupe(u8, folder.name), .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/apps/" } }).step);
+    }
+    const actions_path = path ++ "/userApps/actions/";
+    dir = try std.fs.cwd().openIterableDir(actions_path, .{});
+    it = dir.iterate();
+    while (try it.next()) |folder| {
+        if (folder.kind != .Directory or folder.name[0] == '_' or std.mem.eql(u8, folder.name, "actions")) continue;
+        const app = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ actions_path, folder.name }));
+        step.dependOn(&app.install_step.?.step);
+        step.dependOn(&app.installRaw(try b.allocator.dupe(u8, folder.name), .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/actions/" } }).step);
     }
 }
 
@@ -345,15 +356,15 @@ const ScanForApps = struct {
         // searching for apps in apps/
         {
             var apps = std.ArrayList([]const u8).init(self.builder.allocator);
+            var actions = std.ArrayList([]const u8).init(self.builder.allocator);
+            defer actions.deinit();
             defer apps.deinit();
 
             var dir = std.fs.cwd().openIterableDir("src/kernel/bins/apps/", .{}) catch |e| {
                 if (e == error.FileNotFound) {
                     self.build_options.addOption([]const []const u8, "apps", &.{});
                     return;
-                } else {
-                    return e;
-                }
+                } else return e;
             };
             var it = dir.iterate();
             while (try it.next()) |file| {
@@ -361,6 +372,19 @@ const ScanForApps = struct {
                 try apps.append(file.name);
             }
             self.build_options.addOption([]const []const u8, "apps", apps.items);
+
+            dir = std.fs.cwd().openIterableDir("src/kernel/bins/actions/", .{}) catch |e| {
+                if (e == error.FileNotFound) {
+                    self.build_options.addOption([]const []const u8, "actions", &.{});
+                    return;
+                } else return e;
+            };
+            it = dir.iterate();
+            while (try it.next()) |file| {
+                if (file.kind != .File) continue;
+                try actions.append(file.name);
+            }
+            self.build_options.addOption([]const []const u8, "actions", actions.items);
         }
     }
 };

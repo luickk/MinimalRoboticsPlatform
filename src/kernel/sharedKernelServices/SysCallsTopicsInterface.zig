@@ -55,10 +55,10 @@ pub const SysCallsTopicsInterface = struct {
 
     pub fn write(self: *SysCallsTopicsInterface, id: usize, data_ptr: *u8, len: usize) !usize {
         // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
-        self.scheduler.switchMemContext(self.scheduler.processses[0].ttbr0.?, null);
-        defer self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
+        self.scheduler.switchMemContext(self.scheduler.scheduled_tasks[0].ttbr0.?, null);
+        defer self.scheduler.switchMemContext(self.scheduler.current_task.ttbr0.?, null);
 
-        const userspace_app_mapping_data_addr = @ptrToInt(self.scheduler.current_process.app_mem.?.ptr) + @ptrToInt(data_ptr);
+        const userspace_app_mapping_data_addr = @ptrToInt(self.scheduler.current_task.app_mem.?.ptr) + @ptrToInt(data_ptr);
         if (self.findTopicById(id)) |index| {
             var data: []u8 = undefined;
             data.ptr = @intToPtr([*]u8, userspace_app_mapping_data_addr);
@@ -66,7 +66,7 @@ pub const SysCallsTopicsInterface = struct {
             const data_written: usize = try self.topics[index].write(data);
             for (self.topics[index].waiting_tasks) |*semaphore| {
                 if (semaphore.* != null) {
-                    semaphore.*.?.signal(self.scheduler);
+                    try semaphore.*.?.signal(self.scheduler);
                     semaphore.* = null;
                     self.topics[index].n_waiting_taks -= 1;
                 }
@@ -77,9 +77,9 @@ pub const SysCallsTopicsInterface = struct {
 
     pub fn read(self: *SysCallsTopicsInterface, id: usize, ret_buff: []u8) !usize {
         // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
-        self.scheduler.switchMemContext(self.scheduler.processses[0].ttbr0.?, null);
-        defer self.scheduler.switchMemContext(self.scheduler.current_process.ttbr0.?, null);
-        var userspace_app_mapping_ret_buff = @intToPtr([]u8, @ptrToInt(self.scheduler.current_process.app_mem.?.ptr) + @ptrToInt(ret_buff.ptr));
+        self.scheduler.switchMemContext(self.scheduler.scheduled_tasks[0].ttbr0.?, null);
+        defer self.scheduler.switchMemContext(self.scheduler.current_task.ttbr0.?, null);
+        var userspace_app_mapping_ret_buff = @intToPtr([]u8, @ptrToInt(self.scheduler.current_task.app_mem.?.ptr) + @ptrToInt(ret_buff.ptr));
         userspace_app_mapping_ret_buff.len = ret_buff.len;
         if (self.findTopicById(id)) |index| {
             return self.topics[index].read(userspace_app_mapping_ret_buff);

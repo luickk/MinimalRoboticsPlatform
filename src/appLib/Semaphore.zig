@@ -8,7 +8,7 @@ pub fn Semaphore(comptime max_process_waiting: ?usize) type {
     const max_process_waiting_queue = max_process_waiting orelse board.config.static_memory_reserves.semaphore_max_process_in_queue;
     return struct {
         const Self = @This();
-        const Error = error {
+        const Error = error{
             OutOfStaticMem,
         };
 
@@ -22,12 +22,14 @@ pub fn Semaphore(comptime max_process_waiting: ?usize) type {
                 .i = s,
             };
         }
-        pub fn wait(self: *Self, pid: ?u16) !void {
+        pub fn wait(self: *Self, halting_pid: ?u16) !void {
+            try sysCalls.increaseCurrTaskPreemptCounter();
             var to_halt_proc: u16 = undefined;
-            if (pid == null) to_halt_proc = (try sysCalls.getPid()) else to_halt_proc = pid.?;
+            if (halting_pid == null) to_halt_proc = (try sysCalls.getPid()) else to_halt_proc = halting_pid.?;
             if (self.i < 1) {
                 self.locked_tasks_index += 1;
-                if (self.locked_tasks_index > self.waiting_processes.len) return Error.OutOfStaticMem;
+                // kprint("ERR: {d} > {d}", .{ self.locked_tasks_index, self.waiting_processes.len });
+                if (self.waiting_processes.len > self.locked_tasks_index) return Error.OutOfStaticMem;
                 self.waiting_processes[self.locked_tasks_index] = to_halt_proc;
                 try sysCalls.haltProcess(to_halt_proc);
             }
@@ -39,9 +41,10 @@ pub fn Semaphore(comptime max_process_waiting: ?usize) type {
                 if (self.waiting_processes[self.locked_tasks_index]) |locked_pid| {
                     self.locked_tasks_index -= 1;
                     try sysCalls.continueProcess(locked_pid);
-                }   
+                }
                 self.i += 1;
-            }   
+            }
+            try sysCalls.decreaseCurrTaskPreemptCounter();
         }
     };
 }
