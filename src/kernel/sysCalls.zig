@@ -57,15 +57,15 @@ fn sysCallPrint(params_args: *CpuContext) void {
     const len = params_args.x1;
     var sliced_data: []u8 = undefined;
     sliced_data.len = len;
-    sliced_data.ptr = @intToPtr([*]u8, data);
+    sliced_data.ptr = @as([*]u8, @ptrFromInt(data));
     pl011.write(sliced_data);
 }
 
 fn killTask(params_args: *CpuContext) void {
     kprint("[kernel] killing task with pid: {d} \n", .{params_args.x0});
-    scheduler.killTask(@truncate(u16, params_args.x0)) catch |e| {
+    scheduler.killTask(@as(u16, @truncate(params_args.x0))) catch |e| {
         kprint("[panic] killTask error: {s}\n", .{@errorName(e)});
-        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        @as(*isize, @ptrCast(&params_args.x0)).* = 0 - @as(isize, @intCast(@intFromError(e)));
         return;
     };
 }
@@ -73,9 +73,9 @@ fn killTask(params_args: *CpuContext) void {
 // kill a process and all its children processes
 fn killTaskRecursively(params_args: *CpuContext) void {
     kprint("[kernel] killing task and children starting with pid: {d} \n", .{params_args.x0});
-    scheduler.killTaskAndChildrend(@truncate(u16, params_args.x0)) catch |e| {
+    scheduler.killTaskAndChildrend(@as(u16, @truncate(params_args.x0))) catch |e| {
         kprint("[panic] killTaskRecursively error: {s}\n", .{@errorName(e)});
-        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        @as(*isize, @ptrCast(&params_args.x0)).* = 0 - @as(isize, @intCast(@intFromError(e)));
         return;
     };
 }
@@ -93,13 +93,13 @@ fn getPid(params_args: *CpuContext) void {
 }
 
 fn createThread(params_args: *CpuContext) void {
-    const entry_fn_ptr = @intToPtr(*anyopaque, params_args.x0);
+    const entry_fn_ptr = @as(*anyopaque, @ptrFromInt(params_args.x0));
     const thread_stack = params_args.x1;
-    const args = @intToPtr(*anyopaque, params_args.x2);
-    const thread_fn_ptr = @intToPtr(*anyopaque, params_args.x3);
+    const args = @as(*anyopaque, @ptrFromInt(params_args.x2));
+    const thread_fn_ptr = @as(*anyopaque, @ptrFromInt(params_args.x3));
     scheduler.createThreadFromCurrentProcess(entry_fn_ptr, thread_fn_ptr, thread_stack, args) catch |e| {
         kprint("[panic] createThreadFromCurrentProcess error: {s}\n", .{@errorName(e)});
-        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        @as(*isize, @ptrCast(&params_args.x0)).* = 0 - @as(isize, @intCast(@intFromError(e)));
         return;
     };
 }
@@ -108,25 +108,25 @@ fn sleep(params_args: *CpuContext) void {
     const delay_in_sched_inter = params_args.x0;
     scheduler.setProcessAsleep(scheduler.getCurrentProcessPid(), delay_in_sched_inter, params_args) catch |e| {
         kprint("[panic] setProcessAsleep error: {s}\n", .{@errorName(e)});
-        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        @as(*isize, @ptrCast(&params_args.x0)).* = 0 - @as(isize, @intCast(@intFromError(e)));
         return;
     };
 }
 
 fn haltProcess(params_args: *CpuContext) void {
-    const pid: u16 = @truncate(u16, params_args.x0);
+    const pid: u16 = @as(u16, @truncate(params_args.x0));
     scheduler.setProcessState(pid, .halted, params_args) catch |e| {
         kprint("Scheduler setProcessState err: {s}\n", .{@errorName(e)});
-        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        @as(*isize, @ptrCast(&params_args.x0)).* = 0 - @as(isize, @intCast(@intFromError(e)));
         return;
     };
 }
 
 fn continueProcess(params_args: *CpuContext) void {
-    const pid: u16 = @truncate(u16, params_args.x0);
+    const pid: u16 = @as(u16, @truncate(params_args.x0));
     scheduler.setProcessState(pid, .running, params_args) catch |e| {
         kprint("Scheduler setProcessState err: {s}\n", .{@errorName(e)});
-        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        @as(*isize, @ptrCast(&params_args.x0)).* = 0 - @as(isize, @intCast(@intFromError(e)));
         return;
     };
 }
@@ -146,9 +146,9 @@ fn pushToTopic(params_args: *CpuContext) void {
     const data_ptr = params_args.x1;
     const data_len = params_args.x2;
     // kprint("...: {any}\n", .{params_args.x0});
-    params_args.x0 = topics.write(id, @intToPtr(*u8, data_ptr), data_len) catch |e| {
+    params_args.x0 = topics.write(id, @as(*u8, @ptrFromInt(data_ptr)), data_len) catch |e| {
         kprint("Topics write error: {s}\n", .{@errorName(e)});
-        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        @as(*isize, @ptrCast(&params_args.x0)).* = 0 - @as(isize, @intCast(@intFromError(e)));
         return;
     };
 }
@@ -156,41 +156,41 @@ fn pushToTopic(params_args: *CpuContext) void {
 fn popFromTopic(params_args: *CpuContext) void {
     const id = params_args.x0;
     const data_len = params_args.x1;
-    var ret_buff = @intToPtr([]u8, params_args.x2);
+    var ret_buff = @as([]u8, @ptrFromInt(params_args.x2));
     ret_buff.len = data_len;
     params_args.x0 = topics.read(id, ret_buff) catch |e| {
         kprint("Topics popFromTopic error: {s}\n", .{@errorName(e)});
-        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        @as(*isize, @ptrCast(&params_args.x0)).* = 0 - @as(isize, @intCast(@intFromError(e)));
         return;
     };
 }
 
 fn waitForTopicUpdate(params_args: *CpuContext) void {
     const topic_id = params_args.x0;
-    const pid: u16 = @truncate(u16, params_args.x1);
+    const pid: u16 = @as(u16, @truncate(params_args.x1));
     topics.makeTaskWait(topic_id, pid, params_args) catch |e| {
         kprint("Topics waitForTopicUpdate error: {s}\n", .{@errorName(e)});
-        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        @as(*isize, @ptrCast(&params_args.x0)).* = 0 - @as(isize, @intCast(@intFromError(e)));
         return;
     };
 }
 
 fn updateStatus(params_args: *CpuContext) void {
-    const status_id = @intCast(u16, params_args.x0);
+    const status_id = @as(u16, @intCast(params_args.x0));
     const val_addr = params_args.x1;
     status_control.updateStatusRaw(status_id, val_addr) catch |e| {
         kprint("StatusControl updateStatus error: {s}\n", .{@errorName(e)});
-        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        @as(*isize, @ptrCast(&params_args.x0)).* = 0 - @as(isize, @intCast(@intFromError(e)));
         return;
     };
 }
 
 fn readStatus(params_args: *CpuContext) void {
-    const status_id = @intCast(u16, params_args.x0);
+    const status_id = @as(u16, @intCast(params_args.x0));
     var ret_buff = params_args.x1;
     status_control.readStatusRaw(status_id, ret_buff) catch |e| {
         kprint("StatusControl readRaw error: {s}\n", .{@errorName(e)});
-        @ptrCast(*isize, &params_args.x0).* = 0 - @intCast(isize, @errorToInt(e));
+        @as(*isize, @ptrCast(&params_args.x0)).* = 0 - @as(isize, @intCast(@intFromError(e)));
         return;
     };
 }

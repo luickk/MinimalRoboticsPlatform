@@ -68,7 +68,7 @@ pub fn EnvConfig(comptime n_statuses: usize) type {
                     found = false;
                     continue :statuses;
                 }
-                inline for (status_control_conf.name) |char, j| {
+                inline for (status_control_conf.name, 0..) |char, j| {
                     if (char != name[j]) {
                         found = false;
                         continue :statuses;

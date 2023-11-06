@@ -6,14 +6,7 @@ const utils = @import("utils");
 const appAllocatorChunkSize = 0x10000;
 
 pub const AppAllocator = struct {
-    const Error = error{
-        OutOfChunks,
-        OutOfMem,
-        AddrNotInMem,
-        AddrNotValid,
-        MemBaseNotAligned,
-        NoHeapStartLabel
-    };
+    const Error = error{ OutOfChunks, OutOfMem, AddrNotInMem, AddrNotValid, MemBaseNotAligned, NoHeapStartLabel };
     const maxChunks = @divExact(board.config.mem.app_vm_mem_size, appAllocatorChunkSize);
 
     mem_base: usize,
@@ -23,7 +16,7 @@ pub const AppAllocator = struct {
     pub fn init(mem_base: ?usize) !AppAllocator {
         var heap_start: usize = undefined;
         if (mem_base == null) {
-            const _heap_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "_heap_start" }) orelse return Error.NoHeapStartLabel);
+            const _heap_start: usize = @intFromPtr(@extern(?*u8, .{ .name = "_heap_start" }) orelse return Error.NoHeapStartLabel);
             heap_start = _heap_start;
         } else heap_start = mem_base.?;
         if (heap_start % 8 != 0) return Error.MemBaseNotAligned;
@@ -48,7 +41,7 @@ pub const AppAllocator = struct {
                 chunk.* = true;
             }
             var alloc_addr = self.mem_base + (free_mem_first_chunk * appAllocatorChunkSize);
-            var aligned_alloc_slice = @intToPtr([*]T, alignForward(alloc_addr, alignm));
+            var aligned_alloc_slice = @as([*]T, @ptrFromInt(alignForward(alloc_addr, alignm)));
             return aligned_alloc_slice[0 .. n - 1];
         } else if (self.used_chunks + req_chunks > maxChunks) {
             return Error.OutOfMem;
@@ -61,7 +54,7 @@ pub const AppAllocator = struct {
             chunk.* = true;
         }
         var alloc_addr = self.mem_base + (first_chunk * appAllocatorChunkSize);
-        var aligned_alloc_slice = @intToPtr([*]T, alignForward(alloc_addr, alignm));
+        var aligned_alloc_slice = @as([*]T, @ptrFromInt(alignForward(alloc_addr, alignm)));
         return aligned_alloc_slice[0 .. n - 1];
     }
 
@@ -69,7 +62,7 @@ pub const AppAllocator = struct {
     pub fn findFree(self: *AppAllocator, to_chunk: usize, req_size: usize) !?usize {
         var continous_chunks: usize = 0;
         var req_chunks = (try std.math.divCeil(usize, req_size, appAllocatorChunkSize));
-        for (self.kernel_mem) |chunk, i| {
+        for (self.kernel_mem, 0..) |chunk, i| {
             if (i >= to_chunk) {
                 return null;
             }
@@ -95,8 +88,8 @@ pub const AppAllocator = struct {
         if (size == 0) return;
 
         // compensating for alignment
-        var addr_unaligned = @ptrToInt(byte_slice.ptr);
-        if (addr_unaligned == self.mem_base) addr_unaligned -= (try std.math.mod(usize, @ptrToInt(byte_slice.ptr), appAllocatorChunkSize));
+        var addr_unaligned = @intFromPtr(byte_slice.ptr);
+        if (addr_unaligned == self.mem_base) addr_unaligned -= (try std.math.mod(usize, @intFromPtr(byte_slice.ptr), appAllocatorChunkSize));
         if (addr_unaligned > (self.mem_base + (maxChunks * appAllocatorChunkSize)))
             return Error.AddrNotInMem;
 

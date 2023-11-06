@@ -99,12 +99,12 @@ pub const UsersapceMultiBuff = struct {
 
         var rolled_over_data: []u8 = undefined;
         if (buff_pointer < ret_buff.len and buff_pointer != 0) {
-            const rollover_size: usize = std.math.absCast(try std.math.sub(isize, @intCast(isize, buff_pointer), @intCast(isize, ret_buff.len)));
+            const rollover_size: usize = std.math.absCast(try std.math.sub(isize, @as(isize, @intCast(buff_pointer)), @as(isize, @intCast(ret_buff.len))));
             // only one rollver is supported
             if (rollover_size > self.buff.len) return Error.MaxRollOvers;
 
             rolled_over_data = self.buff[self.buff.len - rollover_size .. self.buff.len];
-            std.mem.copy(u8, @intToPtr([]u8, @ptrToInt(ret_buff.ptr) + data.len), rolled_over_data);
+            std.mem.copy(u8, @as([]u8, @ptrFromInt(@intFromPtr(ret_buff.ptr) + data.len)), rolled_over_data);
         }
         return data.len + rolled_over_data.len;
     }

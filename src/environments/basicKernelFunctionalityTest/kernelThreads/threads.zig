@@ -3,5 +3,5 @@ const Scheduler = sharedKernelServices.Scheduler;
 
 const Thread = fn (scheduler: *Scheduler) noreturn;
 
-// threads array is loaded and inited by the kernel 
-pub const threads = [_]Thread{ };
+// threads array is loaded and inited by the kernel
+pub const threads = [_]Thread{};

@@ -9,8 +9,7 @@ const bcm2835IntController = @import("interruptControllerDriver").bcm2835Interru
 // mmu starts at lvl1 for which 0xFFFFFF8000000000 is the lowest possible va
 const vaStart: usize = 0xFFFFFF8000000000;
 
-
-pub const config = boardConfig.BoardConfig {
+pub const config = boardConfig.BoardConfig{
     .board_name = "raspi3b",
     .mem = .{
         .va_start = vaStart,
@@ -26,7 +25,7 @@ pub const config = boardConfig.BoardConfig {
         .ram_start_addr = 0,
         // the ram_size needs to be greater or equal to: kernel_space_size + user_space_size + (bl_load_addr or rom_size)
         .ram_size = 0x40000000,
-        
+
         .kernel_space_size = 0x20000000,
         .user_space_size = 0x20000000,
 
@@ -44,7 +43,7 @@ pub const config = boardConfig.BoardConfig {
         .ksemaphore_max_process_in_queue = 1000,
         .semaphore_max_process_in_queue = 1000,
         .mutex_max_process_in_queue = 1000,
-        .topics_max_process_in_queue = 1000,    
+        .topics_max_process_in_queue = 1000,
     },
     .scheduler_freq_in_hertz = 250,
 };
@@ -59,13 +58,12 @@ var bcm2835TimerInst = Bcm2835TimerType.init();
 pub const GenericTimerKpiType = kpi.TimerKpi(*GenericTimerType, GenericTimerType.Error, GenericTimerType.setupGt, GenericTimerType.timerInt, GenericTimerType.timer_name);
 pub const Bcm2835TimerKpiType = kpi.TimerKpi(*Bcm2835TimerType, Bcm2835TimerType.Error, Bcm2835TimerType.initTimer, Bcm2835TimerType.handleTimerIrq, Bcm2835TimerType.timer_name);
 
-
 // interrupt controller
 const Bcm2835InterruptControllerType = bcm2835IntController.InterruptController(PeriphConfig(.ttbr1).InterruptController.base_address);
 pub const SecondaryInterruptControllerKpiType = kpi.SecondaryInterruptControllerKpi(*Bcm2835InterruptControllerType, Bcm2835InterruptControllerType.Error, Bcm2835InterruptControllerType.initIc, Bcm2835InterruptControllerType.addIcHandler, Bcm2835InterruptControllerType.RegMap);
 var secondaryInterruptControllerInst = Bcm2835InterruptControllerType.init();
 
-pub const driver = boardConfig.Driver(GenericTimerKpiType, SecondaryInterruptControllerKpiType) {
+pub const driver = boardConfig.Driver(GenericTimerKpiType, SecondaryInterruptControllerKpiType){
     .timerDriver = GenericTimerKpiType.init(&genericTimerInst),
     // .timerDriver = Bcm2835TimerKpiType.init(&bcm2835TimerInst),
     .secondaryInterruptConrtollerDriver = SecondaryInterruptControllerKpiType.init(&secondaryInterruptControllerInst),
@@ -109,7 +107,7 @@ pub fn PeriphConfig(comptime addr_space: boardConfig.AddrSpace) type {
         pub const InterruptController = struct {
             pub const base_address: usize = device_base + 0x0000b200;
         };
-        
+
         pub const GicV2 = struct {
             pub const base_address: u64 = device_base + 0;
         };

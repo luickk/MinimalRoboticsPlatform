@@ -122,7 +122,7 @@ pub const Scheduler = struct {
         self.current_task.state = .running;
         self.current_task.pid = 0;
         var app_mem: []u8 = undefined;
-        app_mem.ptr = @intToPtr([*]u8, board.config.mem.va_start);
+        app_mem.ptr = @as([*]u8, @ptrFromInt(board.config.mem.va_start));
         app_mem.len = board.config.mem.kernel_space_size;
         self.current_task.app_mem = app_mem;
         self.current_task.ttbr0 = ProccessorRegMap.readTTBR0();
@@ -145,7 +145,7 @@ pub const Scheduler = struct {
         var next_proc_index: usize = 0;
         var c: isize = -1;
         while (true) {
-            for (self.scheduled_tasks) |*process, i| {
+            for (self.scheduled_tasks, 0..) |*process, i| {
                 if (i >= self.pid_counter) break;
                 if (process.state == .running and process.counter > c) {
                     c = process.counter;
@@ -154,7 +154,7 @@ pub const Scheduler = struct {
             }
 
             if (c != 0) break;
-            for (self.scheduled_tasks) |*process, i| {
+            for (self.scheduled_tasks, 0..) |*process, i| {
                 if (i >= self.pid_counter) break;
                 process.counter = (process.counter >> 1) + process.priority;
             }
@@ -165,7 +165,7 @@ pub const Scheduler = struct {
 
     pub fn timerIntEvent(self: *Scheduler, irq_context: *CpuContext) void {
         self.current_task.counter -= 1;
-        for (self.tasks_sleeping) |proc, i| {
+        for (self.tasks_sleeping, 0..) |proc, i| {
             if (proc) |process| {
                 if (process.sleep_counter <= 0) {
                     process.state = .running;
@@ -188,7 +188,7 @@ pub const Scheduler = struct {
         self.current_task.preempt_count += 1;
         defer self.current_task.preempt_count -= 1;
 
-        for (apps) |app, j| {
+        for (apps, 0..) |app, j| {
             var i = j + 1;
             // skip root task (index 0)
             const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, board.config.mem.va_user_space_gran.page_size);
@@ -212,7 +212,7 @@ pub const Scheduler = struct {
                 var page_table_write = try app_page_table.init(&self.scheduled_tasks[i].page_table, self.kernel_lma_offset);
                 const user_space_mapping = mmu.Mapping{
                     .mem_size = board.config.mem.app_vm_mem_size,
-                    .pointing_addr_start = self.kernel_lma_offset + board.config.mem.kernel_space_size + @ptrToInt(app_mem.ptr),
+                    .pointing_addr_start = self.kernel_lma_offset + board.config.mem.kernel_space_size + @intFromPtr(app_mem.ptr),
                     .virt_addr_start = 0,
                     .granule = board.boardConfig.Granule.Fourk,
                     .addr_space = .ttbr0,
@@ -228,7 +228,7 @@ pub const Scheduler = struct {
                 var page_table_write = try app_page_table.init(&self.scheduled_tasks[i].page_table, self.kernel_lma_offset);
                 const topics_interace_mapping = mmu.Mapping{
                     .mem_size = topics_mem_pool.len,
-                    .pointing_addr_start = self.kernel_lma_offset + board.config.mem.kernel_space_size + @ptrToInt(topics_mem_pool.ptr),
+                    .pointing_addr_start = self.kernel_lma_offset + board.config.mem.kernel_space_size + @intFromPtr(topics_mem_pool.ptr),
                     .virt_addr_start = 0x20000000,
                     .granule = board.boardConfig.Granule.Fourk,
                     .addr_space = .ttbr0,
@@ -237,7 +237,7 @@ pub const Scheduler = struct {
                 };
                 try page_table_write.mapMem(topics_interace_mapping);
             }
-            self.scheduled_tasks[i].ttbr0 = self.kernel_lma_offset + utils.toTtbr0(usize, @ptrToInt(&self.scheduled_tasks[i].page_table));
+            self.scheduled_tasks[i].ttbr0 = self.kernel_lma_offset + utils.toTtbr0(usize, @intFromPtr(&self.scheduled_tasks[i].page_table));
             self.pid_counter += 1;
         }
     }
@@ -286,7 +286,7 @@ pub const Scheduler = struct {
         std.mem.copy(u8, new_app_mem, self.scheduled_tasks[to_clone_pid].app_mem.?);
         self.scheduled_tasks[new_pid] = self.scheduled_tasks[to_clone_pid];
         self.scheduled_tasks[new_pid].app_mem = new_app_mem;
-        self.scheduled_tasks[new_pid].ttbr0 = self.kernel_lma_offset + utils.toTtbr0(usize, @ptrToInt(&self.scheduled_tasks[new_pid].page_table));
+        self.scheduled_tasks[new_pid].ttbr0 = self.kernel_lma_offset + utils.toTtbr0(usize, @intFromPtr(&self.scheduled_tasks[new_pid].page_table));
         self.scheduled_tasks[new_pid].pid = new_pid;
         self.scheduled_tasks[new_pid].parent_pid = to_clone_pid;
         self.scheduled_tasks[to_clone_pid].child_pid = new_pid;
@@ -325,9 +325,9 @@ pub const Scheduler = struct {
         self.scheduled_tasks[new_pid].counter = self.scheduled_tasks[curr_task_index].priority;
         self.scheduled_tasks[new_pid].priority = self.scheduled_tasks[curr_task_index].priority;
         self.scheduled_tasks[new_pid].parent_pid = self.current_task.pid.?;
-        self.scheduled_tasks[new_pid].cpu_context.x0 = @ptrToInt(thread_fn_ptr);
-        self.scheduled_tasks[new_pid].cpu_context.x1 = @ptrToInt(args);
-        self.scheduled_tasks[new_pid].cpu_context.elr_el1 = @ptrToInt(entry_fn_ptr);
+        self.scheduled_tasks[new_pid].cpu_context.x0 = @intFromPtr(thread_fn_ptr);
+        self.scheduled_tasks[new_pid].cpu_context.x1 = @intFromPtr(args);
+        self.scheduled_tasks[new_pid].cpu_context.elr_el1 = @intFromPtr(entry_fn_ptr);
         self.scheduled_tasks[new_pid].cpu_context.sp_el0 = thread_stack_addr;
         self.scheduled_tasks[new_pid].cpu_context.sp_el1 = thread_stack_addr;
         self.scheduled_tasks[new_pid].priv_level = self.scheduled_tasks[curr_task_index].priv_level;
@@ -350,11 +350,11 @@ pub const Scheduler = struct {
     pub fn createKernelThread(self: *Scheduler, app_alloc: *KernelAlloc, thread_fn: anytype, args: anytype) !void {
         const thread_stack_mem = try app_alloc.alloc(u8, board.config.mem.k_stack_size, 16);
         var thread_stack_start: []u8 = undefined;
-        thread_stack_start.ptr = @intToPtr([*]u8, @ptrToInt(thread_stack_mem.ptr) + thread_stack_mem.len);
+        thread_stack_start.ptr = @as([*]u8, @ptrFromInt(@intFromPtr(thread_stack_mem.ptr) + thread_stack_mem.len));
         thread_stack_start.len = thread_stack_mem.len;
 
         var arg_mem: []const u8 = undefined;
-        arg_mem.ptr = @ptrCast([*]const u8, @alignCast(1, &args));
+        arg_mem.ptr = @as([*]const u8, @ptrCast(@alignCast(1, &args)));
         arg_mem.len = @sizeOf(@TypeOf(args));
 
         std.mem.copy(u8, thread_stack_start, arg_mem);
@@ -362,9 +362,9 @@ pub const Scheduler = struct {
         const entry_fn = &(KernelThreadInstance(thread_fn, @TypeOf(args)).threadEntry);
         var thread_fn_ptr = &thread_fn;
 
-        const thread_stack_addr = @ptrToInt(thread_stack_start.ptr) - alignForward(@sizeOf(@TypeOf(args)), 16);
+        const thread_stack_addr = @intFromPtr(thread_stack_start.ptr) - alignForward(@sizeOf(@TypeOf(args)), 16);
         const args_ptr = thread_stack_start.ptr;
-        try self.createThreadFromCurrentProcess(@ptrCast(*const anyopaque, entry_fn), @ptrCast(*const anyopaque, thread_fn_ptr), thread_stack_addr, @ptrCast(*anyopaque, args_ptr));
+        try self.createThreadFromCurrentProcess(@as(*const anyopaque, @ptrCast(entry_fn)), @as(*const anyopaque, @ptrCast(thread_fn_ptr)), thread_stack_addr, @as(*anyopaque, @ptrCast(args_ptr)));
     }
     pub fn ActionInstance(comptime thread_fn: anytype) type {
         const ThreadFn = @TypeOf(thread_fn);
@@ -379,7 +379,7 @@ pub const Scheduler = struct {
         // kprint("ss: {any} \n", .{loading_actions});
         self.current_task.preempt_count += 1;
         defer self.current_task.preempt_count -= 1;
-        for (loading_actions) |action, i| {
+        for (loading_actions, 0..) |action, i| {
             const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, board.config.mem.va_user_space_gran.page_size);
             const app_mem = try self.page_allocator.allocNPage(req_pages);
 
@@ -402,7 +402,7 @@ pub const Scheduler = struct {
                 var page_table_write = try app_page_table.init(&self.env_actions[i].page_table, self.kernel_lma_offset);
                 const user_space_mapping = mmu.Mapping{
                     .mem_size = board.config.mem.app_vm_mem_size,
-                    .pointing_addr_start = self.kernel_lma_offset + board.config.mem.kernel_space_size + @ptrToInt(app_mem.ptr),
+                    .pointing_addr_start = self.kernel_lma_offset + board.config.mem.kernel_space_size + @intFromPtr(app_mem.ptr),
                     .virt_addr_start = 0,
                     .granule = board.boardConfig.Granule.Fourk,
                     .addr_space = .ttbr0,
@@ -418,7 +418,7 @@ pub const Scheduler = struct {
                 var page_table_write = try app_page_table.init(&self.env_actions[i].page_table, self.kernel_lma_offset);
                 const topics_interace_mapping = mmu.Mapping{
                     .mem_size = topics_mem_pool.len,
-                    .pointing_addr_start = self.kernel_lma_offset + board.config.mem.kernel_space_size + @ptrToInt(topics_mem_pool.ptr),
+                    .pointing_addr_start = self.kernel_lma_offset + board.config.mem.kernel_space_size + @intFromPtr(topics_mem_pool.ptr),
                     .virt_addr_start = 0x20000000,
                     .granule = board.boardConfig.Granule.Fourk,
                     .addr_space = .ttbr0,
@@ -427,7 +427,7 @@ pub const Scheduler = struct {
                 };
                 try page_table_write.mapMem(topics_interace_mapping);
             }
-            self.env_actions[i].ttbr0 = self.kernel_lma_offset + utils.toTtbr0(usize, @ptrToInt(&self.env_actions[i].page_table));
+            self.env_actions[i].ttbr0 = self.kernel_lma_offset + utils.toTtbr0(usize, @intFromPtr(&self.env_actions[i].page_table));
             self.pid_counter += 1;
         }
     }
@@ -465,7 +465,7 @@ pub const Scheduler = struct {
 
     pub fn setProcessAsleep(self: *Scheduler, pid: u16, cycles_sleeping: usize, irq_context: *CpuContext) !void {
         const index = try self.checkForPid(pid);
-        for (self.tasks_sleeping) |proc, i| {
+        for (self.tasks_sleeping, 0..) |proc, i| {
             if (proc == null) {
                 self.tasks_sleeping[i] = &self.scheduled_tasks[index];
             }
@@ -510,7 +510,7 @@ pub const Scheduler = struct {
         if (log) {
             kprint("from: ({s}, {s}, {*}) to ({s}, {s}, {*}) \n", .{ @tagName(from.priv_level), @tagName(from.state), from, @tagName(to.priv_level), @tagName(to.state), to });
             kprint("current scheduled_tasks(n={d}): \n", .{self.pid_counter + 1});
-            for (self.scheduled_tasks) |*proc, i| {
+            for (self.scheduled_tasks, 0..) |*proc, i| {
                 if (i >= self.pid_counter) break;
                 kprint("pid: {d} {s}, {s}, {s}, {any}, {*}\n", .{ i, @tagName(proc.priv_level), @tagName(proc.priv_level), @tagName(proc.state), proc.*.task_type, proc });
             }
@@ -539,11 +539,11 @@ pub const Scheduler = struct {
     }
 
     fn findTaskByPid(self: *Scheduler, pid: u16) !struct { index: u16, task_type: Task.TaskType } {
-        for (self.scheduled_tasks) |*proc, i| {
-            if (proc.pid == pid) return .{ .index = @truncate(u16, i), .task_type = .process };
+        for (self.scheduled_tasks, 0..) |*proc, i| {
+            if (proc.pid == pid) return .{ .index = @as(u16, @truncate(i)), .task_type = .process };
         }
-        for (self.env_actions) |*action, i| {
-            if (action.pid == pid) return .{ .index = @truncate(u16, i), .task_type = .action };
+        for (self.env_actions, 0..) |*action, i| {
+            if (action.pid == pid) return .{ .index = @as(u16, @truncate(i)), .task_type = .action };
         }
         return Error.PidNotFound;
     }

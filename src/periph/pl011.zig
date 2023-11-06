@@ -6,12 +6,12 @@ pub fn Pl011(comptime addr_space: AddrSpace) type {
     const pl011Cfg = board.PeriphConfig(addr_space).Pl011;
     return struct {
         const RegMap = struct {
-            pub const dataReg = @intToPtr(*volatile u32, pl011Cfg.base_address + 0x000);
-            pub const flagReg = @intToPtr(*volatile u32, pl011Cfg.base_address + 0x018);
-            pub const intBaudRateReg = @intToPtr(*volatile u32, pl011Cfg.base_address + 0x024);
-            pub const fracBaudRateReg = @intToPtr(*volatile u32, pl011Cfg.base_address + 0x028);
+            pub const dataReg = @as(*volatile u32, @ptrFromInt(pl011Cfg.base_address + 0x000));
+            pub const flagReg = @as(*volatile u32, @ptrFromInt(pl011Cfg.base_address + 0x018));
+            pub const intBaudRateReg = @as(*volatile u32, @ptrFromInt(pl011Cfg.base_address + 0x024));
+            pub const fracBaudRateReg = @as(*volatile u32, @ptrFromInt(pl011Cfg.base_address + 0x028));
             pub const lineCtrlReg = struct {
-                pub const reg = @intToPtr(*volatile u32, pl011Cfg.base_address + 0x02c);
+                pub const reg = @as(*volatile u32, @ptrFromInt(pl011Cfg.base_address + 0x02c));
                 pub const RegAttr = packed struct {
                     padding: u24 = 0,
                     stick_parity_select: bool = false,
@@ -23,12 +23,12 @@ pub fn Pl011(comptime addr_space: AddrSpace) type {
                     send_break: bool = false,
 
                     pub fn asInt(self: RegAttr) u32 {
-                        return @bitCast(u32, self);
+                        return @as(u32, @bitCast(self));
                     }
                 };
             };
             pub const ctrlReg = struct {
-                pub const reg = @intToPtr(*volatile u32, pl011Cfg.base_address + 0x030);
+                pub const reg = @as(*volatile u32, @ptrFromInt(pl011Cfg.base_address + 0x030));
                 pub const RegAttr = packed struct {
                     padding: u16 = 0,
                     cts_hwflow_ctrl_en: bool = false,
@@ -46,12 +46,12 @@ pub fn Pl011(comptime addr_space: AddrSpace) type {
                     uart_enable: bool = false,
 
                     pub fn asInt(self: RegAttr) u32 {
-                        return @bitCast(u32, self);
+                        return @as(u32, @bitCast(self));
                     }
                 };
             };
-            pub const intMaskSetClearReg = @intToPtr(*volatile u32, pl011Cfg.base_address + 0x038);
-            pub const dmaCtrlReg = @intToPtr(*volatile u32, pl011Cfg.base_address + 0x048);
+            pub const intMaskSetClearReg = @as(*volatile u32, @ptrFromInt(pl011Cfg.base_address + 0x038));
+            pub const dmaCtrlReg = @as(*volatile u32, @ptrFromInt(pl011Cfg.base_address + 0x048));
         };
 
         fn waitForTransmissionEnd() void {

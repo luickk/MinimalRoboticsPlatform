@@ -40,7 +40,7 @@ pub const UserPageAllocator = struct {
             return try self.searchFreePages(n);
         }
         var ret_slice: []u8 = undefined;
-        ret_slice.ptr = @alignCast(granule.page_size, @intToPtr([*]u8, self.mem_start + self.curr_page_pointer * granule.page_size));
+        ret_slice.ptr = @alignCast(granule.page_size, @as([*]u8, @ptrFromInt(self.mem_start + self.curr_page_pointer * granule.page_size)));
         ret_slice.len = granule.page_size * n;
         self.curr_page_pointer += n;
         // kprint("allocation addr: {*} \n", .{ret_slice.ptr});
@@ -56,7 +56,7 @@ pub const UserPageAllocator = struct {
             curr_set_bit_index = iterator.next() orelse return Error.OutOfMem;
             if (curr_set_bit_index - last_set_bit_index >= req_pages) {
                 var ret_slice: []u8 = undefined;
-                ret_slice.ptr = @alignCast(granule.page_size, @intToPtr([*]u8, last_set_bit_index * granule.page_size));
+                ret_slice.ptr = @alignCast(granule.page_size, @as([*]u8, @ptrFromInt(last_set_bit_index * granule.page_size)));
                 ret_slice.len = granule.page_size * req_pages;
                 return ret_slice;
             }
@@ -66,10 +66,10 @@ pub const UserPageAllocator = struct {
     }
 
     pub fn freeNPage(self: *UserPageAllocator, page_addr: []u8, n: usize) !void {
-        if ((try std.math.mod(usize, utils.toTtbr0(usize, @ptrToInt(page_addr.ptr)), granule.page_size)) != 0)
+        if ((try std.math.mod(usize, utils.toTtbr0(usize, @intFromPtr(page_addr.ptr)), granule.page_size)) != 0)
             return Error.PageAddrDoesNotAlign;
 
-        var pointing_addr_start: usize = std.math.sub(usize, utils.toTtbr0(usize, @ptrToInt(page_addr.ptr)), self.mem_start) catch {
+        var pointing_addr_start: usize = std.math.sub(usize, utils.toTtbr0(usize, @intFromPtr(page_addr.ptr)), self.mem_start) catch {
             return Error.AddrNotInMem;
         };
         // safe bc page_address is multiple of page_size

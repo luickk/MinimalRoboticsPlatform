@@ -51,11 +51,11 @@ pub fn trapHandler(temp_context: *CpuContext, tmp_int_type: usize) callconv(.C) 
     };
     temp_context.int_type = int_type;
     kprint("bl irqHandler \n", .{});
-    var iss = @truncate(u25, temp_context.esr_el1);
-    var ifsc = @truncate(u6, temp_context.esr_el1);
-    var il = @truncate(u1, temp_context.esr_el1 >> 25);
-    var ec = @truncate(u6, temp_context.esr_el1 >> 26);
-    var iss2 = @truncate(u5, temp_context.esr_el1 >> 32);
+    var iss = @as(u25, @truncate(temp_context.esr_el1));
+    var ifsc = @as(u6, @truncate(temp_context.esr_el1));
+    var il = @as(u1, @truncate(temp_context.esr_el1 >> 25));
+    var ec = @as(u6, @truncate(temp_context.esr_el1 >> 26));
+    var iss2 = @as(u5, @truncate(temp_context.esr_el1 >> 32));
     _ = iss;
     _ = iss2;
 

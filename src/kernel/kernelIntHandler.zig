@@ -26,7 +26,7 @@ pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(
 
     switch (int_type_en) {
         .el0Sync, .el1Sync => {
-            var ec = @truncate(u6, context.esr_el1 >> 26);
+            var ec = @as(u6, @truncate(context.esr_el1 >> 26));
             var ec_en = std.meta.intToEnum(ProccessorRegMap.Esr_el1.ExceptionClass, ec) catch {
                 kprint("Error decoding ExceptionClass 0x{x} \n", .{ec});
                 printExc(&context, int_type_en);
@@ -62,7 +62,7 @@ pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(
             if (board.driver.secondaryInterruptConrtollerDriver) |secondary_ic| {
                 if (secondary_ic.context.handler_fn) |handler| handler(&context);
             }
-            
+
             if (std.mem.eql(u8, board.driver.timerDriver.timer_name, "arm_gt")) {
                 board.driver.timerDriver.timerTick(&context) catch |e| {
                     kprint("kernel timer error {s} \n", .{@errorName(e)});
@@ -78,11 +78,11 @@ pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(
 
 fn printExc(context: *CpuContext, int_type_en: ?gic.ExceptionType) void {
     // printing debug information
-    var iss = @truncate(u25, context.esr_el1);
-    var ifsc = @truncate(u6, context.esr_el1);
-    var il = @truncate(u1, context.esr_el1 >> 25);
-    var ec = @truncate(u6, context.esr_el1 >> 26);
-    var iss2 = @truncate(u5, context.esr_el1 >> 32);
+    var iss = @as(u25, @truncate(context.esr_el1));
+    var ifsc = @as(u6, @truncate(context.esr_el1));
+    var il = @as(u1, @truncate(context.esr_el1 >> 25));
+    var ec = @as(u6, @truncate(context.esr_el1 >> 26));
+    var iss2 = @as(u5, @truncate(context.esr_el1 >> 32));
     _ = iss;
     _ = iss2;
 

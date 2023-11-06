@@ -7,6 +7,9 @@ const builtin = @import("builtin");
 
 const Error = error{BlExceedsRomSize};
 
+const Module = std.build.Module;
+const ModuleDependency = std.build.ModuleDependency;
+
 const raspi3b = BoardBuildConf{
     .boardName = "raspi3b",
     .has_rom = false,
@@ -47,104 +50,102 @@ const currBoard = qemuVirt;
 const env_path = "src/environments/basicKernelFunctionalityTest";
 // const env_path = "src/environments/actionTest";
 
-// packages...
-// SOC builtin features
-var arm = std.build.Pkg{ .name = "arm", .source = .{ .path = "src/arm/arm.zig" } };
-// package for kernel interfaces such as the timer or the interrupt controller or general drivers
-var kpi = std.build.Pkg{ .name = "kpi", .source = .{ .path = "src/kpi/kpi.zig" } };
-// functions generally required
-var utils = std.build.Pkg{ .name = "utils", .source = .{ .path = "src/utils/utils.zig" } };
-// board pkg contains the configuration "template"(boardConfig.zig) and different configuration files for different boards
-var board = std.build.Pkg{ .name = "board", .source = .{ .path = "src/boards/" ++ currBoard.boardName ++ ".zig" } };
-var environment = std.build.Pkg{ .name = "environment", .source = .{ .path = env_path ++ "/envConfig.zig" } };
-// peripheral drivers
-var periph = std.build.Pkg{ .name = "periph", .source = .{ .path = "src/periph/periph.zig" } };
-// services that need to be accessed by kernel and other instances. the kernel allocator e.g.
-var sharedKernelServices = std.build.Pkg{ .name = "sharedKernelServices", .source = .{ .path = "src/kernel/sharedKernelServices/sharedKernelServices.zig" } };
-// package for all applications to call syscall
-var appLib = std.build.Pkg{ .name = "appLib", .source = .{ .path = "src/appLib/appLib.zig" } };
-
-var configTemplates = std.build.Pkg{ .name = "configTemplates", .source = .{ .path = "src/configTemplates/configTemplates.zig" } };
-
-//kernel threads
-var kernelThreads = std.build.Pkg{ .name = "kernelThreads", .source = .{ .path = env_path ++ "/kernelThreads/threads.zig" } };
-var setupRoutines = std.build.Pkg{ .name = "setupRoutines", .source = .{ .path = env_path ++ "/setupRoutines/routines.zig" } };
-
-// driver packages
-var interruptControllerDriver = std.build.Pkg{ .name = "interruptControllerDriver", .source = .{ .path = "src/boards/drivers/interruptController/interruptController.zig" } };
-var timerDriver = std.build.Pkg{ .name = "timerDriver", .source = .{ .path = "src/boards/drivers/timer/timer.zig" } };
-
-var sharedServices = std.build.Pkg{ .name = "sharedServices", .source = .{ .path = "src/sharedServices/sharedServices.zig" } };
-
-pub fn build(b: *std.build.Builder) !void {
+pub fn build(b: *std.Build.Builder) !void {
     // currBoard.config.checkConfig();
     const build_mode = std.builtin.Mode.ReleaseFast;
     var build_options = b.addOptions();
 
+
+    // packages...
+    // SOC builtin features
+    var arm = ModuleDependency { .name = "arm", .module = b.createModule( .{ .source_file = .{ .path = "src/arm/arm.zig" } }) };
+    // package for kernel interfaces such as the timer or the interrupt controller or general drivers
+    var kpi = ModuleDependency { .name = "kpi", .module = b.createModule( .{ .source_file = .{ .path = "src/kpi/kpi.zig" } }) };
+    // functions generally required
+    var utils = ModuleDependency { .name = "utils", .module = b.createModule( .{ .source_file = .{ .path = "src/utils/utils.zig" } }) };
+    // board pkg contains the configuration "template"(boardConfig.zig) and different configuration files for different boards
+    var board = ModuleDependency { .name = "board", .module = b.createModule( .{ .source_file = .{ .path = "src/boards/" ++ currBoard.boardName ++ ".zig" } }) };
+    var environment = ModuleDependency { .name = "environment", .module = b.createModule( .{ .source_file = .{ .path = env_path ++ "/envConfig.zig" } }) };
+    // peripheral drivers
+    var periph = ModuleDependency { .name = "periph", .module = b.createModule( .{ .source_file = .{ .path = "src/periph/periph.zig" } }) };
+    // services that need to be accessed by kernel and other instances. the kernel allocator e.g.
+    var sharedKernelServices = ModuleDependency { .name = "sharedKernelServices", .module = b.createModule( .{ .source_file = .{ .path = "src/kernel/sharedKernelServices/sharedKernelServices.zig" } }) };
+    // package for all applications to call syscall
+    var appLib = ModuleDependency { .name = "appLib", .module = b.createModule( .{ .source_file = .{ .path = "src/appLib/appLib.zig" } }) };
+
+    var configTemplates = ModuleDependency { .name = "configTemplates", .module = b.createModule( .{ .source_file = .{ .path = "src/configTemplates/configTemplates.zig" } }) };
+
+    //kernel threads
+    var kernelThreads = ModuleDependency { .name = "kernelThreads", .module = b.createModule( .{ .source_file = .{ .path = env_path ++ "/kernelThreads/threads.zig" } }) };
+    var setupRoutines = ModuleDependency { .name = "setupRoutines", .module = b.createModule( .{ .source_file = .{ .path = env_path ++ "/setupRoutines/routines.zig" } }) };
+
+    // driver packages
+    var interruptControllerDriver = ModuleDependency { .name = "interruptControllerDriver", .module = b.createModule( .{ .source_file = .{ .path = "src/boards/drivers/interruptController/interruptController.zig" } }) };
+    var timerDriver = ModuleDependency { .name = "timerDriver", .module = b.createModule( .{ .source_file = .{ .path = "src/boards/drivers/timer/timer.zig" } }) };
+
+    var sharedServices = ModuleDependency { .name = "sharedServices", .module = b.createModule( .{ .source_file = .{ .path = "src/sharedServices/sharedServices.zig" } }) };
+
+
     // inter package dependencies
-    kernelThreads.dependencies = &.{ board, arm, sharedKernelServices, periph };
-    setupRoutines.dependencies = &.{ board, arm, sharedKernelServices, periph };
-    kpi.dependencies = &.{ sharedKernelServices, arm };
-    interruptControllerDriver.dependencies = &.{ board, arm };
-    timerDriver.dependencies = &.{ board, utils, periph };
-    board.dependencies = &.{ kpi, utils, arm, interruptControllerDriver, timerDriver, configTemplates };
-    environment.dependencies = &.{configTemplates};
-    sharedServices.dependencies = &.{ board, appLib, environment };
-    sharedKernelServices.dependencies = &.{ board, environment, appLib, arm, utils, sharedServices, periph };
-    periph.dependencies = &.{board};
-    utils.dependencies = &.{ board, arm };
-    arm.dependencies = &.{ periph, utils, board, sharedKernelServices };
-    appLib.dependencies = &.{ board, utils, environment, sharedServices, sharedKernelServices };
+    kernelThreads.module.dependencies = moduleDependenciesToArrayHashMap(b.allocator, &[_] ModuleDependency{ board, arm, sharedKernelServices, periph });
+    setupRoutines.module.dependencies = moduleDependenciesToArrayHashMap(b.allocator, &[_] ModuleDependency{  board, arm, sharedKernelServices, periph });
+    kpi.module.dependencies = moduleDependenciesToArrayHashMap(b.allocator, &[_] ModuleDependency{  sharedKernelServices, arm });
+    interruptControllerDriver.module.dependencies = moduleDependenciesToArrayHashMap(b.allocator, &[_] ModuleDependency{  board, arm });
+    timerDriver.module.dependencies = moduleDependenciesToArrayHashMap(b.allocator, &[_] ModuleDependency{  board, utils, periph });
+    board.module.dependencies = moduleDependenciesToArrayHashMap(b.allocator, &[_] ModuleDependency{  kpi, utils, arm, interruptControllerDriver, timerDriver, configTemplates });
+    environment.module.dependencies = moduleDependenciesToArrayHashMap(b.allocator, &[_] ModuleDependency{ configTemplates});
+    sharedServices.module.dependencies = moduleDependenciesToArrayHashMap(b.allocator, &[_] ModuleDependency{  board, appLib, environment });
+    sharedKernelServices.module.dependencies = moduleDependenciesToArrayHashMap(b.allocator, &[_] ModuleDependency{  board, environment, appLib, arm, utils, sharedServices, periph });
+    periph.module.dependencies = moduleDependenciesToArrayHashMap(b.allocator, &[_] ModuleDependency{ board});
+    utils.module.dependencies = moduleDependenciesToArrayHashMap(b.allocator, &[_] ModuleDependency{  board, arm });
+    arm.module.dependencies = moduleDependenciesToArrayHashMap(b.allocator, &[_] ModuleDependency{  periph, utils, board, sharedKernelServices });
+    appLib.module.dependencies = moduleDependenciesToArrayHashMap(b.allocator, &[_] ModuleDependency{  board, utils, environment, sharedServices, sharedKernelServices });
 
     // bootloader
-    const bl_exe = b.addExecutable("bootloader", null);
+    const bl_exe = b.addExecutable(.{ .name = "bootloader", .target = .{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf }, .optimize = build_mode, });
     bl_exe.force_pic = false;
     bl_exe.pie = false;
     bl_exe.code_model = .large;
-    bl_exe.addPackage(arm);
-    bl_exe.addPackage(utils);
-    bl_exe.addPackage(board);
-    bl_exe.addPackage(periph);
-    bl_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
+    bl_exe.addModule(arm.name, arm.module);
+    bl_exe.addModule(utils.name, utils.module);
+    bl_exe.addModule(board.name, board.module);
+    bl_exe.addModule(periph.name, periph.module);
     bl_exe.addOptions("build_options", build_options);
-    bl_exe.setBuildMode(build_mode);
     const temp_bl_ld = "zig-cache/tmp/tempBlLinker.ld";
     bl_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_bl_ld });
-    bl_exe.addObjectFile("src/bootloader/bootloader.zig");
-    bl_exe.addCSourceFile("src/boards/drivers/bootInit/" ++ currBoard.boardName ++ "_boot.S", &.{});
-    bl_exe.addCSourceFile("src/bootloader/exc_vec.S", &.{});
-    bl_exe.install();
+    bl_exe.addObjectFile(.{ .path = "src/bootloader/bootloader.zig"});
+    bl_exe.addCSourceFile(.{ .file = .{ .path = "src/boards/drivers/bootInit/" ++ currBoard.boardName ++ "_boot.S" }, .flags = undefined });
+    bl_exe.addCSourceFile(.{ .file = .{ .path = "src/bootloader/exc_vec.S" }, .flags = undefined });
+    b.installArtifact(bl_exe);
 
     // kernel
-    const kernel_exe = b.addExecutable("kernel", null);
+    const kernel_exe = b.addExecutable(.{ .name = "kernel", .target = .{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf }, .optimize = build_mode, });
     kernel_exe.force_pic = false;
     kernel_exe.pie = false;
     kernel_exe.code_model = .large;
     kernel_exe.strip = false;
-    kernel_exe.addPackage(arm);
-    kernel_exe.addPackage(sharedKernelServices);
-    kernel_exe.addPackage(appLib);
-    kernel_exe.addPackage(sharedServices);
-    kernel_exe.addPackage(utils);
-    kernel_exe.addPackage(kpi);
-    kernel_exe.addPackage(board);
-    kernel_exe.addPackage(environment);
-    kernel_exe.addPackage(periph);
-    kernel_exe.addPackage(interruptControllerDriver);
-    kernel_exe.addPackage(timerDriver);
+    kernel_exe.addModule(arm.name, arm.module);
+    kernel_exe.addModule(sharedKernelServices.name, sharedKernelServices.module);
+    kernel_exe.addModule(appLib.name, appLib.module);
+    kernel_exe.addModule(sharedServices.name, sharedServices.module);
+    kernel_exe.addModule(utils.name, utils.module);
+    kernel_exe.addModule(kpi.name, kpi.module);
+    kernel_exe.addModule(board.name, board.module);
+    kernel_exe.addModule(environment.name, environment.module);
+    kernel_exe.addModule(periph.name, periph.module);
+    kernel_exe.addModule(interruptControllerDriver.name, interruptControllerDriver.module);
+    kernel_exe.addModule(timerDriver.name, timerDriver.module);
 
-    kernel_exe.addPackage(kernelThreads);
-    kernel_exe.addPackage(setupRoutines);
+    kernel_exe.addModule(kernelThreads.name, kernelThreads.module);
+    kernel_exe.addModule(setupRoutines.name, setupRoutines.module);
     // kernel_exe.addAnonymousPackage("env-config", .{ .source_file = .{ .path = "src/configTemplates/envConfigTemplate.zig" } });
     // kernel_exe.addAnonymousModule("board-config", .{ .source_file = .{ .path = "src/configTemplates/boardConfigTemplate.zig" } });
-    kernel_exe.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
     kernel_exe.addOptions("build_options", build_options);
-    kernel_exe.setBuildMode(build_mode);
     const temp_kernel_ld = "zig-cache/tmp/tempKernelLinker.ld";
     kernel_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_kernel_ld });
-    kernel_exe.addObjectFile("src/kernel/kernel.zig");
-    kernel_exe.addCSourceFile("src/kernel/exc_vec.S", &.{});
-    kernel_exe.install();
+    bl_exe.addObjectFile(.{ .path = "src/kernel/kernel.zig" });
+    bl_exe.addCSourceFile(.{ .file = .{ .path = "src/kernel/exc_vec.S"}, .flags = undefined });
+    b.installArtifact(kernel_exe);
 
     // compilation steps
     const update_linker_scripts_bl = UpdateLinkerScripts.create(b, .bootloader, temp_bl_ld, temp_kernel_ld, currBoard);
@@ -156,16 +157,18 @@ pub fn build(b: *std.build.Builder) !void {
     const launch_with_gdb = b.option(bool, "gdb", "Launch qemu with -s -S to allow for net gdb debugging") orelse false;
 
     build_and_run.dependOn(&delete_app_bins.step);
-    try setEnvironment(b, build_and_run, build_mode, env_path);
+    try setEnvironment(b, build_and_run, build_mode, env_path, [4]ModuleDependency{periph, board, configTemplates, appLib});
 
     build_and_run.dependOn(&update_linker_scripts_k.step);
     build_and_run.dependOn(&scan_for_apps.step);
-    build_and_run.dependOn(&kernel_exe.install_step.?.step);
-    build_and_run.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = .bin, .dest_dir = .{ .custom = "../src/bootloader/bins/" } }).step);
+    build_and_run.dependOn(&b.addInstallArtifact(kernel_exe, .{}).step);
+    // todo => installraw
+    // build_and_run.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = .bin, .dest_dir = .{ .custom = "../src/bootloader/bins/" } }).step);
 
     build_and_run.dependOn(&update_linker_scripts_bl.step);
-    build_and_run.dependOn(&bl_exe.install_step.?.step);
-    build_and_run.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = .bin }).step);
+    build_and_run.dependOn(&b.addInstallArtifact(bl_exe, .{}).step);
+    // todo => installraw
+    // build_and_run.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = .bin }).step);
 
     const qemu_launch_cmd = b.addSystemCommand(currBoard.qemu_launch_command);
     if (launch_with_gdb) {
@@ -191,40 +194,37 @@ pub fn build(b: *std.build.Builder) !void {
     clean.dependOn(&create_bins.step);
 }
 
-fn setEnvironment(b: *std.build.Builder, step: *std.build.Step, build_mode: std.builtin.Mode, comptime path: []const u8) !void {
+fn setEnvironment(b: *std.build.Builder, step: *std.build.Step, build_mode: std.builtin.Mode, comptime path: []const u8, app_deps: [4] ModuleDependency) !void {
     const user_apps_path = path ++ "/userApps/";
     var dir = try std.fs.cwd().openIterableDir(user_apps_path, .{});
     var it = dir.iterate();
     while (try it.next()) |folder| {
-        if (folder.kind != .Directory or folder.name[0] == '_' or std.mem.eql(u8, folder.name, "actions")) continue;
-        const app = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ user_apps_path, folder.name }));
-        step.dependOn(&app.install_step.?.step);
-        step.dependOn(&app.installRaw(try b.allocator.dupe(u8, folder.name), .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/apps/" } }).step);
+        if (folder.kind != .directory or folder.name[0] == '_' or std.mem.eql(u8, folder.name, "actions")) continue;
+        const app = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ user_apps_path, folder.name }), app_deps);
+        step.dependOn(&b.addInstallArtifact(app, .{}).step);
+        // todo => installraw
+        // step.dependOn(&app.installRaw(try b.allocator.dupe(u8, folder.name), .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/apps/" } }).step);
     }
     const actions_path = path ++ "/userApps/actions/";
     dir = try std.fs.cwd().openIterableDir(actions_path, .{});
     it = dir.iterate();
     while (try it.next()) |folder| {
-        if (folder.kind != .Directory or folder.name[0] == '_' or std.mem.eql(u8, folder.name, "actions")) continue;
-        const app = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ actions_path, folder.name }));
-        step.dependOn(&app.install_step.?.step);
-        step.dependOn(&app.installRaw(try b.allocator.dupe(u8, folder.name), .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/actions/" } }).step);
+        if (folder.kind != .directory or folder.name[0] == '_' or std.mem.eql(u8, folder.name, "actions")) continue;
+        const app = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ actions_path, folder.name }), app_deps);
+        step.dependOn(&b.addInstallArtifact(app, .{}).step);
+        // todo => installraw
+        // step.dependOn(&app.installRaw(try b.allocator.dupe(u8, folder.name), .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/actions/" } }).step);
     }
 }
 
-fn addApp(b: *std.build.Builder, build_mode: std.builtin.Mode, path: []const u8) !*std.build.LibExeObjStep {
-    const app = b.addExecutable(std.fs.path.basename(path), null);
+fn addApp(b: *std.build.Builder, build_mode: std.builtin.Mode, path: []const u8, app_deps: [4] ModuleDependency) !*std.build.LibExeObjStep {
+    const app = b.addExecutable(.{ .name = std.fs.path.basename(path), .target = .{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf }, .optimize = build_mode, });
     app.force_pic = false;
     app.pie = false;
-    app.setTarget(.{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf });
-    app.setBuildMode(build_mode);
     app.setLinkerScriptPath(std.build.FileSource{ .path = try std.fmt.allocPrint(b.allocator, "{s}/linker.ld", .{path}) });
-    app.addObjectFile(try std.fmt.allocPrint(b.allocator, "{s}/main.zig", .{path}));
-    app.addPackage(periph);
-    app.addPackage(board);
-    app.addPackage(configTemplates);
-    app.addPackage(appLib);
-    app.install();
+    app.addObjectFile(.{ .path = try std.fmt.allocPrint(b.allocator, "{s}/main.zig", .{path})});
+    for (app_deps) |dep| app.addModule(dep.name, dep.module);    
+    b.installArtifact(app);
     return app;
 }
 
@@ -240,8 +240,7 @@ const UpdateLinkerScripts = struct {
     pub fn create(b: *std.build.Builder, to_update: ToUpdate, temp_bl_ld: []const u8, temp_kernel_ld: []const u8, board_config: BoardBuildConf) *UpdateLinkerScripts {
         const self = b.allocator.create(UpdateLinkerScripts) catch unreachable;
         self.* = .{
-            .step = std.build.Step.init(.custom, "UpdateLinkerScript", b.allocator, UpdateLinkerScripts.doStep),
-            .temp_bl_ld = temp_bl_ld,
+            .step = std.build.Step.init(.{ .id = .custom, .name = "UpdateLinkerScript", .owner = b, .makeFn = UpdateLinkerScripts.doStep}),            .temp_bl_ld = temp_bl_ld,
             .temp_kernel_ld = temp_kernel_ld,
             .board_config = board_config,
             .to_update = to_update,
@@ -270,7 +269,7 @@ const UpdateLinkerScripts = struct {
         var to_insert: []u8 = undefined;
         while (try in_stream.readUntilDelimiterOrEof(&buf, '\n')) |line| {
             try outp_line.appendSlice(line);
-            for (line) |c, i| {
+            for (line, 0..) |c, i| {
                 if (c == '{' and i + 4 <= line.len) {
                     if (std.mem.eql(u8, line[i .. i + 6], "{@zig}")) {
                         while (j < 6) : (j += 1) {
@@ -293,7 +292,8 @@ const UpdateLinkerScripts = struct {
         }
     }
 
-    fn doStep(step: *std.build.Step) !void {
+    fn doStep(step: *std.build.Step, prog_node: *std.Progress.Node) !void {
+        _ = prog_node;
         const self = @fieldParentPtr(UpdateLinkerScripts, "step", step);
         switch (self.to_update) {
             .bootloader => {
@@ -329,11 +329,12 @@ const CreateTmpSrcBins = struct {
 
     pub fn create(b: *std.build.Builder) *CreateTmpSrcBins {
         const self = b.allocator.create(CreateTmpSrcBins) catch unreachable;
-        self.* = .{ .step = std.build.Step.init(.custom, "CreateTmpSrcBins", b.allocator, CreateTmpSrcBins.doStep) };
+        self.* = .{ .step = std.build.Step.init(.{ .id = .custom, .name = "CreateTmpSrcBins", .owner = b, .makeFn = CreateTmpSrcBins.doStep}) };
         return self;
     }
 
-    fn doStep(step: *std.build.Step) !void {
+    fn doStep(step: *std.build.Step, prog_node: *std.Progress.Node) !void {
+        _ = prog_node;
         _ = step;
         try std.fs.cwd().makeDir("src/kernel/bins/");
         try std.fs.cwd().makeDir("src/bootloader/bins/");
@@ -347,11 +348,12 @@ const ScanForApps = struct {
 
     pub fn create(b: *std.build.Builder, build_options: *std.build.OptionsStep) *ScanForApps {
         const self = b.allocator.create(ScanForApps) catch unreachable;
-        self.* = .{ .step = std.build.Step.init(.custom, "ScanForApps", b.allocator, ScanForApps.doStep), .builder = b, .build_options = build_options };
+        self.* = .{ .step = std.build.Step.init(.{ .id = .custom, .name = "ScanForApps", .owner = b, .makeFn = ScanForApps.doStep}), .builder = b, .build_options = build_options };
         return self;
     }
 
-    fn doStep(step: *std.build.Step) !void {
+    fn doStep(step: *std.build.Step, prog_node: *std.Progress.Node) !void {
+        _ = prog_node;
         const self = @fieldParentPtr(ScanForApps, "step", step);
         // searching for apps in apps/
         {
@@ -368,7 +370,7 @@ const ScanForApps = struct {
             };
             var it = dir.iterate();
             while (try it.next()) |file| {
-                if (file.kind != .File) continue;
+                if (file.kind != .file) continue;
                 try apps.append(file.name);
             }
             self.build_options.addOption([]const []const u8, "apps", apps.items);
@@ -381,10 +383,20 @@ const ScanForApps = struct {
             };
             it = dir.iterate();
             while (try it.next()) |file| {
-                if (file.kind != .File) continue;
+                if (file.kind != .file) continue;
                 try actions.append(file.name);
             }
             self.build_options.addOption([]const []const u8, "actions", actions.items);
         }
     }
 };
+
+// std zig build additions
+
+fn moduleDependenciesToArrayHashMap(arena: std.mem.Allocator, deps: []const ModuleDependency) std.StringArrayHashMap(*Module) {
+    var result = std.StringArrayHashMap(*Module).init(arena);
+    for (deps) |dep| {
+        result.put(dep.name, dep.module) catch @panic("OOM");
+    }
+    return result;
+}

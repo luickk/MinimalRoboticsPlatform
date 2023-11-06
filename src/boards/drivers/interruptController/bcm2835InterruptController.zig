@@ -10,16 +10,16 @@ pub fn InterruptController(comptime base_address: usize) type {
         const Self = @This();
         pub const Error = anyerror;
         pub const RegMap = struct {
-            pub const pendingBasic = @intToPtr(*volatile u32, base_address + 0);
-            pub const pendingIrq1 = @intToPtr(*volatile u32, base_address + 0x4);
-            pub const pendingIrq2 = @intToPtr(*volatile u32, base_address + 0x8);
+            pub const pendingBasic = @as(*volatile u32, @ptrFromInt(base_address + 0));
+            pub const pendingIrq1 = @as(*volatile u32, @ptrFromInt(base_address + 0x4));
+            pub const pendingIrq2 = @as(*volatile u32, @ptrFromInt(base_address + 0x8));
 
-            pub const enableIrq1 = @intToPtr(*volatile u32, base_address + 0x10);
-            pub const enableIrq2 = @intToPtr(*volatile u32, base_address + 0x14);
-            pub const enableIrqBasic = @intToPtr(*volatile u32, base_address + 0x18);
+            pub const enableIrq1 = @as(*volatile u32, @ptrFromInt(base_address + 0x10));
+            pub const enableIrq2 = @as(*volatile u32, @ptrFromInt(base_address + 0x14));
+            pub const enableIrqBasic = @as(*volatile u32, @ptrFromInt(base_address + 0x18));
         };
 
-        handler_fn: ?*const fn(cpu_context: *cpuContext.CpuContext) void,
+        handler_fn: ?*const fn (cpu_context: *cpuContext.CpuContext) void,
 
         pub fn init() Self {
             return .{
@@ -34,7 +34,7 @@ pub fn InterruptController(comptime base_address: usize) type {
             // RegMap.enableIrq2.* = 1 << 1;
             // RegMap.enableIrqBasic.* = 1 << 1;
         }
-        pub fn addIcHandler(self: *Self, handler_fn: *const fn(cpu_context: *cpuContext.CpuContext) void) Error!void {
+        pub fn addIcHandler(self: *Self, handler_fn: *const fn (cpu_context: *cpuContext.CpuContext) void) Error!void {
             self.handler_fn = handler_fn;
         }
     };

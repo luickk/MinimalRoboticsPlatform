@@ -1,4 +1,3 @@
-
 pub const BoardBuildConf = struct {
     boardName: []const u8,
     has_rom: bool,

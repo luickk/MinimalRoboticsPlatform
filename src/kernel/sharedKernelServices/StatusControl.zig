@@ -53,7 +53,7 @@ pub const StatusControl = struct {
             if (status_control_conf.status_type != .topic) {
                 const size = status_control_conf.status_type.statusTypeLen() orelse return Error.WrongInterface;
                 i += 1;
-                statuses[i].mem_addr = @ptrToInt(status_mem[used_status_mem .. used_status_mem + size].ptr);
+                statuses[i].mem_addr = @intFromPtr(status_mem[used_status_mem .. used_status_mem + size].ptr);
                 used_status_mem += size;
             }
         }
@@ -67,35 +67,35 @@ pub const StatusControl = struct {
         if (self.findStatusByName(name)) |index| {
             if (!self.statuses[index].status_type.isTypeEqual(@TypeOf(value))) return Error.TypesNotMatching;
             var value_as_bytes: []const u8 = undefined;
-            value_as_bytes.ptr = @ptrCast([*]const u8, &value);
+            value_as_bytes.ptr = @as([*]const u8, @ptrCast(&value));
             value_as_bytes.len = @sizeOf(@TypeOf(value));
-            std.mem.copy(u8, @intToPtr([]u8, self.statuses[index].mem_addr), value_as_bytes);
+            std.mem.copy(u8, @as([]u8, @ptrFromInt(self.statuses[index].mem_addr)), value_as_bytes);
         }
     }
 
     pub fn updateStatusRaw(self: *StatusControl, id: u16, val_mem_addr: usize) !void {
         if (self.findStatusById(id)) |index| {
-            @memcpy(@intToPtr([*]u8, self.statuses[index].mem_addr), @intToPtr([*]u8, val_mem_addr), self.statuses[index].size);
+            @memcpy(@as([*]u8, @ptrFromInt(self.statuses[index].mem_addr)), @as([*]u8, @ptrFromInt(val_mem_addr)), self.statuses[index].size);
         } else return Error.NameNotFound;
     }
 
     pub fn readStatus(self: *StatusControl, comptime InpT: type, comptime name: []const u8) !InpT {
         const T: type = (try env.env_config.getStatusInfo(name)).type;
         if (self.findStatusByName(name)) |index| {
-            return @intToPtr(*T, self.statuses[index].mem_addr).*;
+            return @as(*T, @ptrFromInt(self.statuses[index].mem_addr)).*;
         }
         return Error.NameNotFound;
     }
 
     pub fn readStatusRaw(self: *StatusControl, id: u16, ret_buff: usize) !void {
         if (self.findStatusById(id)) |index| {
-            @memcpy(@intToPtr([*]u8, ret_buff), @intToPtr([*]u8, self.statuses[index].mem_addr), self.statuses[index].size);
+            @memcpy(@as([*]u8, @ptrFromInt(ret_buff)), @as([*]u8, @ptrFromInt(self.statuses[index].mem_addr)), self.statuses[index].size);
         } else return Error.NameNotFound;
     }
 
     // returns index
     fn findStatusByName(self: *StatusControl, name: []const u8) ?usize {
-        for (self.statuses) |*status, i| {
+        for (self.statuses, 0..) |*status, i| {
             if (std.mem.eql(u8, status.name, name)) return i;
         }
         return null;
@@ -103,7 +103,7 @@ pub const StatusControl = struct {
 
     // returns index
     fn findStatusById(self: *StatusControl, id: u16) ?usize {
-        for (self.statuses) |*status, i| {
+        for (self.statuses, 0..) |*status, i| {
             if (status.id == id) return i;
         }
         return null;

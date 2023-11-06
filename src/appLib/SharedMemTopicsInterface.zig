@@ -32,14 +32,14 @@ pub const SharedMemTopicsInterface = struct {
         }
         const pages_req = (try std.math.mod(usize, alignForward(accumulatedTopicsBuffSize, 8), board.config.mem.va_user_space_gran.page_size)) + 1;
         var fixedTopicMemPoolInterface: []u8 = undefined;
-        fixedTopicMemPoolInterface.ptr = @intToPtr([*]u8, 0x20000000);
+        fixedTopicMemPoolInterface.ptr = @as([*]u8, @ptrFromInt(0x20000000));
         fixedTopicMemPoolInterface.len = pages_req * board.config.mem.va_user_space_gran.page_size;
 
         var used_topics_mem: usize = 0;
         var i: usize = 0;
         for (env.env_config.status_control) |*status_control_conf| {
             if (status_control_conf.*.status_type == .topic) {
-                const topic_read_write_buff_ptr = @intToPtr(*volatile usize, @ptrToInt(fixedTopicMemPoolInterface.ptr) + used_topics_mem);
+                const topic_read_write_buff_ptr = @as(*volatile usize, @ptrFromInt(@intFromPtr(fixedTopicMemPoolInterface.ptr) + used_topics_mem));
                 topic_read_write_buff_ptr.* = 0;
                 // + @sizeOf(usize) bytes for the buff_state
                 topics[i] = Topic.init(fixedTopicMemPoolInterface[used_topics_mem + @sizeOf(usize) .. used_topics_mem + status_control_conf.topic_conf.?.buffer_size], topic_read_write_buff_ptr, status_control_conf.id, status_control_conf.topic_conf.?.buffer_type);
@@ -72,7 +72,7 @@ pub const SharedMemTopicsInterface = struct {
 
     // returns index
     fn findTopicById(self: *SharedMemTopicsInterface, id: usize) ?usize {
-        for (self.topics) |*topic, i| {
+        for (self.topics, 0..) |*topic, i| {
             if (topic.id == id) return i;
         }
         return null;

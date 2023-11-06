@@ -77,7 +77,7 @@ pub const TableDescriptorAttr = packed struct {
     _padding2: u10 = 0,
 
     pub fn asInt(self: TableDescriptorAttr) usize {
-        return @bitCast(u64, self);
+        return @as(u64, @bitCast(self));
     }
 };
 
@@ -96,12 +96,12 @@ pub fn PageTable(comptime total_mem_size: usize, comptime gran: GranuleParams) !
                 .lma_offset = lma_offset,
                 .total_size = total_mem_size,
                 .page_table_gran = gran,
-                .page_table = @ptrCast(*volatile [req_table_total][gran.table_size]usize, page_tables),
+                .page_table = @as(*volatile [req_table_total][gran.table_size]usize, @ptrCast(page_tables)),
             };
         }
 
         fn calcTransLvlDescriptorSize(mapping: Mapping, lvl: TransLvl) usize {
-            return std.math.pow(usize, mapping.granule.table_size, @enumToInt(mapping.granule.lvls_required) - @enumToInt(lvl)) * mapping.granule.page_size;
+            return std.math.pow(usize, mapping.granule.table_size, @intFromEnum(mapping.granule.lvls_required) - @intFromEnum(lvl)) * mapping.granule.page_size;
         }
 
         pub fn mapMem(self: *Self, mapping_without_adjusted_flags: Mapping) !void {
@@ -116,12 +116,12 @@ pub fn PageTable(comptime total_mem_size: usize, comptime gran: GranuleParams) !
             var i_lvl: usize = 0;
             var phys_count = mapping.pointing_addr_start | mapping.flags_last_lvl.asInt();
 
-            while (i_lvl <= @enumToInt(mapping.granule.lvls_required)) : (i_lvl += 1) {
-                const curr_lvl_desc_size = calcTransLvlDescriptorSize(mapping, @intToEnum(TransLvl, i_lvl));
+            while (i_lvl <= @intFromEnum(mapping.granule.lvls_required)) : (i_lvl += 1) {
+                const curr_lvl_desc_size = calcTransLvlDescriptorSize(mapping, @as(TransLvl, @enumFromInt(i_lvl)));
                 var next_lvl_desc_size: usize = 0;
                 var vas_next_offset_in_tables: usize = 0;
-                if (i_lvl != @enumToInt(mapping.granule.lvls_required)) {
-                    next_lvl_desc_size = calcTransLvlDescriptorSize(mapping, @intToEnum(TransLvl, i_lvl + 1));
+                if (i_lvl != @intFromEnum(mapping.granule.lvls_required)) {
+                    next_lvl_desc_size = calcTransLvlDescriptorSize(mapping, @as(TransLvl, @enumFromInt(i_lvl + 1)));
                     vas_next_offset_in_tables = try std.math.divFloor(usize, try std.math.divExact(usize, mapping.virt_addr_start, next_lvl_desc_size), mapping.granule.table_size);
                 }
 
@@ -149,13 +149,13 @@ pub fn PageTable(comptime total_mem_size: usize, comptime gran: GranuleParams) !
 
                     while (i_descriptor < left_descriptors) : (i_descriptor += 1) {
                         // last lvl translation links to physical mem
-                        if (i_lvl == @enumToInt(mapping.granule.lvls_required)) {
+                        if (i_lvl == @intFromEnum(mapping.granule.lvls_required)) {
                             self.page_table[table_offset + i_table][i_descriptor] = phys_count;
                             phys_count += mapping.granule.page_size;
                         } else {
                             if (vas_next_offset_in_tables >= i_descriptor) vas_next_offset_in_tables -= i_descriptor;
-                            var link_to_table_addr = utils.toTtbr0(usize, @ptrToInt(&self.page_table[table_offset + to_map_in_tables + i_descriptor + vas_next_offset_in_tables + total_mem_size_padding_in_tables])) + self.lma_offset;
-                            if (i_lvl == @enumToInt(TransLvl.first_lvl) or i_lvl == @enumToInt(TransLvl.second_lvl))
+                            var link_to_table_addr = utils.toTtbr0(usize, @intFromPtr(&self.page_table[table_offset + to_map_in_tables + i_descriptor + vas_next_offset_in_tables + total_mem_size_padding_in_tables])) + self.lma_offset;
+                            if (i_lvl == @intFromEnum(TransLvl.first_lvl) or i_lvl == @intFromEnum(TransLvl.second_lvl))
                                 link_to_table_addr |= mapping.flags_non_last_lvl.asInt();
                             self.page_table[table_offset + i_table][i_descriptor] = link_to_table_addr;
                         }
@@ -173,7 +173,7 @@ fn calctotalTablesReq(comptime granule: Granule.GranuleParams, comptime mem_size
 
     var req_table_total_: usize = 0;
     var ci_lvl: usize = 1;
-    while (ci_lvl <= @enumToInt(granule.lvls_required) + 1) : (ci_lvl += 1) {
+    while (ci_lvl <= @intFromEnum(granule.lvls_required) + 1) : (ci_lvl += 1) {
         req_table_total_ += try std.math.divCeil(usize, req_descriptors, std.math.pow(usize, granule.table_size, ci_lvl));
     }
     return req_table_total_;

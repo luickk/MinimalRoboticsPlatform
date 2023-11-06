@@ -28,7 +28,7 @@ pub const SysCallPrint = struct {
             \\mov x8, #0
             \\svc #0
             :
-            : [data_addr] "r" (@ptrToInt(data)),
+            : [data_addr] "r" (@intFromPtr(data)),
               [len] "r" (len),
             : "x0", "x1", "x8"
         );
@@ -79,7 +79,7 @@ pub fn killTask(pid: usize) noreturn {
 // }
 
 fn checkForError(x0: usize) !usize {
-    if (@intCast(isize, x0) < 0) {
+    if (@as(isize, @intCast(x0)) < 0) {
         return Error.SysCallError;
     }
     return x0;
@@ -94,7 +94,7 @@ pub fn getPid() !u16 {
         :
         : "x0", "x8"
     );
-    return @truncate(u16, try checkForError(ret));
+    return @as(u16, @truncate(try checkForError(ret)));
 }
 
 pub fn killTaskRecursively(starting_pid: usize) !void {
@@ -115,10 +115,10 @@ pub fn killTaskRecursively(starting_pid: usize) !void {
 // creates thread for current process
 pub fn createThread(thread_stack_mem: []u8, thread_fn: anytype, args: anytype) !void {
     var thread_stack_start: []u8 = undefined;
-    thread_stack_start.ptr = @intToPtr([*]u8, @ptrToInt(thread_stack_mem.ptr) + thread_stack_mem.len);
+    thread_stack_start.ptr = @as([*]u8, @ptrFromInt(@intFromPtr(thread_stack_mem.ptr) + thread_stack_mem.len));
     thread_stack_start.len = thread_stack_mem.len;
     var arg_mem: []const u8 = undefined;
-    arg_mem.ptr = @ptrCast([*]const u8, @alignCast(1, &args));
+    arg_mem.ptr = @as([*]const u8, @ptrCast(@alignCast(1, &args)));
     arg_mem.len = @sizeOf(@TypeOf(args));
 
     std.mem.copy(u8, thread_stack_start, arg_mem);
@@ -134,10 +134,10 @@ pub fn createThread(thread_stack_mem: []u8, thread_fn: anytype, args: anytype) !
         \\svc #0
         \\mov %[ret], x0
         : [ret] "=r" (-> usize),
-        : [entry_fn_ptr] "r" (@ptrToInt(&(ThreadInstance(thread_fn, @TypeOf(args)).threadEntry))),
-          [thread_stack] "r" (@ptrToInt(thread_stack_start.ptr) - alignForward(@sizeOf(@TypeOf(args)), 16)),
-          [args_addr] "r" (@ptrToInt(thread_stack_start.ptr)),
-          [thread_fn_ptr] "r" (@ptrToInt(&thread_fn)),
+        : [entry_fn_ptr] "r" (@intFromPtr(&(ThreadInstance(thread_fn, @TypeOf(args)).threadEntry))),
+          [thread_stack] "r" (@intFromPtr(thread_stack_start.ptr) - alignForward(@sizeOf(@TypeOf(args)), 16)),
+          [args_addr] "r" (@intFromPtr(thread_stack_start.ptr)),
+          [thread_fn_ptr] "r" (@intFromPtr(&thread_fn)),
         : "x0", "x1", "x2", "x3", "x8"
     );
     _ = try checkForError(ret);
@@ -205,7 +205,7 @@ pub fn pushToTopic(comptime name: []const u8, data: []u8) !usize {
     const status = try env.env_config.getStatusInfo(name);
     if (status.type != null) return Error.StatusInterfaceMissmatch;
 
-    const data_ptr: usize = @ptrToInt(data.ptr);
+    const data_ptr: usize = @intFromPtr(data.ptr);
     const data_len = data.len;
     const ret = asm volatile (
     // args
@@ -241,7 +241,7 @@ pub fn popFromTopic(comptime name: []const u8, ret_buff: []u8) !usize {
         : [ret] "=r" (-> usize),
         : [id] "r" (status.id),
           [data_len] "r" (ret_buff.len),
-          [ret_buff] "r" (@ptrToInt(ret_buff.ptr)),
+          [ret_buff] "r" (@intFromPtr(ret_buff.ptr)),
         : "x0", "x1", "x2", "x8"
     );
     return checkForError(ret);
@@ -329,7 +329,7 @@ pub fn readStatus(comptime T: type, comptime name: []const u8) !T {
         \\mov %[ret], x0
         : [ret] "=r" (-> usize),
         : [id] "r" (status.id),
-          [ret_buff] "r" (@ptrToInt(&ret_buff)),
+          [ret_buff] "r" (@intFromPtr(&ret_buff)),
         : "x0", "x1", "x8"
     );
     _ = try checkForError(ret);

@@ -19,7 +19,7 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
 
     var ret: usize = 0;
     var ret_buff: []u8 = undefined;
-    ret_buff.ptr = @ptrCast([*]u8, &ret);
+    ret_buff.ptr = @as([*]u8, @ptrCast(&ret));
     ret_buff.len = @sizeOf(@TypeOf(ret));
 
     while (true) {

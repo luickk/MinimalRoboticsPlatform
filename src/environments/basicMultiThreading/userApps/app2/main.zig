@@ -20,7 +20,7 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
         kprint("AppAlloc alloc error: {s}\n", .{@errorName(e)});
         while (true) {}
     };
-    sysCalls.createThread(thread_stack_mem, testThread, .{@truncate(u16, pid)}) catch |e| {
+    sysCalls.createThread(thread_stack_mem, testThread, .{@as(u16, @truncate(pid))}) catch |e| {
         kprint("AppAlloc init error: {s}\n", .{@errorName(e)});
         while (true) {}
     };
@@ -29,7 +29,7 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
         kprint("AppAlloc alloc error: {s}\n", .{@errorName(e)});
         while (true) {}
     };
-    sysCalls.createThread(thread_stack_mem_2, testThread2, .{@truncate(u16, pid)}) catch |e| {
+    sysCalls.createThread(thread_stack_mem_2, testThread2, .{@as(u16, @truncate(pid))}) catch |e| {
         kprint("AppAlloc init error: {s}\n", .{@errorName(e)});
         while (true) {}
     };
@@ -39,14 +39,18 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
 }
 
 pub fn testThread(parent_pid: u16) void {
-    const pid: usize = sysCalls.getPid() catch { return; };
+    const pid: usize = sysCalls.getPid() catch {
+        return;
+    };
     while (true) {
         kprint("TEST THREAD 1 (daddy proc.: {d}, my pid: {d})\n", .{ parent_pid, pid });
     }
 }
 
 pub fn testThread2(parent_pid: u16) void {
-    const pid: usize = sysCalls.getPid() catch { return; };
+    const pid: usize = sysCalls.getPid() catch {
+        return;
+    };
     while (true) {
         kprint("TEST THREAD 2 (daddy proc.: {d}, my pid: {d}) \n", .{ parent_pid, pid });
     }

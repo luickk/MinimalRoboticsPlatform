@@ -72,37 +72,37 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
             pub const gicdBase = gicCfg.base_address; // gicd mmio base address
 
             // Enables interrupts and affinity routing
-            pub const ctlr = @intToPtr(*volatile u32, gicdBase + 0x0);
+            pub const ctlr = @as(*volatile u32, @ptrFromInt(gicdBase + 0x0));
             // Deactivates the corresponding interrupt. These registers are used when saving and restoring GIC state.
-            pub const intType = @intToPtr(*volatile u32, gicdBase + 0x004);
+            pub const intType = @as(*volatile u32, @ptrFromInt(gicdBase + 0x004));
             // distributor implementer identification register
-            pub const iidr = @intToPtr(*volatile u32, gicdBase + 0x008);
+            pub const iidr = @as(*volatile u32, @ptrFromInt(gicdBase + 0x008));
             // Controls whether the corresponding interrupt is in Group 0 or Group 1.
-            pub const igroupr = @intToPtr(*volatile u32, gicdBase + 0x080);
+            pub const igroupr = @as(*volatile u32, @ptrFromInt(gicdBase + 0x080));
             // interrupt set-enable registers
-            pub const isenabler = @intToPtr(*volatile u32, gicdBase + 0x100);
+            pub const isenabler = @as(*volatile u32, @ptrFromInt(gicdBase + 0x100));
             // Disables forwarding of the corresponding interrupt to the CPU interfaces.
-            pub const icenabler = @intToPtr(*volatile u32, gicdBase + 0x180);
+            pub const icenabler = @as(*volatile u32, @ptrFromInt(gicdBase + 0x180));
             // interrupt set-pending registers
-            pub const ispendr = @intToPtr(*volatile u32, gicdBase + 0x200);
+            pub const ispendr = @as(*volatile u32, @ptrFromInt(gicdBase + 0x200));
             // Removes the pending state from the corresponding interrupt.
-            pub const icpendr = @intToPtr(*volatile u32, gicdBase + 0x280);
-            pub const isactiver = @intToPtr(*volatile u32, gicdBase + 0x300);
+            pub const icpendr = @as(*volatile u32, @ptrFromInt(gicdBase + 0x280));
+            pub const isactiver = @as(*volatile u32, @ptrFromInt(gicdBase + 0x300));
             // Deactivates the corresponding interrupt. These registers are used when saving and restoring GIC state.
-            pub const icactiver = @intToPtr(*volatile u32, gicdBase + 0x380);
+            pub const icactiver = @as(*volatile u32, @ptrFromInt(gicdBase + 0x380));
             //  interrupt priority registers
-            pub const ipriorityr = @intToPtr(*volatile u32, gicdBase + 0x400);
+            pub const ipriorityr = @as(*volatile u32, @ptrFromInt(gicdBase + 0x400));
             // interrupt processor targets registers
-            pub const itargetsr = @intToPtr(*volatile u32, gicdBase + 0x800);
+            pub const itargetsr = @as(*volatile u32, @ptrFromInt(gicdBase + 0x800));
             // Determines whether the corresponding interrupt is edge-triggered or level-sensitive
-            pub const icfgr = @intToPtr(*volatile u32, gicdBase + 0xc00);
+            pub const icfgr = @as(*volatile u32, @ptrFromInt(gicdBase + 0xc00));
             // software generated interrupt register
-            pub const nscar = @intToPtr(*volatile u32, gicdBase + 0xe00);
+            pub const nscar = @as(*volatile u32, @ptrFromInt(gicdBase + 0xe00));
             // sgi clear-pending registers
-            pub const cpendsgir = @intToPtr(*volatile u32, gicdBase + 0xf10);
+            pub const cpendsgir = @as(*volatile u32, @ptrFromInt(gicdBase + 0xf10));
             // sgi set-pending registers
-            pub const spendsgir = @intToPtr(*volatile u32, gicdBase + 0xf20);
-            pub const sgir = @intToPtr(*volatile u32, 0xf00);
+            pub const spendsgir = @as(*volatile u32, @ptrFromInt(gicdBase + 0xf20));
+            pub const sgir = @as(*volatile u32, @ptrFromInt(0xf00));
         };
 
         // 8.12 the gic cpu interface register map
@@ -110,23 +110,23 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
             pub const giccBase = gicCfg.base_address + 0x10000; // gicc mmio base address
 
             // cpu interface control register
-            pub const ctlr = @intToPtr(*volatile u32, giccBase + 0x000);
+            pub const ctlr = @as(*volatile u32, @ptrFromInt(giccBase + 0x000));
             // interrupt priority mask register
-            pub const pmr = @intToPtr(*volatile u32, giccBase + 0x004);
+            pub const pmr = @as(*volatile u32, @ptrFromInt(giccBase + 0x004));
             // binary point register
-            pub const bpr = @intToPtr(*volatile u32, giccBase + 0x008);
+            pub const bpr = @as(*volatile u32, @ptrFromInt(giccBase + 0x008));
             // interrupt acknowledge register
-            pub const iar = @intToPtr(*volatile u32, giccBase + 0x00c);
+            pub const iar = @as(*volatile u32, @ptrFromInt(giccBase + 0x00c));
             // end of interrupt register
-            pub const eoir = @intToPtr(*volatile u32, giccBase + 0x010);
+            pub const eoir = @as(*volatile u32, @ptrFromInt(giccBase + 0x010));
             // running priority register
-            pub const rpr = @intToPtr(*volatile u32, giccBase + 0x014);
+            pub const rpr = @as(*volatile u32, @ptrFromInt(giccBase + 0x014));
             // highest pending interrupt register
-            pub const hpir = @intToPtr(*volatile u32, giccBase + 0x018);
+            pub const hpir = @as(*volatile u32, @ptrFromInt(giccBase + 0x018));
             // aliased binary point register
-            pub const abpr = @intToPtr(*volatile u32, giccBase + 0x01c);
+            pub const abpr = @as(*volatile u32, @ptrFromInt(giccBase + 0x01c));
             // cpu interface identification register
-            pub const iidr = @intToPtr(*volatile u32, giccBase + 0x0fc);
+            pub const iidr = @as(*volatile u32, @ptrFromInt(giccBase + 0x0fc));
         };
 
         pub const GicdRegValues = struct {
@@ -248,22 +248,22 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
             }
 
             pub fn gicdEnableInt(irq_id: InterruptIds) !void {
-                const clear_ena_bit = try calcShift(@enumToInt(irq_id), isenablerPerReg);
-                const reg = try calcReg(GicdRegMap.isenabler, @enumToInt(irq_id), isenablerPerReg);
+                const clear_ena_bit = try calcShift(@intFromEnum(irq_id), isenablerPerReg);
+                const reg = try calcReg(GicdRegMap.isenabler, @intFromEnum(irq_id), isenablerPerReg);
                 reg.* = reg.* | (@as(u32, 1) << clear_ena_bit);
             }
 
             pub fn gicdDisableInt(irq_id: InterruptIds) !void {
                 // irq_id mod 32
-                const clear_ena_bit = try calcShift(@enumToInt(irq_id), isdisablerPerReg);
-                const reg = try calcReg(GicdRegMap.icenabler, @enumToInt(irq_id), isdisablerPerReg);
+                const clear_ena_bit = try calcShift(@intFromEnum(irq_id), isdisablerPerReg);
+                const reg = try calcReg(GicdRegMap.icenabler, @intFromEnum(irq_id), isdisablerPerReg);
                 reg.* = reg.* << clear_ena_bit;
             }
 
             pub fn gicdClearPending(irq_id: InterruptIds) !void {
                 // irq_id mod 32
-                const clear_ena_bit = try calcShift(@enumToInt(irq_id), icpendrPerReg);
-                const reg = try calcReg(GicdRegMap.icpendr, @enumToInt(irq_id), icpendrPerReg);
+                const clear_ena_bit = try calcShift(@intFromEnum(irq_id), icpendrPerReg);
+                const reg = try calcReg(GicdRegMap.icpendr, @intFromEnum(irq_id), icpendrPerReg);
                 reg.* = reg.* << clear_ena_bit;
             }
 
@@ -281,10 +281,10 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
             // • the offset of the required GICD_ICENABLERn is (0x180 + (4*n))
             // • the bit number of the required Clear-enable bit in this register is m MOD 32 (calcShift...)
             fn calcReg(addr_start: *volatile u32, irq_id: u32, n_per_reg: u32) !*volatile u32 {
-                return @intToPtr(*volatile u32, @ptrToInt(addr_start) + try std.math.divFloor(u32, irq_id, n_per_reg));
+                return @as(*volatile u32, @ptrFromInt(@intFromPtr(addr_start) + try std.math.divFloor(u32, irq_id, n_per_reg)));
             }
             fn calcShift(irq_id: u32, n_per_reg: u32) !u5 {
-                return @truncate(u5, try std.math.mod(u32, irq_id, n_per_reg));
+                return @as(u5, @truncate(try std.math.mod(u32, irq_id, n_per_reg)));
             }
 
             // set an interrupt target processor
@@ -295,8 +295,8 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
             // 0x4 processor 2
             // 0x8 processor 3
             pub fn gicdSetTarget(irq_id: InterruptIds, p: u32) !void {
-                const reg = try calcReg(GicdRegMap.itargetsr, @enumToInt(irq_id), itargetsrPerReg);
-                const shift = try calcShift(@enumToInt(irq_id), itargetsrPerReg) * 8;
+                const reg = try calcReg(GicdRegMap.itargetsr, @intFromEnum(irq_id), itargetsrPerReg);
+                const shift = try calcShift(@intFromEnum(irq_id), itargetsrPerReg) * 8;
 
                 var update_val: u32 = reg.*;
                 update_val &= ~(@as(u32, 0xff) << shift);
@@ -308,11 +308,11 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
             // irq  irq number
             // prio interrupt priority in arm specific expression
             pub fn gicdSetPriority(irq_id: InterruptIds, prio: u8) !void {
-                const reg = try calcReg(GicdRegMap.ipriorityr, @enumToInt(irq_id), ipriorityPerReg);
-                const prio_shift = @truncate(u3, (try std.math.mod(u32, @enumToInt(irq_id), ipriorityPerReg)) * 8);
+                const reg = try calcReg(GicdRegMap.ipriorityr, @intFromEnum(irq_id), ipriorityPerReg);
+                const prio_shift = @as(u3, @truncate((try std.math.mod(u32, @intFromEnum(irq_id), ipriorityPerReg)) * 8));
 
                 var update_val = reg.*;
-                update_val &= ~(@intCast(u32, 0xff) << prio_shift);
+                update_val &= ~(@as(u32, @intCast(0xff)) << prio_shift);
                 update_val |= prio << prio_shift;
                 reg.* = update_val;
             }
@@ -321,8 +321,8 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
             // irq     irq number
             // config  configuration value for gicd_icfgr
             pub fn gicdConfig(irq_id: InterruptIds, config: u32) !void {
-                const reg = try calcReg(GicdRegMap.icfgr, @enumToInt(irq_id), icfgrPerReg);
-                var shift = try calcShift(@enumToInt(irq_id), icfgrPerReg) * 2; // gicd_icfgr has 16 fields, each field has 2bits.
+                const reg = try calcReg(GicdRegMap.icfgr, @intFromEnum(irq_id), icfgrPerReg);
+                var shift = try calcShift(@intFromEnum(irq_id), icfgrPerReg) * 2; // gicd_icfgr has 16 fields, each field has 2bits.
 
                 var update_val = reg.*;
                 update_val &= ~((@as(u32, 0x03)) << shift); // clear the field

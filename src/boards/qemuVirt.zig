@@ -1,7 +1,8 @@
 pub const boardConfig = @import("configTemplates").boardConfigTemplate;
 const kpi = @import("kpi");
 
-const timerDriver = @import("timerDriver");const genericTimer = timerDriver.genericTimer;
+const timerDriver = @import("timerDriver");
+const genericTimer = timerDriver.genericTimer;
 
 // mmu starts at lvl1 for which 0xFFFFFF8000000000 is the lowest possible va
 const vaStart: usize = 0xFFFFFF8000000000;
@@ -41,17 +42,16 @@ pub const config = boardConfig.BoardConfig{
         .ksemaphore_max_process_in_queue = 1000,
         .semaphore_max_process_in_queue = 1000,
         .mutex_max_process_in_queue = 1000,
-        .topics_max_process_in_queue = 1000,    
+        .topics_max_process_in_queue = 1000,
     },
     .scheduler_freq_in_hertz = 250,
 };
-
 
 pub const GenericTimerType = genericTimer.GenericTimer(null, config.scheduler_freq_in_hertz);
 var genericTimerInst = GenericTimerType.init();
 pub const GenericTimerKpiType = kpi.TimerKpi(*GenericTimerType, GenericTimerType.Error, GenericTimerType.setupGt, GenericTimerType.timerInt, GenericTimerType.timer_name);
 
-pub const driver = boardConfig.Driver(GenericTimerKpiType, null) {
+pub const driver = boardConfig.Driver(GenericTimerKpiType, null){
     .timerDriver = GenericTimerKpiType.init(&genericTimerInst),
     .secondaryInterruptConrtollerDriver = null,
 };

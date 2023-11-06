@@ -49,7 +49,7 @@ pub const KernelAllocator = struct {
                 chunk.* = true;
             }
             var alloc_addr = self.mem_base + (free_mem_first_chunk * kernelAllocatorChunkSize);
-            var aligned_alloc_slice = @intToPtr([*]T, utils.toTtbr1(usize, alignForward(alloc_addr, alignm)));
+            var aligned_alloc_slice = @as([*]T, @ptrFromInt(utils.toTtbr1(usize, alignForward(alloc_addr, alignm))));
             return aligned_alloc_slice[0 .. n - 1];
         } else if (self.used_chunks + req_chunks > maxChunks) {
             return Error.OutOfMem;
@@ -62,7 +62,7 @@ pub const KernelAllocator = struct {
             chunk.* = true;
         }
         var alloc_addr = self.mem_base + (first_chunk * kernelAllocatorChunkSize);
-        var aligned_alloc_slice = @intToPtr([*]T, utils.toTtbr1(usize, alignForward(alloc_addr, alignm)));
+        var aligned_alloc_slice = @as([*]T, @ptrFromInt(utils.toTtbr1(usize, alignForward(alloc_addr, alignm))));
         // kprint("allocation addr: {*} \n", .{aligned_alloc_slice[0 .. n - 1].ptr});
         return aligned_alloc_slice[0 .. n - 1];
     }
@@ -71,7 +71,7 @@ pub const KernelAllocator = struct {
     pub fn findFree(self: *KernelAllocator, to_chunk: usize, req_size: usize) !?usize {
         var continous_chunks: usize = 0;
         var req_chunks = (try std.math.divCeil(usize, req_size, kernelAllocatorChunkSize));
-        for (self.kernel_mem) |chunk, i| {
+        for (self.kernel_mem, 0..) |chunk, i| {
             if (i >= to_chunk) {
                 return null;
             }
@@ -95,7 +95,7 @@ pub const KernelAllocator = struct {
         const byte_slice = std.mem.sliceAsBytes(to_free);
         const size = byte_slice.len + if (Slice.sentinel != null) @sizeOf(Slice.child) else 0;
         if (size == 0) return;
-        const unsec_addr = utils.toTtbr0(usize, @ptrToInt(byte_slice.ptr));
+        const unsec_addr = utils.toTtbr0(usize, @intFromPtr(byte_slice.ptr));
 
         // compensating for alignment
         var addr_unaligned = unsec_addr;

@@ -4,7 +4,7 @@ const std = @import("std");
 pub fn Bcm2835Timer(comptime base_address: ?usize, comptime scheduler_freq_in_hertz: usize) type {
     return struct {
         const Self = @This();
-        
+
         pub const Error = anyerror;
         pub const timer_name = "bcm2835_timer";
 
@@ -15,15 +15,13 @@ pub fn Bcm2835Timer(comptime base_address: ?usize, comptime scheduler_freq_in_he
         var increasePerTick: u32 = 0;
 
         pub const RegMap = struct {
-            pub const timerCs = @intToPtr(*volatile u32, base_address.? + 0x0);
-            pub const timerLo = @intToPtr(*volatile u32, base_address.? + 0x4);
-            pub const timerHi = @intToPtr(*volatile u32, base_address.? + 0x8);
-            pub const timerC0 = @intToPtr(*volatile u32, base_address.? + 0xc);
-            pub const timerC1 = @intToPtr(*volatile u32, base_address.? + 0x10);
-            pub const timerClo = @intToPtr(*volatile u32, base_address.? + 0x4);
+            pub const timerCs = @as(*volatile u32, @ptrFromInt(base_address.? + 0x0));
+            pub const timerLo = @as(*volatile u32, @ptrFromInt(base_address.? + 0x4));
+            pub const timerHi = @as(*volatile u32, @ptrFromInt(base_address.? + 0x8));
+            pub const timerC0 = @as(*volatile u32, @ptrFromInt(base_address.? + 0xc));
+            pub const timerC1 = @as(*volatile u32, @ptrFromInt(base_address.? + 0x10));
+            pub const timerClo = @as(*volatile u32, @ptrFromInt(base_address.? + 0x4));
         };
-
-        
 
         // address values
         pub const RegValues = struct {
@@ -33,7 +31,6 @@ pub fn Bcm2835Timer(comptime base_address: ?usize, comptime scheduler_freq_in_he
             pub const timerCsM2: u32 = 1 << 2;
             pub const timerCsM3: u32 = 1 << 3;
         };
-
 
         timerVal: u32,
         initialTimerHi: u32,
@@ -48,7 +45,7 @@ pub fn Bcm2835Timer(comptime base_address: ?usize, comptime scheduler_freq_in_he
         pub fn initTimer(self: *Self) Error!void {
             self.initialTimerHi = RegMap.timerHi.*;
             self.timerVal = RegMap.timerLo.*;
-            increasePerTick = @truncate(u32, try utils.calcTicksFromHertz(cnt_freq, scheduler_freq_in_hertz));
+            increasePerTick = @as(u32, @truncate(try utils.calcTicksFromHertz(cnt_freq, scheduler_freq_in_hertz)));
             self.timerVal += increasePerTick;
             RegMap.timerC1.* = self.timerVal;
         }
@@ -68,7 +65,6 @@ pub fn Bcm2835Timer(comptime base_address: ?usize, comptime scheduler_freq_in_he
             RegMap.timerC1.* = self.timerVal;
             RegMap.timerCs.* = RegMap.timerCs.* | RegValues.timerCsM1;
         }
-
 
         pub fn isEnabled(self: *Self) !bool {
             _ = self;

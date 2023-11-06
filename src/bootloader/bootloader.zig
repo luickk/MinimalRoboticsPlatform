@@ -37,7 +37,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         break :blk user_space_start;
     };
 
-    const _bl_bin_end: usize = @ptrToInt(@extern(?*u8, .{ .name = "_bl_end" }) orelse {
+    const _bl_bin_end: usize = @intFromPtr(@extern(?*u8, .{ .name = "_bl_end" }) orelse {
         kprint("[panic] error reading _bl_end label\n", .{});
         bl_utils.panic();
     });
@@ -55,7 +55,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
 
             // writing page dirs to userspace in ram. Writing to userspace because it would be overwritten in kernel space, when copying
             // the kernel. Additionally, on mmu turn on, the mmu would try to read from the page tables without mmu kernel space identifier bits on
-            var ttbr1_mem = @intToPtr(*volatile [page_table.totaPageTableSize]usize, alignForward(user_space_start, Granule.Fourk.page_size));
+            var ttbr1_mem = @as(*volatile [page_table.totaPageTableSize]usize, @ptrFromInt(alignForward(user_space_start, Granule.Fourk.page_size)));
 
             // mapping general kernel mem (inlcuding device base)
             var ttbr1_write = page_table.init(ttbr1_mem, 0) catch |e| {
@@ -94,7 +94,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
 
             ttbr0_addr = alignForward(ttbr0_addr, Granule.Fourk.page_size);
 
-            var ttbr0_mem = @intToPtr(*volatile [page_table.totaPageTableSize]usize, ttbr0_addr);
+            var ttbr0_mem = @as(*volatile [page_table.totaPageTableSize]usize, @ptrFromInt(ttbr0_addr));
 
             // MMU page dir config
 
@@ -127,8 +127,8 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         // kprint("ttbr0: 0x{x} \n", .{@ptrToInt(ttbr0)});
 
         // updating page dirs
-        ProccessorRegMap.setTTBR0(@ptrToInt(ttbr0));
-        ProccessorRegMap.setTTBR1(@ptrToInt(ttbr1));
+        ProccessorRegMap.setTTBR0(@intFromPtr(ttbr0));
+        ProccessorRegMap.setTTBR1(@intFromPtr(ttbr1));
 
         ProccessorRegMap.TcrReg.setTcrEl(.el1, (ProccessorRegMap.TcrReg{ .t0sz = 25, .t1sz = 25, .tg0 = 0, .tg1 = 0 }).asInt());
 
@@ -147,7 +147,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
     }
 
     // GIC Init
-    if (std.mem.eql(u8, board.config.board_name, "qemuVirt")) { 
+    if (std.mem.eql(u8, board.config.board_name, "qemuVirt")) {
         gic.init() catch |e| {
             kprint("[panic] GIC init error: {s} \n", .{@errorName(e)});
             bl_utils.panic();
@@ -163,12 +163,12 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
 
     {
         var kernel_target_loc: []u8 = undefined;
-        kernel_target_loc.ptr = @intToPtr([*]u8, board.config.mem.va_start);
+        kernel_target_loc.ptr = @as([*]u8, @ptrFromInt(board.config.mem.va_start));
         kernel_target_loc.len = kernel_bin.len;
 
-        kprint("[bootloader] Copying kernel to addr_space: 0x{x}, with size: {d} \n", .{ @ptrToInt(kernel_target_loc.ptr), kernel_target_loc.len });
+        kprint("[bootloader] Copying kernel to addr_space: 0x{x}, with size: {d} \n", .{ @intFromPtr(kernel_target_loc.ptr), kernel_target_loc.len });
         std.mem.copy(u8, kernel_target_loc, kernel_bin);
-        var kernel_addr = @ptrToInt(kernel_target_loc.ptr);
+        var kernel_addr = @intFromPtr(kernel_target_loc.ptr);
 
         const kernel_sp = blk: {
             const aligned_ksize = alignForward(kernel_target_loc.len, 0x8);

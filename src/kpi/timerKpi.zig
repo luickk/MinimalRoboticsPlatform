@@ -4,7 +4,6 @@ const Scheduler = @import("sharedKernelServices").Scheduler;
 const arm = @import("arm");
 const CpuContext = arm.cpuContext.CpuContext;
 
-
 // global user required since timer is handleTimerIrq is called from the exception vector table
 extern var scheduler: *Scheduler;
 
@@ -14,14 +13,14 @@ pub fn TimerKpi(
     comptime initTimer: fn (context: Context) TimerError!void,
     comptime handleTimerTick: fn (context: Context) TimerError!void,
     comptime timer_name: []const u8,
-    ) type {
+) type {
     return struct {
         const Self = @This();
         pub const Error = TimerError;
-        
+
         context: Context,
         timer_name: []const u8,
-        
+
         pub fn init(context: Context) Self {
             return .{
                 .context = context,

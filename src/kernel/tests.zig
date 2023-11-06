@@ -5,13 +5,13 @@ pub fn testUserPageAlloc(alloc: anytype) !void {
     var p2 = try alloc.allocNPage(10);
     var p3 = try alloc.allocNPage(10);
     var p4 = try alloc.allocNPage(10);
-    @ptrCast(*volatile u8, p1).* = 10;
-    @ptrCast(*volatile u8, p2).* = 10;
-    @ptrCast(*volatile u8, p3).* = 10;
-    @ptrCast(*volatile u8, p4).* = 10;
+    @as(*volatile u8, @ptrCast(p1)).* = 10;
+    @as(*volatile u8, @ptrCast(p2)).* = 10;
+    @as(*volatile u8, @ptrCast(p3)).* = 10;
+    @as(*volatile u8, @ptrCast(p4)).* = 10;
 
     var p5 = try alloc.allocNPage(10);
-    @ptrCast(*volatile u8, p5).* = 10;
+    @as(*volatile u8, @ptrCast(p5)).* = 10;
 
     try alloc.freeNPage(p2, 10);
     var p6 = try alloc.allocNPage(10);
@@ -26,8 +26,8 @@ pub fn testUserPageAlloc(alloc: anytype) !void {
 }
 
 pub fn testUserSpaceMem(addr: usize) void {
-    @intToPtr(*usize, addr).* = 100;
-    if (@intToPtr(*usize, addr).* == 100)
+    @as(*usize, @ptrFromInt(addr)).* = 100;
+    if (@as(*usize, @ptrFromInt(addr)).* == 100)
         kprint("[kTEST] write to userspace successfull \n", .{});
 }
 

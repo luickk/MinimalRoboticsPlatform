@@ -5,7 +5,7 @@ pub const AddrSpace = enum(u8) {
     ttbr0 = 0,
 
     pub fn isKernelSpace(self: AddrSpace) bool {
-        return @enumToInt(self) != 0;
+        return @intFromEnum(self) != 0;
     }
 };
 
@@ -49,9 +49,9 @@ pub const BoardConfig = struct {
         storage_start_addr: usize,
         storage_size: usize,
     };
-    
+
     pub const StaticMemoryReserves = struct {
-        // *_max_process_in_queue describes the array which contains the list of tasks currently waiting. 
+        // *_max_process_in_queue describes the array which contains the list of tasks currently waiting.
         // The array can be portioned quite big since it's only the pids being stored
         ksemaphore_max_process_in_queue: usize,
         // [n]usize

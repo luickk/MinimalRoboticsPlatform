@@ -10,7 +10,7 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
     var counter: usize = 0;
 
     var payload: []u8 = undefined;
-    payload.ptr = @ptrCast([*]u8, &counter);
+    payload.ptr = @as([*]u8, @ptrCast(&counter));
     payload.len = @sizeOf(@TypeOf(counter));
     while (true) {
         var data_written = sysCalls.pushToTopic("front-ultrasonic-proximity", payload) catch |e| {

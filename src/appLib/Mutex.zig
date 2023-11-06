@@ -4,7 +4,7 @@ const sysCalls = @import("userSysCallInterface.zig");
 const kprint = sysCalls.SysCallPrint.kprint;
 
 pub const Mutex = struct {
-    const Error = error {
+    const Error = error{
         OutOfStaticMem,
     };
 

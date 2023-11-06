@@ -15,9 +15,8 @@ pub fn bcm2835Setup(scheduler: *Scheduler) void {
     _ = scheduler;
 
     // enabling arm generic timer irq
-    @intToPtr(*volatile u32, board.PeriphConfig(.ttbr1).ArmGenericTimer.base_address).* = 1 << 1 | 1 << 3;
+    @as(*volatile u32, @ptrFromInt(board.PeriphConfig(.ttbr1).ArmGenericTimer.base_address)).* = 1 << 1 | 1 << 3;
 
-    
     ProccessorRegMap.DaifReg.setDaifClr(.{
         .debug = true,
         .serr = true,
@@ -28,7 +27,7 @@ pub fn bcm2835Setup(scheduler: *Scheduler) void {
     if (board.driver.secondaryInterruptConrtollerDriver) |secondary_ic| {
         secondary_ic.addIcHandler(&irqHandler) catch |e| {
             kprint("[error] addIcHandler error: {s} \n", .{@errorName(e)});
-            while(true) {}
+            while (true) {}
         };
     }
     kprint("inited raspberry secondary Ic and arm timer \n", .{});
@@ -131,15 +130,15 @@ const Bank2 = RegValues.Bank2;
 pub fn irqHandler(context: *cpuContext.CpuContext) void {
     var irq_bank_0 = std.meta.intToEnum(Bank0, board.SecondaryInterruptControllerKpiType.RegMap.pendingBasic.*) catch |e| {
         kprint("[panic] std meta intToEnum error: {s} \n", .{@errorName(e)});
-        while(true) {}
+        while (true) {}
     };
     var irq_bank_1 = std.meta.intToEnum(Bank1, board.SecondaryInterruptControllerKpiType.RegMap.pendingIrq1.*) catch |e| {
         kprint("[panic] std meta intToEnum error: {s} \n", .{@errorName(e)});
-        while(true) {}
+        while (true) {}
     };
     var irq_bank_2 = std.meta.intToEnum(Bank2, board.SecondaryInterruptControllerKpiType.RegMap.pendingIrq2.*) catch |e| {
         kprint("[panic] std meta intToEnum error: {s} \n", .{@errorName(e)});
-        while(true) {}
+        while (true) {}
     };
 
     switch (irq_bank_0) {
@@ -150,7 +149,7 @@ pub fn irqHandler(context: *cpuContext.CpuContext) void {
                     if (std.mem.eql(u8, board.driver.timerDriver.timer_name, "bcm2835_timer")) {
                         board.driver.timerDriver.timerTick(context) catch |e| {
                             kprint("[panic] timerDriver timerTick error: {s} \n", .{@errorName(e)});
-                            while(true){}
+                            while (true) {}
                         };
                     }
                 },
@@ -171,7 +170,7 @@ pub fn irqHandler(context: *cpuContext.CpuContext) void {
             if (std.mem.eql(u8, board.driver.timerDriver.timer_name, "arm_gt")) {
                 board.driver.timerDriver.timerTick(context) catch |e| {
                     kprint("[panic] timerDriver timerTick error: {s} \n", .{@errorName(e)});
-                    while(true){}
+                    while (true) {}
                 };
             }
         },

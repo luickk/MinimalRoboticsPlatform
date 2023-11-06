@@ -49,7 +49,7 @@ export var topics: *SysCallsTopicsInterface = undefined;
 
 const apps = blk: {
     var apps_addresses = [_][]const u8{undefined} ** b_options.apps.len;
-    for (b_options.apps) |app, i| {
+    for (b_options.apps, 0..) |app, i| {
         const app_file = @embedFile("bins/apps/" ++ app);
         apps_addresses[i] = app_file;
     }
@@ -58,7 +58,7 @@ const apps = blk: {
 };
 const actions = blk: {
     var action_addresses = [_][]const u8{undefined} ** b_options.actions.len;
-    for (b_options.actions) |action, i| {
+    for (b_options.actions, 0..) |action, i| {
         const app_file = @embedFile("bins/actions/" ++ action);
         action_addresses[i] = app_file;
     }
@@ -71,7 +71,7 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
     // !! kernel sp is set in the Bootloader!!
 
     {
-        const _exc_vec_label: usize = @ptrToInt(@extern(?*u8, .{ .name = "_exception_vector_table" }) orelse {
+        const _exc_vec_label: usize = @intFromPtr(@extern(?*u8, .{ .name = "_exception_vector_table" }) orelse {
             kprint("[panic] error reading _exception_vector_table label\n", .{});
             k_utils.panic();
         });
@@ -82,7 +82,7 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
     // required for every page table modification, since the absolute memory location needs to be given to the mmu
     const kernel_lma_offset = boot_without_rom_new_kernel_loc + board.config.mem.ram_start_addr;
 
-    const _kernel_space_start: usize = @ptrToInt(@extern(?*u8, .{ .name = "_kernel_space_start" }) orelse {
+    const _kernel_space_start: usize = @intFromPtr(@extern(?*u8, .{ .name = "_kernel_space_start" }) orelse {
         old_mapping_kprint("[panic] error reading _kernel_space_start label\n", .{});
         k_utils.panic();
     });
@@ -100,10 +100,10 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
                 k_utils.panic();
             };
 
-            const ttbr1_mem = @ptrCast(*volatile [page_table.totaPageTableSize]usize, (kspace_alloc.alloc(usize, page_table.totaPageTableSize, board.config.mem.va_kernel_space_gran.page_size) catch |e| {
+            const ttbr1_mem = @as(*volatile [page_table.totaPageTableSize]usize, @ptrCast((kspace_alloc.alloc(usize, page_table.totaPageTableSize, board.config.mem.va_kernel_space_gran.page_size) catch |e| {
                 old_mapping_kprint("[panic] Page table kalloc error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
-            }).ptr);
+            }).ptr));
 
             // mapping general kernel mem (inlcuding device base)
             var ttbr1_write = page_table.init(ttbr1_mem, kernel_lma_offset) catch |e| {
@@ -153,10 +153,10 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
             const page_table = mmu.PageTable(board.config.mem.va_user_space_page_table_capacity, board.config.mem.va_user_space_gran) catch |e| {
                 @compileError(@errorName(e));
             };
-            const ttbr0_mem = @ptrCast(*volatile [page_table.totaPageTableSize]usize, (kspace_alloc.alloc(usize, page_table.totaPageTableSize, board.config.mem.va_user_space_gran.page_size) catch |e| {
+            const ttbr0_mem = @as(*volatile [page_table.totaPageTableSize]usize, @ptrCast((kspace_alloc.alloc(usize, page_table.totaPageTableSize, board.config.mem.va_user_space_gran.page_size) catch |e| {
                 old_mapping_kprint("[panic] sPage table kalloc error: {s}\n", .{@errorName(e)});
                 k_utils.panic();
-            }).ptr);
+            }).ptr));
 
             // MMU page dir config
             var page_table_write = page_table.init(ttbr0_mem, kernel_lma_offset) catch |e| {
@@ -192,8 +192,8 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
 
         // updating page dirs for kernel and user space
         // toUnsec is bc we are in ttbr1 and can't change with page tables that are also in ttbr1
-        ProccessorRegMap.setTTBR1(kernel_lma_offset + utils.toTtbr0(usize, @ptrToInt(ttbr1)));
-        ProccessorRegMap.setTTBR0(kernel_lma_offset + utils.toTtbr0(usize, @ptrToInt(ttbr0)));
+        ProccessorRegMap.setTTBR1(kernel_lma_offset + utils.toTtbr0(usize, @intFromPtr(ttbr1)));
+        ProccessorRegMap.setTTBR0(kernel_lma_offset + utils.toTtbr0(usize, @intFromPtr(ttbr0)));
 
         ProccessorRegMap.dsb();
         ProccessorRegMap.isb();

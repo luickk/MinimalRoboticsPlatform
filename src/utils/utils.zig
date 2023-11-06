@@ -1,7 +1,6 @@
 const std = @import("std");
 const board = @import("board");
 
-
 pub const Error = error{
     SchedulerFreqTooLow,
 };
@@ -14,7 +13,7 @@ pub fn calcTicksFromHertz(timer_freq_in_hertz: usize, wanted_freq_in_hertz: usiz
 pub inline fn toTtbr1(comptime T: type, inp: T) T {
     switch (@typeInfo(T)) {
         .Pointer => {
-            return @intToPtr(T, @ptrToInt(inp) | board.config.mem.va_start);
+            return @as(T, @ptrFromInt(@intFromPtr(inp) | board.config.mem.va_start));
         },
         .Int => {
             return inp | board.config.mem.va_start;
@@ -26,7 +25,7 @@ pub inline fn toTtbr1(comptime T: type, inp: T) T {
 pub inline fn toTtbr0(comptime T: type, inp: T) T {
     switch (@typeInfo(T)) {
         .Pointer => {
-            return @intToPtr(T, @ptrToInt(inp) & ~(board.config.mem.va_start));
+            return @as(T, @ptrFromInt(@intFromPtr(inp) & ~(board.config.mem.va_start)));
         },
         .Int => {
             return inp & ~(board.config.mem.va_start);

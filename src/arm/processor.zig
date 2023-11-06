@@ -49,7 +49,7 @@ pub const ProccessorRegMap = struct {
         reserved2: u4 = 0,
 
         pub fn asInt(self: TcrReg) usize {
-            return @bitCast(u64, self);
+            return @as(u64, @bitCast(self));
         }
         pub inline fn setTcrEl(comptime el: ExceptionLevels, val: usize) void {
             asm volatile ("msr tcr_" ++ @tagName(el) ++ ", %[val]"
@@ -68,8 +68,8 @@ pub const ProccessorRegMap = struct {
             const addr_space_indicator = 12;
             const addr_bsize = @bitSizeOf(usize);
             const bits_per_level = std.math.log2(gran.table_size);
-            const n_lvl = @enumToInt(gran.lvls_required) + 1;
-            return @truncate(u6, addr_bsize - (addr_space_indicator + (n_lvl * bits_per_level)));
+            const n_lvl = @intFromEnum(gran.lvls_required) + 1;
+            return @as(u6, @truncate(addr_bsize - (addr_space_indicator + (n_lvl * bits_per_level))));
         }
     };
     pub const Esr_el1 = struct {
@@ -174,7 +174,7 @@ pub const ProccessorRegMap = struct {
         attr7: u8 = 0,
 
         pub fn asInt(self: MairReg) usize {
-            return @bitCast(u64, self);
+            return @as(u64, @bitCast(self));
         }
 
         pub inline fn setMairEl(comptime el: ExceptionLevels, val: usize) void {
@@ -333,7 +333,7 @@ pub const ProccessorRegMap = struct {
     pub inline fn setSpsel(exc_l: ExceptionLevels) void {
         asm volatile ("msr spsel, %[el]"
             :
-            : [el] "r" (@enumToInt(exc_l)),
+            : [el] "r" (@intFromEnum(exc_l)),
         );
     }
 

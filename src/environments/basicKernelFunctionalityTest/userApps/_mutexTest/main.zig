@@ -37,7 +37,7 @@ export fn app_main(pid: usize) linksection(".text.main") callconv(.C) noreturn {
         kprint("createThread init error: {s}\n", .{@errorName(e)});
         while (true) {}
     };
-    while (true) { }
+    while (true) {}
 }
 
 pub fn testThread2(mutex: *Mutex) void {
