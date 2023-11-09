@@ -55,7 +55,6 @@ pub fn build(b: *std.Build.Builder) !void {
     const build_mode = std.builtin.Mode.ReleaseFast;
     var build_options = b.addOptions();
 
-
     // packages...
     // SOC builtin features
     var arm = ModuleDependency { .name = "arm", .module = b.createModule( .{ .source_file = .{ .path = "src/arm/arm.zig" } }) };
@@ -116,7 +115,7 @@ pub fn build(b: *std.Build.Builder) !void {
     bl_exe.addObjectFile(.{ .path = "src/bootloader/bootloader.zig"});
     bl_exe.addCSourceFile(.{ .file = .{ .path = "src/boards/drivers/bootInit/" ++ currBoard.boardName ++ "_boot.S" }, .flags = undefined });
     bl_exe.addCSourceFile(.{ .file = .{ .path = "src/bootloader/exc_vec.S" }, .flags = undefined });
-    b.installArtifact(bl_exe);
+    // bl_exe.step.dependOn(&b.addInstallArtifact(bl_exe, .{}).step);
 
     // kernel
     const kernel_exe = b.addExecutable(.{ .name = "kernel", .target = .{ .cpu_arch = std.Target.Cpu.Arch.aarch64, .os_tag = std.Target.Os.Tag.freestanding, .abi = std.Target.Abi.eabihf }, .optimize = build_mode, });
@@ -142,10 +141,10 @@ pub fn build(b: *std.Build.Builder) !void {
     // kernel_exe.addAnonymousModule("board-config", .{ .source_file = .{ .path = "src/configTemplates/boardConfigTemplate.zig" } });
     kernel_exe.addOptions("build_options", build_options);
     const temp_kernel_ld = "zig-cache/tmp/tempKernelLinker.ld";
-    kernel_exe.setLinkerScriptPath(std.build.FileSource{ .path = temp_kernel_ld });
-    bl_exe.addObjectFile(.{ .path = "src/kernel/kernel.zig" });
-    bl_exe.addCSourceFile(.{ .file = .{ .path = "src/kernel/exc_vec.S"}, .flags = undefined });
-    b.installArtifact(kernel_exe);
+    kernel_exe.setLinkerScriptPath(.{ .path = temp_kernel_ld });
+    kernel_exe.addObjectFile(.{ .path = "src/kernel/kernel.zig" });
+    kernel_exe.addCSourceFile(.{ .file = .{ .path = "src/kernel/exc_vec.S"}, .flags = undefined });
+    // kernel_exe.step.dependOn(&b.addInstallArtifact(kernel_exe, .{}).step);
 
     // compilation steps
     const update_linker_scripts_bl = UpdateLinkerScripts.create(b, .bootloader, temp_bl_ld, temp_kernel_ld, currBoard);
@@ -161,14 +160,23 @@ pub fn build(b: *std.Build.Builder) !void {
 
     build_and_run.dependOn(&update_linker_scripts_k.step);
     build_and_run.dependOn(&scan_for_apps.step);
-    build_and_run.dependOn(&b.addInstallArtifact(kernel_exe, .{}).step);
-    // todo => installraw
-    // build_and_run.dependOn(&kernel_exe.installRaw("kernel.bin", .{ .format = .bin, .dest_dir = .{ .custom = "../src/bootloader/bins/" } }).step);
 
-    build_and_run.dependOn(&update_linker_scripts_bl.step);
-    build_and_run.dependOn(&b.addInstallArtifact(bl_exe, .{}).step);
     // todo => installraw
-    // build_and_run.dependOn(&bl_exe.installRaw("bootloader.bin", .{ .format = .bin }).step);
+    const install_kernel_raw = kernel_exe.addObjCopy(.{ .format = .bin });
+    const install_kernel_bin = b.addInstallBinFile(install_kernel_raw.getOutput(), "../zig-out/bin/kernel.bin");
+    install_kernel_bin.step.dependOn(&install_kernel_raw.step);
+    build_and_run.dependOn(&install_kernel_bin.step);
+    
+    build_and_run.dependOn(&update_linker_scripts_bl.step);
+    
+    
+    // todo => installraw
+    const install_bl_raw = bl_exe.addObjCopy(.{ .format = .bin });
+    const install_bl_bin = b.addInstallBinFile(install_kernel_raw.getOutput(), "../zig-out/bin/kernel.bin");
+    install_bl_raw.step.dependOn(&bl_exe.step);
+    install_bl_bin.step.dependOn(&install_bl_raw.step);
+    build_and_run.dependOn(&install_bl_bin.step);
+
 
     const qemu_launch_cmd = b.addSystemCommand(currBoard.qemu_launch_command);
     if (launch_with_gdb) {
@@ -194,26 +202,40 @@ pub fn build(b: *std.Build.Builder) !void {
     clean.dependOn(&create_bins.step);
 }
 
-fn setEnvironment(b: *std.build.Builder, step: *std.build.Step, build_mode: std.builtin.Mode, comptime path: []const u8, app_deps: [4] ModuleDependency) !void {
+fn setEnvironment(b: *std.build.Builder, build_and_run: *std.build.Step, build_mode: std.builtin.Mode, comptime path: []const u8, app_deps: [4] ModuleDependency) !void {
     const user_apps_path = path ++ "/userApps/";
     var dir = try std.fs.cwd().openIterableDir(user_apps_path, .{});
     var it = dir.iterate();
     while (try it.next()) |folder| {
         if (folder.kind != .directory or folder.name[0] == '_' or std.mem.eql(u8, folder.name, "actions")) continue;
         const app = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ user_apps_path, folder.name }), app_deps);
-        step.dependOn(&b.addInstallArtifact(app, .{}).step);
+        // const app_install = b.addInstallArtifact(app, .{});
+
         // todo => installraw
         // step.dependOn(&app.installRaw(try b.allocator.dupe(u8, folder.name), .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/apps/" } }).step);
+        const install_app_raw = app.addObjCopy(.{ .format = .bin });
+        const install_app_bin = b.addInstallBinFile(install_app_raw.getOutput(), "../zig-out/bin/kernel.bin");
+
+        install_app_raw.step.dependOn(&app.step);
+        install_app_bin.step.dependOn(&install_app_raw.step);
+
+        build_and_run.dependOn(&install_app_bin.step);
     }
     const actions_path = path ++ "/userApps/actions/";
     dir = try std.fs.cwd().openIterableDir(actions_path, .{});
     it = dir.iterate();
     while (try it.next()) |folder| {
         if (folder.kind != .directory or folder.name[0] == '_' or std.mem.eql(u8, folder.name, "actions")) continue;
-        const app = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ actions_path, folder.name }), app_deps);
-        step.dependOn(&b.addInstallArtifact(app, .{}).step);
+        const action = try addApp(b, build_mode, try std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ actions_path, folder.name }), app_deps);
         // todo => installraw
         // step.dependOn(&app.installRaw(try b.allocator.dupe(u8, folder.name), .{ .format = .bin, .dest_dir = .{ .custom = "../src/kernel/bins/actions/" } }).step);
+        const install_action_raw = action.addObjCopy(.{ .format = .bin });
+        const install_action_bin = b.addInstallBinFile(install_action_raw.getOutput(), "../zig-out/bin/kernel.bin");
+
+        install_action_raw.step.dependOn(&action.step);
+        install_action_bin.step.dependOn(&install_action_raw.step);
+
+        build_and_run.dependOn(&install_action_bin.step);
     }
 }
 
@@ -224,7 +246,7 @@ fn addApp(b: *std.build.Builder, build_mode: std.builtin.Mode, path: []const u8,
     app.setLinkerScriptPath(std.build.FileSource{ .path = try std.fmt.allocPrint(b.allocator, "{s}/linker.ld", .{path}) });
     app.addObjectFile(.{ .path = try std.fmt.allocPrint(b.allocator, "{s}/main.zig", .{path})});
     for (app_deps) |dep| app.addModule(dep.name, dep.module);    
-    b.installArtifact(app);
+    // app.step.dependOn(&b.addInstallArtifact(app, .{}).step);
     return app;
 }
 

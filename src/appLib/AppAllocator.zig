@@ -41,7 +41,7 @@ pub const AppAllocator = struct {
                 chunk.* = true;
             }
             var alloc_addr = self.mem_base + (free_mem_first_chunk * appAllocatorChunkSize);
-            var aligned_alloc_slice = @as([*]T, @ptrFromInt(alignForward(alloc_addr, alignm)));
+            var aligned_alloc_slice = @as([*]T, @ptrFromInt(alignForward(usize, alloc_addr, alignm)));
             return aligned_alloc_slice[0 .. n - 1];
         } else if (self.used_chunks + req_chunks > maxChunks) {
             return Error.OutOfMem;
@@ -54,7 +54,7 @@ pub const AppAllocator = struct {
             chunk.* = true;
         }
         var alloc_addr = self.mem_base + (first_chunk * appAllocatorChunkSize);
-        var aligned_alloc_slice = @as([*]T, @ptrFromInt(alignForward(alloc_addr, alignm)));
+        var aligned_alloc_slice = @as([*]T, @ptrFromInt(alignForward(usize, alloc_addr, alignm)));
         return aligned_alloc_slice[0 .. n - 1];
     }
 

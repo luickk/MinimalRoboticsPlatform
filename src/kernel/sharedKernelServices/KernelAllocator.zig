@@ -49,7 +49,7 @@ pub const KernelAllocator = struct {
                 chunk.* = true;
             }
             var alloc_addr = self.mem_base + (free_mem_first_chunk * kernelAllocatorChunkSize);
-            var aligned_alloc_slice = @as([*]T, @ptrFromInt(utils.toTtbr1(usize, alignForward(alloc_addr, alignm))));
+            var aligned_alloc_slice = @as([*]T, @ptrFromInt(utils.toTtbr1(usize, alignForward(usize, alloc_addr, alignm))));
             return aligned_alloc_slice[0 .. n - 1];
         } else if (self.used_chunks + req_chunks > maxChunks) {
             return Error.OutOfMem;
@@ -62,7 +62,7 @@ pub const KernelAllocator = struct {
             chunk.* = true;
         }
         var alloc_addr = self.mem_base + (first_chunk * kernelAllocatorChunkSize);
-        var aligned_alloc_slice = @as([*]T, @ptrFromInt(utils.toTtbr1(usize, alignForward(alloc_addr, alignm))));
+        var aligned_alloc_slice = @as([*]T, @ptrFromInt(utils.toTtbr1(usize, alignForward(usize, alloc_addr, alignm))));
         // kprint("allocation addr: {*} \n", .{aligned_alloc_slice[0 .. n - 1].ptr});
         return aligned_alloc_slice[0 .. n - 1];
     }

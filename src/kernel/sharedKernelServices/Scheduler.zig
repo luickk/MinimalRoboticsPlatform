@@ -196,7 +196,7 @@ pub const Scheduler = struct {
 
             std.mem.copy(u8, app_mem, app);
             self.scheduled_tasks[i].cpu_context.elr_el1 = 0;
-            self.scheduled_tasks[i].cpu_context.sp_el0 = alignForward(app.len + board.config.mem.app_stack_size, 16);
+            self.scheduled_tasks[i].cpu_context.sp_el0 = alignForward(usize, app.len + board.config.mem.app_stack_size, 16);
             self.scheduled_tasks[i].cpu_context.x0 = self.pid_counter;
             self.scheduled_tasks[i].app_mem = app_mem;
             self.scheduled_tasks[i].priority = self.current_task.priority;
@@ -341,7 +341,7 @@ pub const Scheduler = struct {
         const ThreadFn = @TypeOf(thread_fn);
         return struct {
             pub fn threadEntry(entry_fn: *ThreadFn, entry_args: *Args) callconv(.C) void {
-                @call(.{ .modifier = .auto }, entry_fn, entry_args.*);
+                @call(.auto, entry_fn, entry_args.*);
             }
         };
     }
@@ -354,7 +354,7 @@ pub const Scheduler = struct {
         thread_stack_start.len = thread_stack_mem.len;
 
         var arg_mem: []const u8 = undefined;
-        arg_mem.ptr = @as([*]const u8, @ptrCast(@alignCast(1, &args)));
+        arg_mem.ptr = @as([*]const u8, @ptrCast(@alignCast(&args)));
         arg_mem.len = @sizeOf(@TypeOf(args));
 
         std.mem.copy(u8, thread_stack_start, arg_mem);
@@ -362,7 +362,7 @@ pub const Scheduler = struct {
         const entry_fn = &(KernelThreadInstance(thread_fn, @TypeOf(args)).threadEntry);
         var thread_fn_ptr = &thread_fn;
 
-        const thread_stack_addr = @intFromPtr(thread_stack_start.ptr) - alignForward(@sizeOf(@TypeOf(args)), 16);
+        const thread_stack_addr = @intFromPtr(thread_stack_start.ptr) - alignForward(usize, @sizeOf(@TypeOf(args)), 16);
         const args_ptr = thread_stack_start.ptr;
         try self.createThreadFromCurrentProcess(@as(*const anyopaque, @ptrCast(entry_fn)), @as(*const anyopaque, @ptrCast(thread_fn_ptr)), thread_stack_addr, @as(*anyopaque, @ptrCast(args_ptr)));
     }
@@ -370,7 +370,7 @@ pub const Scheduler = struct {
         const ThreadFn = @TypeOf(thread_fn);
         return struct {
             pub fn actionEntry(entry_fn: *ThreadFn) callconv(.C) void {
-                @call(.{ .modifier = .auto }, entry_fn, .{});
+                @call(.auto, entry_fn, .{});
             }
         };
     }
@@ -385,7 +385,7 @@ pub const Scheduler = struct {
 
             std.mem.copy(u8, app_mem, action);
             self.env_actions[i].cpu_context.elr_el1 = 0;
-            self.env_actions[i].cpu_context.sp_el0 = alignForward(action.len + board.config.mem.app_stack_size, 16);
+            self.env_actions[i].cpu_context.sp_el0 = alignForward(usize, action.len + board.config.mem.app_stack_size, 16);
             self.env_actions[i].cpu_context.x0 = self.pid_counter;
             self.env_actions[i].task_type = .action;
             self.env_actions[i].app_mem = app_mem;

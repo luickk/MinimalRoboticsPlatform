@@ -40,7 +40,7 @@ pub const UserPageAllocator = struct {
             return try self.searchFreePages(n);
         }
         var ret_slice: []u8 = undefined;
-        ret_slice.ptr = @alignCast(granule.page_size, @as([*]u8, @ptrFromInt(self.mem_start + self.curr_page_pointer * granule.page_size)));
+        ret_slice.ptr = @alignCast(@as([*]u8, @ptrFromInt(self.mem_start + self.curr_page_pointer * granule.page_size)));
         ret_slice.len = granule.page_size * n;
         self.curr_page_pointer += n;
         // kprint("allocation addr: {*} \n", .{ret_slice.ptr});
@@ -56,7 +56,7 @@ pub const UserPageAllocator = struct {
             curr_set_bit_index = iterator.next() orelse return Error.OutOfMem;
             if (curr_set_bit_index - last_set_bit_index >= req_pages) {
                 var ret_slice: []u8 = undefined;
-                ret_slice.ptr = @alignCast(granule.page_size, @as([*]u8, @ptrFromInt(last_set_bit_index * granule.page_size)));
+                ret_slice.ptr = @alignCast(@as([*]u8, @ptrFromInt(last_set_bit_index * granule.page_size)));
                 ret_slice.len = granule.page_size * req_pages;
                 return ret_slice;
             }

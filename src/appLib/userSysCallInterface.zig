@@ -118,7 +118,7 @@ pub fn createThread(thread_stack_mem: []u8, thread_fn: anytype, args: anytype) !
     thread_stack_start.ptr = @as([*]u8, @ptrFromInt(@intFromPtr(thread_stack_mem.ptr) + thread_stack_mem.len));
     thread_stack_start.len = thread_stack_mem.len;
     var arg_mem: []const u8 = undefined;
-    arg_mem.ptr = @as([*]const u8, @ptrCast(@alignCast(1, &args)));
+    arg_mem.ptr = @as([*]const u8, @ptrCast(@alignCast(&args)));
     arg_mem.len = @sizeOf(@TypeOf(args));
 
     std.mem.copy(u8, thread_stack_start, arg_mem);
@@ -135,7 +135,7 @@ pub fn createThread(thread_stack_mem: []u8, thread_fn: anytype, args: anytype) !
         \\mov %[ret], x0
         : [ret] "=r" (-> usize),
         : [entry_fn_ptr] "r" (@intFromPtr(&(ThreadInstance(thread_fn, @TypeOf(args)).threadEntry))),
-          [thread_stack] "r" (@intFromPtr(thread_stack_start.ptr) - alignForward(@sizeOf(@TypeOf(args)), 16)),
+          [thread_stack] "r" (@intFromPtr(thread_stack_start.ptr) - alignForward(usize, @sizeOf(@TypeOf(args)), 16)),
           [args_addr] "r" (@intFromPtr(thread_stack_start.ptr)),
           [thread_fn_ptr] "r" (@intFromPtr(&thread_fn)),
         : "x0", "x1", "x2", "x3", "x8"
@@ -148,7 +148,7 @@ fn ThreadInstance(comptime thread_fn: anytype, comptime Args: type) type {
     const ThreadFn = @TypeOf(thread_fn);
     return struct {
         fn threadEntry(entry_fn: *ThreadFn, entry_args: *Args) callconv(.C) void {
-            @call(.{ .modifier = .auto }, entry_fn, entry_args.*);
+            @call(.auto, entry_fn, entry_args.*);
         }
     };
 }

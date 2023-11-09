@@ -30,7 +30,7 @@ pub const SharedMemTopicsInterface = struct {
                 accumulatedTopicsBuffSize += status_control_conf.topic_conf.?.buffer_size + @sizeOf(usize);
             }
         }
-        const pages_req = (try std.math.mod(usize, alignForward(accumulatedTopicsBuffSize, 8), board.config.mem.va_user_space_gran.page_size)) + 1;
+        const pages_req = (try std.math.mod(usize, alignForward(usize, accumulatedTopicsBuffSize, 8), board.config.mem.va_user_space_gran.page_size)) + 1;
         var fixedTopicMemPoolInterface: []u8 = undefined;
         fixedTopicMemPoolInterface.ptr = @as([*]u8, @ptrFromInt(0x20000000));
         fixedTopicMemPoolInterface.len = pages_req * board.config.mem.va_user_space_gran.page_size;

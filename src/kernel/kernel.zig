@@ -87,7 +87,7 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
         k_utils.panic();
     });
 
-    var kspace_alloc = KernelAllocator.init(std.mem.alignForward(_kernel_space_start, 8) + board.config.mem.k_stack_size) catch |e| {
+    var kspace_alloc = KernelAllocator.init(std.mem.alignForward(usize, _kernel_space_start, 8) + board.config.mem.k_stack_size) catch |e| {
         old_mapping_kprint("[panic] KernelAllocator init error: {s}\n", .{@errorName(e)});
         k_utils.panic();
     };

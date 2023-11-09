@@ -33,7 +33,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         var user_space_start = (board.config.mem.bl_load_addr orelse 0) + (board.config.mem.rom_size orelse 0) + board.config.mem.kernel_space_size;
         // increasing user_space_start by stack_size so that later writes to the user_space don't overwrite the bl's stack
         user_space_start += board.config.mem.bl_stack_size;
-        ProccessorRegMap.setSp(alignForward(user_space_start, 16));
+        ProccessorRegMap.setSp(alignForward(usize, user_space_start, 16));
         break :blk user_space_start;
     };
 
@@ -42,7 +42,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         bl_utils.panic();
     });
 
-    var boot_without_rom_new_kernel_loc: usize = alignForward(_bl_bin_end, 4096);
+    var boot_without_rom_new_kernel_loc: usize = alignForward(usize, _bl_bin_end, 4096);
     if (board.config.mem.bl_load_addr == null) boot_without_rom_new_kernel_loc = 0;
 
     // mmu configuration...
@@ -55,7 +55,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
 
             // writing page dirs to userspace in ram. Writing to userspace because it would be overwritten in kernel space, when copying
             // the kernel. Additionally, on mmu turn on, the mmu would try to read from the page tables without mmu kernel space identifier bits on
-            var ttbr1_mem = @as(*volatile [page_table.totaPageTableSize]usize, @ptrFromInt(alignForward(user_space_start, Granule.Fourk.page_size)));
+            var ttbr1_mem = @as(*volatile [page_table.totaPageTableSize]usize, @ptrFromInt(alignForward(usize, user_space_start, Granule.Fourk.page_size)));
 
             // mapping general kernel mem (inlcuding device base)
             var ttbr1_write = page_table.init(ttbr1_mem, 0) catch |e| {
@@ -92,7 +92,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
 
             var ttbr0_addr = user_space_start + (ttbr1.len * @sizeOf(usize));
 
-            ttbr0_addr = alignForward(ttbr0_addr, Granule.Fourk.page_size);
+            ttbr0_addr = alignForward(usize, ttbr0_addr, Granule.Fourk.page_size);
 
             var ttbr0_mem = @as(*volatile [page_table.totaPageTableSize]usize, @ptrFromInt(ttbr0_addr));
 
@@ -171,7 +171,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         var kernel_addr = @intFromPtr(kernel_target_loc.ptr);
 
         const kernel_sp = blk: {
-            const aligned_ksize = alignForward(kernel_target_loc.len, 0x8);
+            const aligned_ksize = alignForward(usize, kernel_target_loc.len, 0x8);
             break :blk utils.toTtbr1(usize, aligned_ksize + board.config.mem.k_stack_size);
         };
 

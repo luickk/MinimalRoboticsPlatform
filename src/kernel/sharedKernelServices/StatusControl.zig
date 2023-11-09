@@ -75,7 +75,7 @@ pub const StatusControl = struct {
 
     pub fn updateStatusRaw(self: *StatusControl, id: u16, val_mem_addr: usize) !void {
         if (self.findStatusById(id)) |index| {
-            @memcpy(@as([*]u8, @ptrFromInt(self.statuses[index].mem_addr)), @as([*]u8, @ptrFromInt(val_mem_addr)), self.statuses[index].size);
+            @memcpy(@as([*]u8, @ptrFromInt(self.statuses[index].mem_addr)), @as([*]u8, @ptrFromInt(val_mem_addr)));
         } else return Error.NameNotFound;
     }
 
@@ -89,7 +89,7 @@ pub const StatusControl = struct {
 
     pub fn readStatusRaw(self: *StatusControl, id: u16, ret_buff: usize) !void {
         if (self.findStatusById(id)) |index| {
-            @memcpy(@as([*]u8, @ptrFromInt(ret_buff)), @as([*]u8, @ptrFromInt(self.statuses[index].mem_addr)), self.statuses[index].size);
+            @memcpy(@as([*]u8, @ptrFromInt(ret_buff)), @as([*]u8, @ptrFromInt(self.statuses[index].mem_addr)));
         } else return Error.NameNotFound;
     }
 
