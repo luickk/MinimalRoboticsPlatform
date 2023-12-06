@@ -26,7 +26,7 @@ pub const SysCallsTopicsInterface = struct {
     pub fn init(user_page_alloc: *UserPageAllocator, scheduler: *Scheduler) !SysCallsTopicsInterface {
         var accumulatedTopicsBuffSize: usize = 0;
 
-        for (env.env_config.status_control) |*status_control_conf| {
+        for (&env.env_config.status_control) |*status_control_conf| {
             if (status_control_conf.*.status_type == .topic) {
                 accumulatedTopicsBuffSize += status_control_conf.topic_conf.?.buffer_size + @sizeOf(usize);
             }
@@ -37,7 +37,7 @@ pub const SysCallsTopicsInterface = struct {
         var topics = [_]Topic{undefined} ** env.env_config.countTopics();
         var used_topics_mem: usize = 0;
         var i: usize = 0;
-        for (env.env_config.status_control) |*status_control_conf| {
+        for (&env.env_config.status_control) |*status_control_conf| {
             if (status_control_conf.*.status_type == .topic) {
                 const topic_read_write_buff_ptr = @as(*volatile usize, @ptrFromInt(used_topics_mem));
                 topic_read_write_buff_ptr.* = 0;
@@ -64,7 +64,7 @@ pub const SysCallsTopicsInterface = struct {
             data.ptr = @as([*]u8, @ptrFromInt(userspace_app_mapping_data_addr));
             data.len = len;
             const data_written: usize = try self.topics[index].write(data);
-            for (self.topics[index].waiting_tasks) |*semaphore| {
+            for (&self.topics[index].waiting_tasks) |*semaphore| {
                 if (semaphore.* != null) {
                     try semaphore.*.?.signal(self.scheduler);
                     semaphore.* = null;
@@ -79,7 +79,9 @@ pub const SysCallsTopicsInterface = struct {
         // switching to boot userspace page table (which spans all apps in order to acces other apps memory with their relative userspace addresses...)
         self.scheduler.switchMemContext(self.scheduler.scheduled_tasks[0].ttbr0.?, null);
         defer self.scheduler.switchMemContext(self.scheduler.current_task.ttbr0.?, null);
-        var userspace_app_mapping_ret_buff = @as([]u8, @ptrFromInt(@intFromPtr(self.scheduler.current_task.app_mem.?.ptr) + @intFromPtr(ret_buff.ptr)));
+
+        var userspace_app_mapping_ret_buff: []u8 = undefined;
+        userspace_app_mapping_ret_buff.ptr = @ptrFromInt(@intFromPtr(self.scheduler.current_task.app_mem.?.ptr) + @intFromPtr(ret_buff.ptr));
         userspace_app_mapping_ret_buff.len = ret_buff.len;
         if (self.findTopicById(id)) |index| {
             return self.topics[index].read(userspace_app_mapping_ret_buff);
@@ -101,7 +103,7 @@ pub const SysCallsTopicsInterface = struct {
 
     // returns index
     fn findTopicById(self: *SysCallsTopicsInterface, id: usize) ?usize {
-        for (self.topics, 0..) |*topic, i| {
+        for (&self.topics, 0..) |*topic, i| {
             if (topic.id == id) return i;
         }
         return null;

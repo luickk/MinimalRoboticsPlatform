@@ -81,7 +81,7 @@ pub fn EnvConfig(comptime n_statuses: usize) type {
 
         pub fn countTopics(self: *const Self) usize {
             var n_topics: usize = 0;
-            for (self.status_control) |*status_control_conf| {
+            for (&self.status_control) |*status_control_conf| {
                 if (status_control_conf.*.status_type == .topic) n_topics += 1;
             }
             return n_topics;
@@ -89,7 +89,7 @@ pub fn EnvConfig(comptime n_statuses: usize) type {
 
         pub fn countStatuses(self: *const Self) usize {
             var n_topics: usize = 0;
-            for (self.status_control) |*status_control_conf| {
+            for (&self.status_control) |*status_control_conf| {
                 if (status_control_conf.*.status_type != .topic) n_topics += 1;
             }
             return n_topics;

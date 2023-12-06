@@ -12,22 +12,22 @@ const gic = arm.gicv2;
 const gt = arm.genericTimer;
 
 pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(.C) void {
-    var int_type = tmp_int_type; // copy away from stack top (unsure about C abi standards...)
+    const int_type = tmp_int_type; // copy away from stack top (unsure about C abi standards...)
     var context = on_stack_context.*;
     // kprint("unique \n", .{});
     context.int_type = int_type;
     // kprint("cpucontext size: {d} \n", .{@sizeOf(CpuContext)});
     // kprint("context: {any} \n", .{context});
     // kprint("pc: {x} \n", .{ProccessorRegMap.getCurrentPc()});
-    var int_type_en = std.meta.intToEnum(gic.ExceptionType, int_type) catch {
+    const int_type_en = std.meta.intToEnum(gic.ExceptionType, int_type) catch {
         printExc(&context, null);
         return;
     };
 
     switch (int_type_en) {
         .el0Sync, .el1Sync => {
-            var ec = @as(u6, @truncate(context.esr_el1 >> 26));
-            var ec_en = std.meta.intToEnum(ProccessorRegMap.Esr_el1.ExceptionClass, ec) catch {
+            const ec = @as(u6, @truncate(context.esr_el1 >> 26));
+            const ec_en = std.meta.intToEnum(ProccessorRegMap.Esr_el1.ExceptionClass, ec) catch {
                 kprint("Error decoding ExceptionClass 0x{x} \n", .{ec});
                 printExc(&context, int_type_en);
                 return;
@@ -35,7 +35,7 @@ pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(
             switch (ec_en) {
                 .svcInstExAArch64 => {
                     var sys_call_found: bool = false;
-                    for (sysCalls.sysCallTable) |*sys_call| {
+                    for (&sysCalls.sysCallTable) |*sys_call| {
                         if (sys_call.id == context.x8) {
                             sys_call.fn_call(on_stack_context);
                             sys_call_found = true;
@@ -78,22 +78,22 @@ pub fn trapHandler(on_stack_context: *CpuContext, tmp_int_type: usize) callconv(
 
 fn printExc(context: *CpuContext, int_type_en: ?gic.ExceptionType) void {
     // printing debug information
-    var iss = @as(u25, @truncate(context.esr_el1));
-    var ifsc = @as(u6, @truncate(context.esr_el1));
-    var il = @as(u1, @truncate(context.esr_el1 >> 25));
-    var ec = @as(u6, @truncate(context.esr_el1 >> 26));
-    var iss2 = @as(u5, @truncate(context.esr_el1 >> 32));
+    const iss = @as(u25, @truncate(context.esr_el1));
+    const ifsc = @as(u6, @truncate(context.esr_el1));
+    const il = @as(u1, @truncate(context.esr_el1 >> 25));
+    const ec = @as(u6, @truncate(context.esr_el1 >> 26));
+    const iss2 = @as(u5, @truncate(context.esr_el1 >> 32));
     _ = iss;
     _ = iss2;
 
     kprint(".........sync exc............\n", .{});
     if (int_type_en) |int_type| kprint("Int Type: {s} \n", .{@tagName(int_type)});
-    var ec_en = std.meta.intToEnum(ProccessorRegMap.Esr_el1.ExceptionClass, ec) catch {
+    const ec_en = std.meta.intToEnum(ProccessorRegMap.Esr_el1.ExceptionClass, ec) catch {
         kprint("Error decoding ExceptionClass 0x{x} \n", .{ec});
         printContext(context);
         return;
     };
-    var ifsc_en = std.meta.intToEnum(ProccessorRegMap.Esr_el1.Ifsc, ifsc) catch {
+    const ifsc_en = std.meta.intToEnum(ProccessorRegMap.Esr_el1.Ifsc, ifsc) catch {
         kprint("Error decoding ExceptionClass IFSC 0x{x} \n", .{ifsc});
         printContext(context);
         return;

@@ -26,7 +26,7 @@ pub const StatusControl = struct {
         var accumulatedBuffSize: usize = 0;
         var statuses = [_]GenericStatus{.{ .status_type = undefined, .name = undefined, .mem_addr = undefined, .size = undefined, .id = undefined }} ** env.env_config.countStatuses();
         var i: usize = 0;
-        for (env.env_config.status_control) |*status_control_conf| {
+        for (&env.env_config.status_control) |*status_control_conf| {
             if (status_control_conf.status_type != .topic) {
                 switch (status_control_conf.status_type) {
                     .string => {
@@ -49,7 +49,7 @@ pub const StatusControl = struct {
         const status_mem = try kernel_alloc.alloc(u8, accumulatedBuffSize, null);
         var used_status_mem: usize = 0;
         i = 0;
-        for (env.env_config.status_control) |*status_control_conf| {
+        for (&env.env_config.status_control) |*status_control_conf| {
             if (status_control_conf.status_type != .topic) {
                 const size = status_control_conf.status_type.statusTypeLen() orelse return Error.WrongInterface;
                 i += 1;
@@ -75,7 +75,10 @@ pub const StatusControl = struct {
 
     pub fn updateStatusRaw(self: *StatusControl, id: u16, val_mem_addr: usize) !void {
         if (self.findStatusById(id)) |index| {
-            @memcpy(@as([*]u8, @ptrFromInt(self.statuses[index].mem_addr)), @as([*]u8, @ptrFromInt(val_mem_addr)));
+            var copy_src: []u8 = undefined;
+            copy_src.ptr = @ptrFromInt(self.statuses[index].mem_addr);
+            copy_src.len = self.statuses[index].size;
+            @memcpy(copy_src, @as([*]u8, @ptrFromInt(val_mem_addr)));
         } else return Error.NameNotFound;
     }
 
@@ -89,13 +92,16 @@ pub const StatusControl = struct {
 
     pub fn readStatusRaw(self: *StatusControl, id: u16, ret_buff: usize) !void {
         if (self.findStatusById(id)) |index| {
-            @memcpy(@as([*]u8, @ptrFromInt(ret_buff)), @as([*]u8, @ptrFromInt(self.statuses[index].mem_addr)));
+            var copy_src: []u8 = undefined;
+            copy_src.ptr = @ptrFromInt(ret_buff);
+            copy_src.len = self.statuses[index].size;
+            @memcpy(copy_src, @as([*]u8, @ptrFromInt(self.statuses[index].mem_addr)));
         } else return Error.NameNotFound;
     }
 
     // returns index
     fn findStatusByName(self: *StatusControl, name: []const u8) ?usize {
-        for (self.statuses, 0..) |*status, i| {
+        for (&self.statuses, 0..) |*status, i| {
             if (std.mem.eql(u8, status.name, name)) return i;
         }
         return null;
@@ -103,7 +109,7 @@ pub const StatusControl = struct {
 
     // returns index
     fn findStatusById(self: *StatusControl, id: u16) ?usize {
-        for (self.statuses, 0..) |*status, i| {
+        for (&self.statuses, 0..) |*status, i| {
             if (status.id == id) return i;
         }
         return null;

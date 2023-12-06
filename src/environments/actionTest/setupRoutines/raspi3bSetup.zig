@@ -128,15 +128,15 @@ const Bank0 = RegValues.Bank0;
 const Bank1 = RegValues.Bank1;
 const Bank2 = RegValues.Bank2;
 pub fn irqHandler(context: *cpuContext.CpuContext) void {
-    var irq_bank_0 = std.meta.intToEnum(Bank0, board.SecondaryInterruptControllerKpiType.RegMap.pendingBasic.*) catch |e| {
+    const irq_bank_0 = std.meta.intToEnum(Bank0, board.SecondaryInterruptControllerKpiType.RegMap.pendingBasic.*) catch |e| {
         kprint("[panic] std meta intToEnum error: {s} \n", .{@errorName(e)});
         while (true) {}
     };
-    var irq_bank_1 = std.meta.intToEnum(Bank1, board.SecondaryInterruptControllerKpiType.RegMap.pendingIrq1.*) catch |e| {
+    const irq_bank_1 = std.meta.intToEnum(Bank1, board.SecondaryInterruptControllerKpiType.RegMap.pendingIrq1.*) catch |e| {
         kprint("[panic] std meta intToEnum error: {s} \n", .{@errorName(e)});
         while (true) {}
     };
-    var irq_bank_2 = std.meta.intToEnum(Bank2, board.SecondaryInterruptControllerKpiType.RegMap.pendingIrq2.*) catch |e| {
+    const irq_bank_2 = std.meta.intToEnum(Bank2, board.SecondaryInterruptControllerKpiType.RegMap.pendingIrq2.*) catch |e| {
         kprint("[panic] std meta intToEnum error: {s} \n", .{@errorName(e)});
         while (true) {}
     };

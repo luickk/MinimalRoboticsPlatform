@@ -58,7 +58,7 @@ pub const ProccessorRegMap = struct {
             );
         }
         pub fn readTcrEl(comptime el: ExceptionLevels) usize {
-            var x: usize = asm ("mrs %[curr], tcr_" ++ @tagName(el)
+            const x: usize = asm ("mrs %[curr], tcr_" ++ @tagName(el)
                 : [curr] "=r" (-> usize),
             );
             return x;
@@ -185,7 +185,7 @@ pub const ProccessorRegMap = struct {
         }
 
         pub fn readTcrEl(comptime el: ExceptionLevels) usize {
-            var x: usize = asm ("mrs %[curr], mair_" ++ @tagName(el)
+            const x: usize = asm ("mrs %[curr], mair_" ++ @tagName(el)
                 : [curr] "=r" (-> usize),
             );
             return x;
@@ -200,7 +200,7 @@ pub const ProccessorRegMap = struct {
         }
 
         pub fn readSctlrEl(comptime el: ExceptionLevels) usize {
-            var x: usize = asm ("mrs %[curr], sctlr_" ++ @tagName(el)
+            const x: usize = asm ("mrs %[curr], sctlr_" ++ @tagName(el)
                 : [curr] "=r" (-> usize),
             );
             return x;
@@ -271,10 +271,10 @@ pub const ProccessorRegMap = struct {
         asm volatile ("IC IALLUIS");
     }
     pub fn invalidateOldPageTableEntries() void {
-        var ttbr1: usize = asm ("mrs %[curr], ttbr1_el1"
+        const ttbr1: usize = asm ("mrs %[curr], ttbr1_el1"
             : [curr] "=r" (-> usize),
         );
-        var ttbr0: usize = asm ("mrs %[curr], ttbr0_el1"
+        const ttbr0: usize = asm ("mrs %[curr], ttbr0_el1"
             : [curr] "=r" (-> usize),
         );
 
@@ -310,14 +310,14 @@ pub const ProccessorRegMap = struct {
     }
 
     pub fn getCurrentEl() usize {
-        var x: usize = asm ("mrs %[curr], CurrentEL"
+        const x: usize = asm ("mrs %[curr], CurrentEL"
             : [curr] "=r" (-> usize),
         );
         return x >> 2;
     }
 
     pub fn getCurrentSp() usize {
-        var x: usize = asm ("mov %[curr], sp"
+        const x: usize = asm ("mov %[curr], sp"
             : [curr] "=r" (-> usize),
         );
         return x;
@@ -346,7 +346,7 @@ pub const ProccessorRegMap = struct {
         if (el != .elr)
             @compileError("can only read security state in el3");
         // reading NS bit
-        var x: usize = asm ("mrs %[curr], scr_el3"
+        const x: usize = asm ("mrs %[curr], scr_el3"
             : [curr] "=r" (-> usize),
         );
         return (x & (1 << 0)) != 0;

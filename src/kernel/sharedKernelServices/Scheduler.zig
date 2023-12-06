@@ -189,7 +189,7 @@ pub const Scheduler = struct {
         defer self.current_task.preempt_count -= 1;
 
         for (apps, 0..) |app, j| {
-            var i = j + 1;
+            const i = j + 1;
             // skip root task (index 0)
             const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, board.config.mem.va_user_space_gran.page_size);
             const app_mem = try self.page_allocator.allocNPage(req_pages);
@@ -279,9 +279,9 @@ pub const Scheduler = struct {
         if (self.scheduled_tasks[to_clone_pid].priv_level == .boot) return Error.ForkPermissionFault;
 
         const req_pages = try std.math.divCeil(usize, board.config.mem.app_vm_mem_size, board.config.mem.va_user_space_gran.page_size);
-        var new_app_mem = try self.page_allocator.allocNPage(req_pages);
+        const new_app_mem = try self.page_allocator.allocNPage(req_pages);
 
-        var new_pid: u16 = self.pid_counter;
+        const new_pid: u16 = self.pid_counter;
 
         std.mem.copy(u8, new_app_mem, self.scheduled_tasks[to_clone_pid].app_mem.?);
         self.scheduled_tasks[new_pid] = self.scheduled_tasks[to_clone_pid];
@@ -292,7 +292,7 @@ pub const Scheduler = struct {
         self.scheduled_tasks[to_clone_pid].child_pid = new_pid;
         self.pid_counter += 1;
 
-        for (self.scheduled_tasks) |*proc| {
+        for (&self.scheduled_tasks) |*proc| {
             if (proc.task_type == .thread or proc.parent_pid == to_clone_pid) {
                 try self.cloneThread(proc.pid.?, new_pid);
             }
@@ -305,7 +305,7 @@ pub const Scheduler = struct {
         try self.checkForPid(to_clone_thread_pid);
         if (!self.scheduled_tasks[to_clone_thread_pid].task_type == .thread) return;
 
-        var new_pid = self.pid_counter;
+        const new_pid = self.pid_counter;
         self.scheduled_tasks[new_pid] = self.scheduled_tasks[to_clone_thread_pid];
         self.scheduled_tasks[new_pid].pid = new_pid;
         self.scheduled_tasks[new_pid].parent_pid = new_proc_pid;
@@ -318,7 +318,7 @@ pub const Scheduler = struct {
         self.current_task.preempt_count += 1;
         defer self.current_task.preempt_count -= 1;
         const curr_task_index = (try self.findTaskByPid(self.current_task.pid.?)).index;
-        var new_pid: u16 = self.pid_counter;
+        const new_pid: u16 = self.pid_counter;
         self.scheduled_tasks[new_pid].pid = new_pid;
         self.scheduled_tasks[new_pid].task_type = .thread;
         self.scheduled_tasks[new_pid].state = self.scheduled_tasks[curr_task_index].state;
@@ -360,7 +360,7 @@ pub const Scheduler = struct {
         std.mem.copy(u8, thread_stack_start, arg_mem);
 
         const entry_fn = &(KernelThreadInstance(thread_fn, @TypeOf(args)).threadEntry);
-        var thread_fn_ptr = &thread_fn;
+        const thread_fn_ptr = &thread_fn;
 
         const thread_stack_addr = @intFromPtr(thread_stack_start.ptr) - alignForward(usize, @sizeOf(@TypeOf(args)), 16);
         const args_ptr = thread_stack_start.ptr;
@@ -483,7 +483,7 @@ pub const Scheduler = struct {
 
     // args (process pointers) are past via registers
     fn switchContextToProcess(self: *Scheduler, next_process: *Task, irq_context: ?*CpuContext) void {
-        var prev_process = self.current_task;
+        const prev_process = self.current_task;
         self.current_task = next_process;
 
         if (next_process.priv_level == .user) self.switchMemContext(next_process.ttbr0, null);
@@ -542,7 +542,7 @@ pub const Scheduler = struct {
         for (self.scheduled_tasks, 0..) |*proc, i| {
             if (proc.pid == pid) return .{ .index = @as(u16, @truncate(i)), .task_type = .process };
         }
-        for (self.env_actions, 0..) |*action, i| {
+        for (&self.env_actions, 0..) |*action, i| {
             if (action.pid == pid) return .{ .index = @as(u16, @truncate(i)), .task_type = .action };
         }
         return Error.PidNotFound;

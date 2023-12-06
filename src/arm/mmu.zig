@@ -82,7 +82,7 @@ pub const TableDescriptorAttr = packed struct {
 };
 
 pub fn PageTable(comptime total_mem_size: usize, comptime gran: GranuleParams) !type {
-    comptime var req_table_total = try calctotalTablesReq(gran, total_mem_size);
+    const req_table_total = try calctotalTablesReq(gran, total_mem_size);
     return struct {
         const Self = @This();
         pub const totaPageTableSize = req_table_total * gran.table_size;

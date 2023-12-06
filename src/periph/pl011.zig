@@ -74,7 +74,7 @@ pub fn Pl011(comptime addr_space: AddrSpace) type {
             RegMap.lineCtrlReg.reg.* = RegMap.lineCtrlReg.reg.* & ~@as(u32, 1 << 4);
 
             // calc int and fraction part of the clock devisor and write it to regs
-            var dev = calcClockDevisor();
+            const dev = calcClockDevisor();
             RegMap.intBaudRateReg.* = dev.integer;
             RegMap.fracBaudRateReg.* = dev.fraction;
 

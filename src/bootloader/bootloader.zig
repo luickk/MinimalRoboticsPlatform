@@ -26,15 +26,17 @@ const TransLvl = board.boardConfig.TransLvl;
 const kernel_bin = @embedFile("bins/kernel.bin");
 
 // note: when bl_main gets too big(instruction mem wise), the exception vector table could be pushed too far up and potentially not be read!
-export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
+// todo => remember => callconv(.Naked) removed...
+export fn bl_main() linksection(".text.boot") noreturn {
     // setting stack pointer to writable memory (ram (userspace))
     // using userspace as stack, incase the bootloader is located in rom
-    var user_space_start = blk: {
-        var user_space_start = (board.config.mem.bl_load_addr orelse 0) + (board.config.mem.rom_size orelse 0) + board.config.mem.kernel_space_size;
-        // increasing user_space_start by stack_size so that later writes to the user_space don't overwrite the bl's stack
-        user_space_start += board.config.mem.bl_stack_size;
-        ProccessorRegMap.setSp(alignForward(usize, user_space_start, 16));
-        break :blk user_space_start;
+    const user_space_start = blk: {
+        var user_space_start_tmp = (board.config.mem.bl_load_addr orelse 0) + (board.config.mem.rom_size orelse 0) + board.config.mem.kernel_space_size;
+        // increasing user_space_start_tmp by stack_size so that later writes to the user_space don't overwrite the bl's stack
+        user_space_start_tmp += board.config.mem.bl_stack_size;
+        const aligned_userspace_addr = alignForward(usize, user_space_start_tmp, 16);
+        ProccessorRegMap.setSp(aligned_userspace_addr);
+        break :blk user_space_start_tmp;
     };
 
     const _bl_bin_end: usize = @intFromPtr(@extern(?*u8, .{ .name = "_bl_end" }) orelse {
@@ -55,7 +57,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
 
             // writing page dirs to userspace in ram. Writing to userspace because it would be overwritten in kernel space, when copying
             // the kernel. Additionally, on mmu turn on, the mmu would try to read from the page tables without mmu kernel space identifier bits on
-            var ttbr1_mem = @as(*volatile [page_table.totaPageTableSize]usize, @ptrFromInt(alignForward(usize, user_space_start, Granule.Fourk.page_size)));
+            const ttbr1_mem = @as(*volatile [page_table.totaPageTableSize]usize, @ptrFromInt(alignForward(usize, user_space_start, Granule.Fourk.page_size)));
 
             // mapping general kernel mem (inlcuding device base)
             var ttbr1_write = page_table.init(ttbr1_mem, 0) catch |e| {
@@ -83,7 +85,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         const ttbr0 = blk: {
             // in case there is no rom(rom_size is equal to zero) and the kernel(and bl) are directly loaded to memory by some rom bootloader
             // the ttbr0 memory is also identity mapped to the ram
-            comptime var mapping_bl_phys_size: usize = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_size;
+            const mapping_bl_phys_size: usize = (board.config.mem.rom_size orelse 0) + board.config.mem.ram_size;
 
             const page_table = mmu.PageTable(mapping_bl_phys_size, Granule.FourkSection) catch |e| {
                 kprint("[panic] Page table init error: {s}\n", .{@errorName(e)});
@@ -94,7 +96,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
 
             ttbr0_addr = alignForward(usize, ttbr0_addr, Granule.Fourk.page_size);
 
-            var ttbr0_mem = @as(*volatile [page_table.totaPageTableSize]usize, @ptrFromInt(ttbr0_addr));
+            const ttbr0_mem = @as(*volatile [page_table.totaPageTableSize]usize, @ptrFromInt(ttbr0_addr));
 
             // MMU page dir config
 
@@ -155,7 +157,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
         pl011.init();
     }
 
-    var current_el = ProccessorRegMap.getCurrentEl();
+    const current_el = ProccessorRegMap.getCurrentEl();
     if (current_el != 1) {
         kprint("[panic] el must be 1! (it's: {d})\n", .{current_el});
         bl_utils.panic();
@@ -168,7 +170,7 @@ export fn bl_main() linksection(".text.boot") callconv(.Naked) noreturn {
 
         kprint("[bootloader] Copying kernel to addr_space: 0x{x}, with size: {d} \n", .{ @intFromPtr(kernel_target_loc.ptr), kernel_target_loc.len });
         std.mem.copy(u8, kernel_target_loc, kernel_bin);
-        var kernel_addr = @intFromPtr(kernel_target_loc.ptr);
+        const kernel_addr = @intFromPtr(kernel_target_loc.ptr);
 
         const kernel_sp = blk: {
             const aligned_ksize = alignForward(usize, kernel_target_loc.len, 0x8);

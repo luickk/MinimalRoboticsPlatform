@@ -147,7 +147,8 @@ pub fn createThread(thread_stack_mem: []u8, thread_fn: anytype, args: anytype) !
 fn ThreadInstance(comptime thread_fn: anytype, comptime Args: type) type {
     const ThreadFn = @TypeOf(thread_fn);
     return struct {
-        fn threadEntry(entry_fn: *ThreadFn, entry_args: *Args) callconv(.C) void {
+        // todo => I removed  callconv(.C), still safe?
+        fn threadEntry(entry_fn: *ThreadFn, entry_args: *Args) void {
             @call(.auto, entry_fn, entry_args.*);
         }
     };

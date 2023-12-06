@@ -69,11 +69,11 @@ pub const UserPageAllocator = struct {
         if ((try std.math.mod(usize, utils.toTtbr0(usize, @intFromPtr(page_addr.ptr)), granule.page_size)) != 0)
             return Error.PageAddrDoesNotAlign;
 
-        var pointing_addr_start: usize = std.math.sub(usize, utils.toTtbr0(usize, @intFromPtr(page_addr.ptr)), self.mem_start) catch {
+        const pointing_addr_start: usize = std.math.sub(usize, utils.toTtbr0(usize, @intFromPtr(page_addr.ptr)), self.mem_start) catch {
             return Error.AddrNotInMem;
         };
         // safe bc page_address is multiple of page_size
-        var n_page = pointing_addr_start / granule.page_size;
+        const n_page = pointing_addr_start / granule.page_size;
         self.kernel_mem.setRangeValue(.{ .start = n_page, .end = n_page + n + n }, false);
         self.curr_page_pointer -= n;
     }

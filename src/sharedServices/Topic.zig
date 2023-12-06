@@ -75,7 +75,7 @@ pub const UsersapceMultiBuff = struct {
     }
 
     pub fn write_continous_buff(self: *UsersapceMultiBuff, data: []u8) !usize {
-        var buff_pointer = try std.math.mod(usize, self.curr_read_write_ptr.*, self.buff.len);
+        const buff_pointer = try std.math.mod(usize, self.curr_read_write_ptr.*, self.buff.len);
 
         std.mem.copy(u8, self.buff[buff_pointer..], data);
         if (buff_pointer + data.len > self.buff.len) {
@@ -89,11 +89,11 @@ pub const UsersapceMultiBuff = struct {
         // if (asm volatile ("adr %[pc], ."
         //     : [pc] "=r" (-> usize),
         // ) < 0xFFFFFF8000000000) kprint("curr read curr_read_write_ptr: {any} \n", .{self.curr_read_write_ptr.*});
-        var buff_pointer = try std.math.mod(usize, self.curr_read_write_ptr.*, self.buff.len);
+        const buff_pointer = try std.math.mod(usize, self.curr_read_write_ptr.*, self.buff.len);
 
         var lower_read_bound: usize = 0;
         if (buff_pointer > ret_buff.len) lower_read_bound = buff_pointer - ret_buff.len;
-        var data = self.buff[lower_read_bound..buff_pointer];
+        const data = self.buff[lower_read_bound..buff_pointer];
 
         std.mem.copy(u8, ret_buff, data);
 
@@ -104,7 +104,10 @@ pub const UsersapceMultiBuff = struct {
             if (rollover_size > self.buff.len) return Error.MaxRollOvers;
 
             rolled_over_data = self.buff[self.buff.len - rollover_size .. self.buff.len];
-            std.mem.copy(u8, @as([]u8, @ptrFromInt(@intFromPtr(ret_buff.ptr) + data.len)), rolled_over_data);
+            var ret_buff_slice: []u8 = undefined;
+            ret_buff_slice.ptr = @ptrFromInt(@intFromPtr(ret_buff.ptr) + data.len);
+            ret_buff_slice.len = data.len;
+            std.mem.copy(u8, ret_buff_slice, rolled_over_data);
         }
         return data.len + rolled_over_data.len;
     }

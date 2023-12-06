@@ -44,26 +44,26 @@ pub const ExceptionClass = enum(u6) {
 };
 
 pub fn trapHandler(temp_context: *CpuContext, tmp_int_type: usize) callconv(.C) noreturn {
-    var int_type = tmp_int_type;
-    var int_type_en = std.meta.intToEnum(gic.ExceptionType, int_type) catch {
+    const int_type = tmp_int_type;
+    const int_type_en = std.meta.intToEnum(gic.ExceptionType, int_type) catch {
         kprint("intToEnum int_type failed \n", .{});
         bl_utils.panic();
     };
     temp_context.int_type = int_type;
     kprint("bl irqHandler \n", .{});
-    var iss = @as(u25, @truncate(temp_context.esr_el1));
-    var ifsc = @as(u6, @truncate(temp_context.esr_el1));
-    var il = @as(u1, @truncate(temp_context.esr_el1 >> 25));
-    var ec = @as(u6, @truncate(temp_context.esr_el1 >> 26));
-    var iss2 = @as(u5, @truncate(temp_context.esr_el1 >> 32));
+    const iss = @as(u25, @truncate(temp_context.esr_el1));
+    const ifsc = @as(u6, @truncate(temp_context.esr_el1));
+    const il = @as(u1, @truncate(temp_context.esr_el1 >> 25));
+    const ec = @as(u6, @truncate(temp_context.esr_el1 >> 26));
+    const iss2 = @as(u5, @truncate(temp_context.esr_el1 >> 32));
     _ = iss;
     _ = iss2;
 
-    var ec_en = std.meta.intToEnum(ExceptionClass, ec) catch {
+    const ec_en = std.meta.intToEnum(ExceptionClass, ec) catch {
         kprint("esp exception class not found \n", .{});
         bl_utils.panic();
     };
-    var ifsc_en = std.meta.intToEnum(ProccessorRegMap.Esr_el1.Ifsc, ifsc) catch {
+    const ifsc_en = std.meta.intToEnum(ProccessorRegMap.Esr_el1.Ifsc, ifsc) catch {
         kprint("esp exception class not found \n", .{});
         bl_utils.panic();
     };

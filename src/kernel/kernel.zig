@@ -203,7 +203,7 @@ export fn kernel_main(boot_without_rom_new_kernel_loc: usize) linksection(".text
 
     kprint("[kernel] page tables updated! \n", .{});
 
-    var current_el = ProccessorRegMap.getCurrentEl();
+    const current_el = ProccessorRegMap.getCurrentEl();
     if (current_el != 1) {
         kprint("[panic] el must be 1! (it is: {d})\n", .{current_el});
         ProccessorRegMap.panic();

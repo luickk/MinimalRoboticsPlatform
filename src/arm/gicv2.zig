@@ -322,7 +322,7 @@ pub fn Gic(comptime addr_space: AddrSpace) type {
             // config  configuration value for gicd_icfgr
             pub fn gicdConfig(irq_id: InterruptIds, config: u32) !void {
                 const reg = try calcReg(GicdRegMap.icfgr, @intFromEnum(irq_id), icfgrPerReg);
-                var shift = try calcShift(@intFromEnum(irq_id), icfgrPerReg) * 2; // gicd_icfgr has 16 fields, each field has 2bits.
+                const shift = try calcShift(@intFromEnum(irq_id), icfgrPerReg) * 2; // gicd_icfgr has 16 fields, each field has 2bits.
 
                 var update_val = reg.*;
                 update_val &= ~((@as(u32, 0x03)) << shift); // clear the field

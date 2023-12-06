@@ -25,7 +25,7 @@ pub const SharedMemTopicsInterface = struct {
         var topics = [_]Topic{undefined} ** env.env_config.countTopics();
 
         var accumulatedTopicsBuffSize: usize = 0;
-        for (env.env_config.status_control) |*status_control_conf| {
+        for (&env.env_config.status_control) |*status_control_conf| {
             if (status_control_conf.*.status_type == .topic) {
                 accumulatedTopicsBuffSize += status_control_conf.topic_conf.?.buffer_size + @sizeOf(usize);
             }
@@ -37,7 +37,7 @@ pub const SharedMemTopicsInterface = struct {
 
         var used_topics_mem: usize = 0;
         var i: usize = 0;
-        for (env.env_config.status_control) |*status_control_conf| {
+        for (&env.env_config.status_control) |*status_control_conf| {
             if (status_control_conf.*.status_type == .topic) {
                 const topic_read_write_buff_ptr = @as(*volatile usize, @ptrFromInt(@intFromPtr(fixedTopicMemPoolInterface.ptr) + used_topics_mem));
                 topic_read_write_buff_ptr.* = 0;
@@ -72,7 +72,7 @@ pub const SharedMemTopicsInterface = struct {
 
     // returns index
     fn findTopicById(self: *SharedMemTopicsInterface, id: usize) ?usize {
-        for (self.topics, 0..) |*topic, i| {
+        for (&self.topics, 0..) |*topic, i| {
             if (topic.id == id) return i;
         }
         return null;

@@ -45,7 +45,7 @@ pub fn Bcm2835Timer(comptime base_address: ?usize, comptime scheduler_freq_in_he
         pub fn initTimer(self: *Self) Error!void {
             self.initialTimerHi = RegMap.timerHi.*;
             self.timerVal = RegMap.timerLo.*;
-            increasePerTick = @as(u32, @truncate(try utils.calcTicksFromHertz(cnt_freq, scheduler_freq_in_hertz)));
+            increasePerTick = @as(u32, @truncate(utils.calcTicksFromHertz(cnt_freq, scheduler_freq_in_hertz)));
             self.timerVal += increasePerTick;
             RegMap.timerC1.* = self.timerVal;
         }

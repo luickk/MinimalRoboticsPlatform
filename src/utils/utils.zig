@@ -5,9 +5,11 @@ pub const Error = error{
     SchedulerFreqTooLow,
 };
 
-pub fn calcTicksFromHertz(timer_freq_in_hertz: usize, wanted_freq_in_hertz: usize) !usize {
-    if (wanted_freq_in_hertz > timer_freq_in_hertz) return Error.SchedulerFreqTooLow;
-    return (try std.math.divTrunc(usize, timer_freq_in_hertz, wanted_freq_in_hertz));
+pub fn calcTicksFromHertz(timer_freq_in_hertz: usize, wanted_freq_in_hertz: usize) usize {
+    // todo => restore line below
+    // if (wanted_freq_in_hertz > timer_freq_in_hertz) return Error.SchedulerFreqTooLow;
+    // todo => use std divtrunct not /
+    return timer_freq_in_hertz / wanted_freq_in_hertz;
 }
 
 pub inline fn toTtbr1(comptime T: type, inp: T) T {

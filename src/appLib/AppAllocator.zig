@@ -20,7 +20,7 @@ pub const AppAllocator = struct {
             heap_start = _heap_start;
         } else heap_start = mem_base.?;
         if (heap_start % 8 != 0) return Error.MemBaseNotAligned;
-        var ka = AppAllocator{
+        const ka = AppAllocator{
             .kernel_mem = [_]bool{false} ** maxChunks,
             // can currently only increase and indicates at which point findFree() is required
             .used_chunks = 0,
@@ -33,35 +33,35 @@ pub const AppAllocator = struct {
         var alignm: usize = @alignOf(T);
         if (alignment) |a| alignm = a;
 
-        var size = @sizeOf(T) * n;
-        var req_chunks = try std.math.divCeil(usize, size, appAllocatorChunkSize);
+        const size = @sizeOf(T) * n;
+        const req_chunks = try std.math.divCeil(usize, size, appAllocatorChunkSize);
 
         if (try self.findFree(self.used_chunks, size)) |free_mem_first_chunk| {
             for (self.kernel_mem[free_mem_first_chunk .. free_mem_first_chunk + req_chunks]) |*chunk| {
                 chunk.* = true;
             }
-            var alloc_addr = self.mem_base + (free_mem_first_chunk * appAllocatorChunkSize);
+            const alloc_addr = self.mem_base + (free_mem_first_chunk * appAllocatorChunkSize);
             var aligned_alloc_slice = @as([*]T, @ptrFromInt(alignForward(usize, alloc_addr, alignm)));
             return aligned_alloc_slice[0 .. n - 1];
         } else if (self.used_chunks + req_chunks > maxChunks) {
             return Error.OutOfMem;
         }
 
-        var first_chunk = self.used_chunks;
-        var last_chunk = self.used_chunks + req_chunks;
+        const first_chunk = self.used_chunks;
+        const last_chunk = self.used_chunks + req_chunks;
         self.used_chunks += req_chunks;
         for (self.kernel_mem[first_chunk..last_chunk]) |*chunk| {
             chunk.* = true;
         }
-        var alloc_addr = self.mem_base + (first_chunk * appAllocatorChunkSize);
-        var aligned_alloc_slice = @as([*]T, @ptrFromInt(alignForward(usize, alloc_addr, alignm)));
+        const alloc_addr = self.mem_base + (first_chunk * appAllocatorChunkSize);
+        const aligned_alloc_slice = @as([*]T, @ptrFromInt(alignForward(usize, alloc_addr, alignm)));
         return aligned_alloc_slice[0 .. n - 1];
     }
 
     /// finds continous free memory in fragmented kernel memory; marks returned memory as not free!
     pub fn findFree(self: *AppAllocator, to_chunk: usize, req_size: usize) !?usize {
         var continous_chunks: usize = 0;
-        var req_chunks = (try std.math.divCeil(usize, req_size, appAllocatorChunkSize));
+        const req_chunks = (try std.math.divCeil(usize, req_size, appAllocatorChunkSize));
         for (self.kernel_mem, 0..) |chunk, i| {
             if (i >= to_chunk) {
                 return null;
@@ -93,12 +93,12 @@ pub const AppAllocator = struct {
         if (addr_unaligned > (self.mem_base + (maxChunks * appAllocatorChunkSize)))
             return Error.AddrNotInMem;
 
-        var i_chunk_to_free: usize = (try std.math.divCeil(usize, std.math.sub(usize, addr_unaligned, self.mem_base) catch {
+        const i_chunk_to_free: usize = (try std.math.divCeil(usize, std.math.sub(usize, addr_unaligned, self.mem_base) catch {
             return Error.AddrNotInMem;
         }, appAllocatorChunkSize)) - 1;
 
-        var n_chunks_to_free: usize = try std.math.divCeil(usize, size, appAllocatorChunkSize);
-        for (self.kernel_mem[i_chunk_to_free .. i_chunk_to_free + n_chunks_to_free]) |*chunk| {
+        const n_chunks_to_free: usize = try std.math.divCeil(usize, size, appAllocatorChunkSize);
+        for (&self.kernel_mem[i_chunk_to_free .. i_chunk_to_free + n_chunks_to_free]) |*chunk| {
             chunk.* = false;
         }
     }

@@ -30,7 +30,7 @@ pub fn GenericTimer(comptime base_address: ?usize, comptime scheduler_freq_in_he
         pub fn setupGt(self: *Self) !void {
             const cnt_freq = getFreq();
 
-            const expire_count = try utils.calcTicksFromHertz(cnt_freq, scheduler_freq_in_hertz);
+            const expire_count = utils.calcTicksFromHertz(cnt_freq, scheduler_freq_in_hertz);
             self.timerVal = expire_count;
 
             asm volatile (
@@ -56,7 +56,7 @@ pub fn GenericTimer(comptime base_address: ?usize, comptime scheduler_freq_in_he
 
         pub fn isEnabled(self: *Self) !bool {
             _ = self;
-            var icprendr: u64 = asm ("mrs %[curr], CNTP_CTL_EL0"
+            const icprendr: u64 = asm ("mrs %[curr], CNTP_CTL_EL0"
                 : [curr] "=r" (-> u64),
             );
             if (icprendr & (1 << 0) != 0) {

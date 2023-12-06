@@ -156,7 +156,8 @@ fn pushToTopic(params_args: *CpuContext) void {
 fn popFromTopic(params_args: *CpuContext) void {
     const id = params_args.x0;
     const data_len = params_args.x1;
-    var ret_buff = @as([]u8, @ptrFromInt(params_args.x2));
+    var ret_buff: []u8 = undefined;
+    ret_buff.ptr = @ptrFromInt(params_args.x2);
     ret_buff.len = data_len;
     params_args.x0 = topics.read(id, ret_buff) catch |e| {
         kprint("Topics popFromTopic error: {s}\n", .{@errorName(e)});
@@ -187,7 +188,7 @@ fn updateStatus(params_args: *CpuContext) void {
 
 fn readStatus(params_args: *CpuContext) void {
     const status_id = @as(u16, @intCast(params_args.x0));
-    var ret_buff = params_args.x1;
+    const ret_buff = params_args.x1;
     status_control.readStatusRaw(status_id, ret_buff) catch |e| {
         kprint("StatusControl readRaw error: {s}\n", .{@errorName(e)});
         @as(*isize, @ptrCast(&params_args.x0)).* = 0 - @as(isize, @intCast(@intFromError(e)));
